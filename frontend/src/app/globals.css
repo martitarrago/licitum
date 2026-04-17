@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light mode — cálido, base blanca con tinte sutil beige */
+    --surface:          0 0% 100%;      /* #FFFFFF */
+    --surface-raised:  30 25% 98%;      /* ~#FBFAF8 — tarjetas elevadas */
+    --border:          30 10% 89%;      /* ~#E5E2DD */
+    --muted:           30 20% 96%;      /* ~#F6F3EF — fondos secundarios */
+    --muted-foreground: 30 8% 42%;      /* ~#736B63 — texto secundario */
+    --foreground:      30 15% 12%;      /* ~#231E18 — texto principal */
+  }
+
+  .dark {
+    /* Dark mode — mantiene la calidez: warm grays, no navy frío */
+    --surface:          30 8% 8%;       /* ~#181513 */
+    --surface-raised:  30 7% 12%;       /* ~#221F1C */
+    --border:          30 6% 20%;       /* ~#363330 */
+    --muted:           30 6% 14%;       /* ~#282623 */
+    --muted-foreground: 30 5% 64%;      /* ~#A8A29C */
+    --foreground:      30 10% 95%;      /* ~#F2EFEC */
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-surface text-foreground;
+    /* Inter stylistic sets: ss01 (disambigua I/l/1), cv11 (single-story 'a') */
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* Números tabulares en tablas y dashboards (crítico para alinear cifras) */
+  table,
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
