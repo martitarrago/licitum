@@ -65,9 +65,11 @@ function formatFechaCorta(d: Date) {
 export function CertificadoCard({
   cert,
   caducado = false,
+  porCaducar = false,
 }: {
   cert: CertificadoObraListItem;
   caducado?: boolean;
+  porCaducar?: boolean;
 }) {
   const estilo = estadoStyles[cert.estado];
   const StatusIcon = estilo.Icon;
@@ -81,7 +83,9 @@ export function CertificadoCard({
     ? "bg-danger"
     : caducado
       ? "bg-muted-foreground/40"
-      : estilo.stripe;
+      : porCaducar
+        ? "bg-amber-400"
+        : estilo.stripe;
 
   const badgeOverride = caducado
     ? "bg-muted ring-border text-muted-foreground"
@@ -143,8 +147,8 @@ export function CertificadoCard({
             <div className="text-[11px] text-muted-foreground">Importe</div>
           </div>
 
-          {/* Grupo ROLECE */}
-          <div className="hidden lg:block w-20 flex-shrink-0 text-center">
+          {/* Grupo ROLECE + UTE badge */}
+          <div className="hidden lg:flex flex-col items-center gap-1 w-24 flex-shrink-0">
             {cert.clasificacion_grupo ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
                 <Tag className="h-3 w-3" aria-hidden="true" />
@@ -154,10 +158,15 @@ export function CertificadoCard({
             ) : (
               <span className="text-xs text-muted-foreground">—</span>
             )}
+            {cert.porcentaje_ute != null && (
+              <span className="text-[10px] font-medium text-muted-foreground">
+                UTE {cert.porcentaje_ute}%
+              </span>
+            )}
           </div>
 
           {/* Badge de estado */}
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 flex flex-col items-end gap-1">
             {tieneExtractionError ? (
               <span
                 className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger ring-1 ring-inset ring-danger/25"
@@ -183,6 +192,16 @@ export function CertificadoCard({
                   <StatusIcon className={`h-3 w-3 ${estilo.iconColor}`} aria-hidden="true" />
                 )}
                 {caducado ? "Caducado" : estilo.label}
+              </span>
+            )}
+            {porCaducar && !caducado && (
+              <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                Caduca pronto
+              </span>
+            )}
+            {cert.es_valido_solvencia === false && cert.estado === "validado" && (
+              <span className="text-[10px] font-medium text-warning">
+                No computa solvencia
               </span>
             )}
           </div>

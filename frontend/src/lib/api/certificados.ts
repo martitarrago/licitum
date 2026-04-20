@@ -23,20 +23,39 @@ export interface ExtractedData {
 export interface CertificadoObraListItem {
   id: string;
   empresa_id: string;
-  titulo: string;
-  organismo: string;
-  importe_adjudicacion: string;
-  fecha_inicio: string;
-  fecha_fin: string;
-  numero_expediente: string;
+  titulo: string | null;
+  organismo: string | null;
+  importe_adjudicacion: string | null;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  numero_expediente: string | null;
   cpv_codes: string[];
   clasificacion_grupo: string | null;
   clasificacion_subgrupo: string | null;
   pdf_url: string;
   estado: EstadoCertificado;
   extraction_error: string | null;
+  tipo_documento: string | null;
+  es_valido_solvencia: boolean | null;
+  razon_invalidez: string | null;
+  porcentaje_ute: string | null;
+  contratista_principal: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface ResumenGrupo {
+  grupo: string;
+  importe_total: string;
+  num_obras: number;
+}
+
+export interface ResumenSolvencia {
+  por_grupo: ResumenGrupo[];
+  anualidad_media: string;
+  total_obras: number;
+  periodo_inicio: string;
+  periodo_fin: string;
 }
 
 export interface CertificadoObraRead extends CertificadoObraListItem {
@@ -54,6 +73,9 @@ export interface PatchCertificadoPayload {
   clasificacion_grupo?: string | null;
   clasificacion_subgrupo?: string | null;
   extracted_data?: Partial<ExtractedData>;
+  porcentaje_ute?: number | null;
+  contratista_principal?: boolean;
+  es_valido_solvencia?: boolean | null;
 }
 
 export interface ListCertificadosParams {
@@ -147,5 +169,10 @@ export const certificadosApi = {
     apiFetch<CertificadoObraRead>(
       `/api/v1/solvencia/certificados/${id}/revertir`,
       { method: "POST" }
+    ),
+
+  resumenSolvencia: (empresa_id: string) =>
+    apiFetch<ResumenSolvencia>(
+      `/api/v1/solvencia/certificados/resumen-solvencia?empresa_id=${empresa_id}`
     ),
 };

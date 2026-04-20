@@ -407,6 +407,9 @@ interface FormValues {
   cpv_codes: string;
   clasificacion_grupo: string;
   clasificacion_subgrupo: string;
+  contratista_principal: boolean;
+  es_ute: boolean;
+  porcentaje_ute: string;
 }
 
 function fromCert(cert: CertificadoObraRead): FormValues {
@@ -417,6 +420,7 @@ function fromCert(cert: CertificadoObraRead): FormValues {
       : cert.importe_adjudicacion && Number(cert.importe_adjudicacion) > 0
         ? String(cert.importe_adjudicacion)
         : "";
+  const pctUte = cert.porcentaje_ute ? String(cert.porcentaje_ute) : "";
   return {
     organismo: data.organismo ?? cert.organismo ?? "",
     importe_adjudicacion: importe,
@@ -431,6 +435,9 @@ function fromCert(cert: CertificadoObraRead): FormValues {
     clasificacion_grupo: data.clasificacion_grupo ?? cert.clasificacion_grupo ?? "",
     clasificacion_subgrupo:
       data.clasificacion_subgrupo ?? cert.clasificacion_subgrupo ?? "",
+    contratista_principal: cert.contratista_principal ?? true,
+    es_ute: cert.porcentaje_ute != null,
+    porcentaje_ute: pctUte,
   };
 }
 
@@ -473,6 +480,10 @@ function ReviewForm({
             : undefined,
           clasificacion_grupo: form.clasificacion_grupo || null,
           clasificacion_subgrupo: form.clasificacion_subgrupo || null,
+          contratista_principal: form.contratista_principal,
+          porcentaje_ute: form.es_ute && form.porcentaje_ute
+            ? Number(form.porcentaje_ute)
+            : null,
         })
         .then(() =>
           action === "validar"
@@ -493,8 +504,32 @@ function ReviewForm({
   const inputCls =
     "w-full rounded-lg bg-surface ring-1 ring-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 transition-shadow";
 
+  const importeBase = Number(form.importe_adjudicacion) || 0;
+  const importeUte =
+    form.es_ute && form.porcentaje_ute
+      ? importeBase * (Number(form.porcentaje_ute) / 100)
+      : null;
+
   return (
     <>
+      {/* Banner documento inválido — si la IA lo detectó como no válido */}
+      {cert.es_valido_solvencia === false && cert.razon_invalidez && (
+        <div className="border-b border-border bg-warning/5 px-6 py-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-warning" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Este documento puede no ser válido para acreditar solvencia
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">{cert.razon_invalidez}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Puedes rechazarlo o validarlo igualmente si crees que la clasificación automática es incorrecta.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-5 p-6">
         {/* Confianza global — solo si hay datos extraídos */}
         {showConfianza && (
@@ -634,6 +669,72 @@ function ReviewForm({
                 disabled={mutation.isPending}
               />
             </FieldWithConfidence>
+          </div>
+        </div>
+
+        {/* Contratista principal */}
+        <div className="rounded-lg bg-muted px-4 py-3 space-y-3">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Rol en la obra
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
+            {[
+              { value: true, label: "Contratista principal", sub: "La empresa fue el adjudicatario directo" },
+              { value: false, label: "Subcontratista", sub: "No computa para solvencia acreditada" },
+            ].map(({ value, label, sub }) => (
+              <label key={String(value)} className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="contratista_principal"
+                  checked={form.contratista_principal === value}
+                  onChange={() => setForm((p) => ({ ...p, contratista_principal: value }))}
+                  disabled={mutation.isPending}
+                  className="mt-0.5 accent-primary-500"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-foreground">{label}</span>
+                  <span className="block text-xs text-muted-foreground">{sub}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          {/* UTE */}
+          <div className="border-t border-border pt-3">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.es_ute}
+                onChange={(e) => setForm((p) => ({ ...p, es_ute: e.target.checked, porcentaje_ute: "" }))}
+                disabled={mutation.isPending}
+                className="accent-primary-500"
+              />
+              <span className="text-sm font-medium text-foreground">Obra ejecutada en UTE</span>
+            </label>
+            {form.es_ute && (
+              <div className="mt-2 flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Participación</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="ej: 40"
+                    value={form.porcentaje_ute}
+                    onChange={(e) => setForm((p) => ({ ...p, porcentaje_ute: e.target.value }))}
+                    disabled={mutation.isPending}
+                    className="w-20 rounded-lg bg-surface ring-1 ring-border px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                  <span className="text-sm text-muted-foreground">%</span>
+                </div>
+                {importeUte !== null && importeBase > 0 && (
+                  <span className="text-sm font-semibold tabular-nums text-foreground">
+                    → {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(importeUte)} imputables
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

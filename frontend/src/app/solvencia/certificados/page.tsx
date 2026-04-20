@@ -9,17 +9,19 @@ import {
 } from "@/lib/api/certificados";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 import { CertificadoCard } from "@/components/solvencia/CertificadoCard";
+import { SolvenciaResumen } from "@/components/solvencia/SolvenciaResumen";
 import { UploadModal } from "@/components/solvencia/UploadModal";
 
 // ─── Tipos de filtro ──────────────────────────────────────────────────────────
 
-type Filtro = "todos" | "validos" | "rechazados" | "caducados";
+type Filtro = "todos" | "validos" | "rechazados" | "caducados" | "por_caducar";
 
 const FILTROS: { value: Filtro; label: string }[] = [
   { value: "todos", label: "Todos" },
   { value: "validos", label: "Válidos" },
   { value: "rechazados", label: "Rechazados" },
   { value: "caducados", label: "Caducados" },
+  { value: "por_caducar", label: "Por caducar" },
 ];
 
 type Orden = "recientes" | "fecha_obra" | "grupo" | "importe";
@@ -33,11 +35,18 @@ const ORDENES: { value: Orden; label: string }[] = [
 
 // Período de referencia LCSP art. 88: los últimos 5 años
 const CINCO_ANIOS_MS = 5 * 365.25 * 24 * 60 * 60 * 1000;
+const SEIS_MESES_MS = 0.5 * 365.25 * 24 * 60 * 60 * 1000;
 
 function esCaducado(cert: CertificadoObraListItem): boolean {
   if (cert.estado !== "validado") return false;
   if (!cert.fecha_fin) return false;
   return Date.now() - new Date(cert.fecha_fin).getTime() > CINCO_ANIOS_MS;
+}
+
+function esPorCaducar(cert: CertificadoObraListItem): boolean {
+  if (cert.estado !== "validado" || !cert.fecha_fin) return false;
+  const antigüedad = Date.now() - new Date(cert.fecha_fin).getTime();
+  return antigüedad > CINCO_ANIOS_MS - SEIS_MESES_MS && antigüedad <= CINCO_ANIOS_MS;
 }
 
 // ─── Skeleton ────────────────────────────────────────────────────────────────
@@ -87,9 +96,10 @@ export default function CertificadosPage() {
 
     // Filtrar
     let items = certificados.filter((c) => {
-      if (filtro === "validos") return c.estado === "validado" && !esCaducado(c);
+      if (filtro === "validos") return c.estado === "validado" && !esCaducado(c) && !esPorCaducar(c);
       if (filtro === "rechazados") return c.estado === "rechazado";
       if (filtro === "caducados") return esCaducado(c);
+      if (filtro === "por_caducar") return esPorCaducar(c);
       return true;
     });
 
@@ -153,6 +163,9 @@ export default function CertificadosPage() {
           técnico, que el sistema usará para saber a qué licitaciones puedes presentarte.
         </p>
       </div>
+
+      {/* Panel de solvencia */}
+      <SolvenciaResumen />
 
       {/* Filtros + ordenación */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -270,6 +283,7 @@ export default function CertificadosPage() {
               key={cert.id}
               cert={cert}
               caducado={esCaducado(cert)}
+              porCaducar={esPorCaducar(cert)}
             />
           ))}
         </div>

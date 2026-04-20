@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated, Sequence
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -344,6 +345,82 @@ async def rechazar_certificado(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CertificadoObra:
     return await _transicionar_estado(db, certificado_id, EstadoCertificado.rechazado)
+
+
+class ResumenGrupo(BaseModel):
+    grupo: str
+    importe_total: Decimal
+    num_obras: int
+
+
+class ResumenSolvencia(BaseModel):
+    por_grupo: list[ResumenGrupo]
+    anualidad_media: Decimal
+    total_obras: int
+    periodo_inicio: date
+    periodo_fin: date
+
+
+@router.get(
+    "/resumen-solvencia",
+    response_model=ResumenSolvencia,
+    summary="Resumen de solvencia acreditada — últimos 5 años, solo certificados válidos",
+)
+async def resumen_solvencia(
+    empresa_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ResumenSolvencia:
+    periodo_fin = date.today()
+    periodo_inicio = periodo_fin - timedelta(days=5 * 365)
+
+    stmt = (
+        select(CertificadoObra)
+        .where(
+            CertificadoObra.empresa_id == empresa_id,
+            CertificadoObra.deleted_at.is_(None),
+            CertificadoObra.estado == EstadoCertificado.validado,
+            CertificadoObra.contratista_principal.is_(True),
+            CertificadoObra.fecha_fin >= periodo_inicio,
+            CertificadoObra.importe_adjudicacion.isnot(None),
+        )
+    )
+    result = await db.execute(stmt)
+    certs = result.scalars().all()
+
+    # Filtra los marcados explícitamente como no válidos; incluye los que aún no tienen clasificación
+    certs_validos = [
+        c for c in certs if c.es_valido_solvencia is not False
+    ]
+
+    por_grupo: dict[str, Decimal] = {}
+    conteos: dict[str, int] = {}
+    total_importe = Decimal(0)
+
+    for c in certs_validos:
+        importe_base = c.importe_adjudicacion or Decimal(0)
+        if c.porcentaje_ute is not None:
+            importe = importe_base * c.porcentaje_ute / 100
+        else:
+            importe = importe_base
+        total_importe += importe
+        grupo = c.clasificacion_grupo or "Sin clasificar"
+        por_grupo[grupo] = por_grupo.get(grupo, Decimal(0)) + importe
+        conteos[grupo] = conteos.get(grupo, 0) + 1
+
+    grupos_ordenados = sorted(por_grupo.items(), key=lambda x: x[1], reverse=True)
+    num_years = Decimal(5)
+    anualidad_media = (total_importe / num_years).quantize(Decimal("0.01")) if total_importe else Decimal(0)
+
+    return ResumenSolvencia(
+        por_grupo=[
+            ResumenGrupo(grupo=g, importe_total=v.quantize(Decimal("0.01")), num_obras=conteos[g])
+            for g, v in grupos_ordenados
+        ],
+        anualidad_media=anualidad_media,
+        total_obras=len(certs_validos),
+        periodo_inicio=periodo_inicio,
+        periodo_fin=periodo_fin,
+    )
 
 
 @router.get(

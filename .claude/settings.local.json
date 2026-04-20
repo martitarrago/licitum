@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py -3.11 -m uv sync)",
+      "Bash(py -3.11 -m uv run alembic upgrade head)",
+      "Bash(py -3.11 -m uv run python -c ' *)"
+    ]
+  }
+}

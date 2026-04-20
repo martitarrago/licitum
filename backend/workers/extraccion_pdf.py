@@ -23,6 +23,20 @@ CLAUDE_MODEL = "claude-sonnet-4-20250514"
 CLAUDE_MAX_TOKENS = 2048
 PDF_DOWNLOAD_TIMEOUT_SECONDS = 60
 
+TIPOS_DOCUMENTO_VALIDOS = {
+    "cert_buena_ejecucion",
+    "acta_recepcion",
+    "cert_rolece",
+}
+
+TIPOS_DOCUMENTO_INVALIDOS = {
+    "contrato_adjudicacion",
+    "certificacion_parcial",
+    "subcontratacion",
+    "asistencia_tecnica",
+    "otro",
+}
+
 EXTRACTION_TOOL: dict = {
     "name": "guardar_datos_certificado",
     "description": (
@@ -33,6 +47,39 @@ EXTRACTION_TOOL: dict = {
     "input_schema": {
         "type": "object",
         "properties": {
+            "tipo_documento": {
+                "type": "string",
+                "enum": [
+                    "cert_buena_ejecucion",
+                    "acta_recepcion",
+                    "cert_rolece",
+                    "contrato_adjudicacion",
+                    "certificacion_parcial",
+                    "subcontratacion",
+                    "asistencia_tecnica",
+                    "otro",
+                ],
+                "description": (
+                    "Clasifica el documento ANTES de extraer datos. "
+                    "cert_buena_ejecucion: emitido por organismo, certifica obra terminada. "
+                    "acta_recepcion: firma formal del organismo aceptando la obra. "
+                    "cert_rolece: clasificación empresarial de la JCCPE. "
+                    "contrato_adjudicacion: acredita adjudicación, NO ejecución. "
+                    "certificacion_parcial: certificación mensual de obra en curso, no final. "
+                    "subcontratacion: la empresa actuaba como subcontratista, no contratista principal. "
+                    "asistencia_tecnica: acredita a la ingeniería/dirección, no al constructor. "
+                    "otro: cualquier otro documento."
+                ),
+            },
+            "razon_invalidez": {
+                "type": ["string", "null"],
+                "description": (
+                    "Si tipo_documento NO es cert_buena_ejecucion, acta_recepcion ni cert_rolece, "
+                    "explica brevemente en español por qué este documento no acredita solvencia "
+                    "(ej: 'Es un contrato de adjudicación, no certifica que la obra fue ejecutada'). "
+                    "Null si el documento SÍ es válido."
+                ),
+            },
             "importe_adjudicacion": {
                 "type": ["number", "null"],
                 "description": (
@@ -87,6 +134,25 @@ EXTRACTION_TOOL: dict = {
                 "type": ["string", "null"],
                 "description": "Número de expediente administrativo literal.",
             },
+            "porcentaje_ute": {
+                "type": ["number", "null"],
+                "minimum": 0,
+                "maximum": 100,
+                "description": (
+                    "Si la obra fue ejecutada en UTE (Unión Temporal de Empresas), "
+                    "el porcentaje de participación de esta empresa (0-100). "
+                    "Busca: 'participación del X%', 'UTE al X%', 'porcentaje: X%'. "
+                    "Null si no fue UTE o no se especifica el porcentaje."
+                ),
+            },
+            "contratista_principal": {
+                "type": "boolean",
+                "description": (
+                    "True si la empresa era el contratista principal (adjudicatario directo). "
+                    "False si actuaba como subcontratista. "
+                    "Por defecto true salvo que el documento lo indique explícitamente."
+                ),
+            },
             "confianza_extraccion": {
                 "type": "number",
                 "minimum": 0.0,
@@ -98,7 +164,7 @@ EXTRACTION_TOOL: dict = {
                 ),
             },
         },
-        "required": ["cpv_codes", "confianza_extraccion"],
+        "required": ["tipo_documento", "cpv_codes", "confianza_extraccion", "contratista_principal"],
     },
 }
 
@@ -108,7 +174,23 @@ actas de comprobación del replanteo y documentos similares del sector de la con
 
 Tu única tarea es llamar a la herramienta guardar_datos_certificado con los datos extraídos.
 
-## Guía de extracción por campo
+## PASO 1 — Clasifica el documento (OBLIGATORIO antes de extraer nada)
+
+Determina el tipo_documento según estas definiciones estrictas:
+
+**VÁLIDOS para acreditar solvencia:**
+- `cert_buena_ejecucion`: Emitido por el organismo contratante. Certifica que la empresa ejecutó la obra correctamente, en plazo y con el importe acordado. Palabras clave: "certificado de buena ejecución", "certifica que la empresa ha ejecutado", "recepción definitiva", "SIEPSE".
+- `acta_recepcion`: Documento formal que firma el organismo aceptando la obra terminada. Palabras clave: "acta de recepción", "acta de comprobación del replanteo", "acta de recepción provisional/definitiva".
+- `cert_rolece`: Clasificación empresarial vigente emitida por la JCCPE. Palabras clave: "Junta Consultiva de Contratación", "ROLECE", "clasificación empresarial", grupos y categorías oficiales.
+
+**NO VÁLIDOS — explica en razon_invalidez:**
+- `contrato_adjudicacion`: Acredita adjudicación, NO ejecución. El contratista aún no ha terminado la obra. Palabras clave: "contrato de obras", "adjudicación", "formalización del contrato", "Pliego de Cláusulas".
+- `certificacion_parcial`: Certificación mensual de obra en curso. Acredita avance, no finalización. Palabras clave: "certificación nº X", "a origen", "medición parcial", "dirección facultativa".
+- `subcontratacion`: La empresa era subcontratista. Solo computa el importe del contratista principal. Palabras clave: "contrato de subcontratación", "subcontratista", "empresa principal".
+- `asistencia_tecnica`: Acredita servicios de ingeniería/consultoría, no construcción. Palabras clave: "asistencia técnica", "consultoría", "dirección de obra", "supervisión".
+- `otro`: cualquier otro documento (albaranes, facturas, seguros, etc.).
+
+## PASO 2 — Guía de extracción por campo
 
 **titulo**: Busca el objeto del contrato o descripción de la obra. Suele aparecer como:
 - "Objeto: Construcción de...", "Obras de...", "Proyecto de..."
@@ -217,9 +299,21 @@ async def _ejecutar(certificado_id: UUID) -> None:
                     cert.titulo = datos["titulo"][:512]
                 if datos.get("organismo") and not cert.organismo:
                     cert.organismo = datos["organismo"][:255]
+                # Tipo de documento y validez para solvencia
+                tipo = datos.get("tipo_documento")
+                cert.tipo_documento = tipo
+                cert.razon_invalidez = datos.get("razon_invalidez")
+                if tipo is not None:
+                    cert.es_valido_solvencia = tipo in TIPOS_DOCUMENTO_VALIDOS
+                # UTE y contratista
+                if datos.get("porcentaje_ute") is not None:
+                    cert.porcentaje_ute = datos["porcentaje_ute"]
+                cert.contratista_principal = bool(datos.get("contratista_principal", True))
                 logger.info(
-                    "Certificado %s: extracción OK (confianza=%s)",
+                    "Certificado %s: extracción OK (tipo=%s, valido=%s, confianza=%s)",
                     certificado_id,
+                    tipo,
+                    cert.es_valido_solvencia,
                     datos.get("confianza_extraccion"),
                 )
         except Exception as exc:  # noqa: BLE001

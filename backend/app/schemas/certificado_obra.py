@@ -23,6 +23,10 @@ class CertificadoObraUpdate(BaseModel):
     clasificacion_subgrupo: str | None = Field(default=None, max_length=8)
     numero_expediente: str | None = Field(default=None, min_length=1, max_length=128)
     extracted_data: dict[str, Any] | None = None
+    porcentaje_ute: Decimal | None = Field(default=None, ge=0, le=100, max_digits=5, decimal_places=2)
+    contratista_principal: bool | None = None
+    es_valido_solvencia: bool | None = None
+    razon_invalidez: str | None = None
 
 
 class CertificadoObraListItem(BaseModel):
@@ -42,6 +46,11 @@ class CertificadoObraListItem(BaseModel):
     estado: EstadoCertificado
     pdf_url: str
     extraction_error: str | None = None
+    tipo_documento: str | None = None
+    es_valido_solvencia: bool | None = None
+    razon_invalidez: str | None = None
+    porcentaje_ute: Decimal | None = None
+    contratista_principal: bool = True
     created_at: datetime
     updated_at: datetime
 
