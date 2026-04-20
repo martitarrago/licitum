@@ -17,6 +17,7 @@ export interface SubModule {
 
 export interface Module {
   id: string;
+  code: string;
   label: string;
   href: string;
   icon: LucideIcon;
@@ -24,65 +25,105 @@ export interface Module {
   children?: SubModule[];
 }
 
-export const MODULES: Module[] = [
+export interface ModuleGroup {
+  id: string;
+  label: string | null;
+  modules: Module[];
+}
+
+export const MODULE_GROUPS: ModuleGroup[] = [
   {
-    id: "m1",
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-    available: false,
-  },
-  {
-    id: "m2",
-    label: "Radar IA",
-    href: "/radar",
-    icon: Radar,
-    available: false,
-  },
-  {
-    id: "m3",
-    label: "Solvencia",
-    href: "/solvencia",
-    icon: ShieldCheck,
-    available: true,
-    children: [
-      { label: "Certificados", href: "/solvencia/certificados" },
-      { label: "Clasificaciones", href: "/solvencia/clasificaciones" },
+    id: "resumen",
+    label: null,
+    modules: [
+      {
+        id: "m1",
+        code: "M1",
+        label: "Dashboard",
+        href: "/dashboard",
+        icon: LayoutDashboard,
+        available: false,
+      },
     ],
   },
   {
-    id: "m4",
-    label: "Estudio BC3",
-    href: "/bc3",
-    icon: Calculator,
-    available: false,
+    id: "oportunidades",
+    label: "Oportunidades",
+    modules: [
+      {
+        id: "m2",
+        code: "M2",
+        label: "Radar IA",
+        href: "/radar",
+        icon: Radar,
+        available: false,
+      },
+      {
+        id: "m3",
+        code: "M3",
+        label: "Solvencia",
+        href: "/solvencia",
+        icon: ShieldCheck,
+        available: true,
+        children: [
+          { label: "Certificados", href: "/solvencia/certificados" },
+          { label: "Clasificaciones", href: "/solvencia/clasificaciones" },
+        ],
+      },
+    ],
   },
   {
-    id: "m5",
-    label: "Memorias",
-    href: "/memorias",
-    icon: FileText,
-    available: false,
+    id: "preparar",
+    label: "Preparar oferta",
+    modules: [
+      {
+        id: "m4",
+        code: "M4",
+        label: "Estudio BC3",
+        href: "/bc3",
+        icon: Calculator,
+        available: false,
+      },
+      {
+        id: "m5",
+        code: "M5",
+        label: "Memorias",
+        href: "/memorias",
+        icon: FileText,
+        available: false,
+      },
+      {
+        id: "m6",
+        code: "M6",
+        label: "Competencia",
+        href: "/competencia",
+        icon: Target,
+        available: false,
+      },
+      {
+        id: "m7",
+        code: "M7",
+        label: "Administración",
+        href: "/admin",
+        icon: FileSignature,
+        available: false,
+      },
+    ],
   },
   {
-    id: "m6",
-    label: "Competencia",
-    href: "/competencia",
-    icon: Target,
-    available: false,
-  },
-  {
-    id: "m7",
-    label: "Administración",
-    href: "/admin",
-    icon: FileSignature,
-    available: false,
-  },
-  {
-    id: "m8",
-    label: "Histórico",
-    href: "/historico",
-    icon: TrendingUp,
-    available: false,
+    id: "aprender",
+    label: "Aprender",
+    modules: [
+      {
+        id: "m8",
+        code: "M8",
+        label: "Histórico",
+        href: "/historico",
+        icon: TrendingUp,
+        available: false,
+      },
+    ],
   },
 ];
+
+export const MODULES: Module[] = MODULE_GROUPS.flatMap((g) => g.modules);

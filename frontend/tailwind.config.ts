@@ -66,6 +66,8 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "-apple-system", "sans-serif"],
+        serif: ["var(--font-fraunces)", "ui-serif", "Georgia", "serif"],
+        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
       },
       borderColor: {
         DEFAULT: "hsl(var(--border) / <alpha-value>)",
