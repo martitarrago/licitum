@@ -1,51 +1,60 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Plus } from "lucide-react";
+import { ArrowUpDown, FileText, Plus } from "lucide-react";
 import {
   certificadosApi,
   type CertificadoObraListItem,
-  type EstadoCertificado,
 } from "@/lib/api/certificados";
-import { EMPRESA_DEMO_ID, GRUPOS_ROLECE } from "@/lib/constants";
+import { EMPRESA_DEMO_ID } from "@/lib/constants";
 import { CertificadoCard } from "@/components/solvencia/CertificadoCard";
 import { UploadModal } from "@/components/solvencia/UploadModal";
 
-// ─── Filtros ─────────────────────────────────────────────────────────────────
+// ─── Tipos de filtro ──────────────────────────────────────────────────────────
 
-type FiltroEstado = EstadoCertificado | "todos";
+type Filtro = "todos" | "validos" | "rechazados" | "caducados";
 
-const ESTADOS: { value: FiltroEstado; label: string }[] = [
+const FILTROS: { value: Filtro; label: string }[] = [
   { value: "todos", label: "Todos" },
-  { value: "procesando", label: "Procesando" },
-  { value: "pendiente_revision", label: "Pendiente" },
-  { value: "validado", label: "Validado" },
-  { value: "rechazado", label: "Rechazado" },
+  { value: "validos", label: "Válidos" },
+  { value: "rechazados", label: "Rechazados" },
+  { value: "caducados", label: "Caducados" },
 ];
 
-// ─── Skeletons ────────────────────────────────────────────────────────────────
+type Orden = "recientes" | "fecha_obra" | "grupo" | "importe";
 
-function CardSkeleton() {
+const ORDENES: { value: Orden; label: string }[] = [
+  { value: "recientes", label: "Recientes" },
+  { value: "fecha_obra", label: "Fecha de obra" },
+  { value: "grupo", label: "Grupo ROLECE" },
+  { value: "importe", label: "Importe" },
+];
+
+// Un certificado validado con fecha_fin hace más de 10 años se considera caducado
+// (solvencia acreditada expira; ROLECE exige los últimos 10 años)
+const DIEZ_ANIOS_MS = 10 * 365.25 * 24 * 60 * 60 * 1000;
+
+function esCaducado(cert: CertificadoObraListItem): boolean {
+  if (cert.estado !== "validado") return false;
+  if (!cert.fecha_fin) return false;
+  return Date.now() - new Date(cert.fecha_fin).getTime() > DIEZ_ANIOS_MS;
+}
+
+// ─── Skeleton ────────────────────────────────────────────────────────────────
+
+function RowSkeleton() {
   return (
     <div className="flex overflow-hidden rounded-xl bg-surface-raised ring-1 ring-border shadow-sm">
-      <div className="w-2 flex-shrink-0 animate-pulse bg-muted" />
-      <div className="flex flex-1 flex-col gap-4 p-5">
-        <div className="h-5 w-24 animate-pulse rounded-full bg-muted" />
-        <div className="space-y-2">
-          <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
-          <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+      <div className="w-1.5 flex-shrink-0 animate-pulse bg-muted" />
+      <div className="flex flex-1 items-center gap-4 px-4 py-3">
+        <div className="flex-1 space-y-1.5">
+          <div className="h-3.5 w-1/2 animate-pulse rounded bg-muted" />
+          <div className="h-2.5 w-1/3 animate-pulse rounded bg-muted" />
         </div>
-        <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
-          <div className="space-y-1.5">
-            <div className="h-2.5 w-14 animate-pulse rounded bg-muted" />
-            <div className="h-5 w-20 animate-pulse rounded bg-muted" />
-          </div>
-          <div className="space-y-1.5">
-            <div className="h-2.5 w-14 animate-pulse rounded bg-muted" />
-            <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-          </div>
-        </div>
+        <div className="hidden sm:block h-3 w-28 animate-pulse rounded bg-muted" />
+        <div className="hidden md:block h-3 w-20 animate-pulse rounded bg-muted" />
+        <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
       </div>
     </div>
   );
@@ -54,32 +63,61 @@ function CardSkeleton() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CertificadosPage() {
-  const [estadoFiltro, setEstadoFiltro] = useState<FiltroEstado>("todos");
-  const [grupoFiltro, setGrupoFiltro] = useState<string>("");
+  const [filtro, setFiltro] = useState<Filtro>("todos");
+  const [orden, setOrden] = useState<Orden>("recientes");
   const [modalOpen, setModalOpen] = useState(false);
 
   const { data: certificados, isLoading, isError } = useQuery({
-    queryKey: ["certificados", estadoFiltro, grupoFiltro],
+    queryKey: ["certificados"],
     queryFn: () =>
-      certificadosApi.list({
-        empresa_id: EMPRESA_DEMO_ID,
-        estado: estadoFiltro !== "todos" ? estadoFiltro : undefined,
-        clasificacion_grupo: grupoFiltro || undefined,
-      }),
-    // Poll mientras algún cert está procesando o esperando extracción
+      certificadosApi.list({ empresa_id: EMPRESA_DEMO_ID }),
     refetchInterval: (query) => {
       const data = query.state.data as CertificadoObraListItem[] | undefined;
       if (!data) return false;
       const active = data.some(
-        (c) => c.estado === "procesando" ||
+        (c) =>
+          c.estado === "procesando" ||
           (c.estado === "pendiente_revision" && !c.extraction_error),
       );
       return active ? 4_000 : false;
     },
   });
 
+  const lista = useMemo(() => {
+    if (!certificados) return [];
+
+    // Filtrar
+    let items = certificados.filter((c) => {
+      if (filtro === "validos") return c.estado === "validado" && !esCaducado(c);
+      if (filtro === "rechazados") return c.estado === "rechazado";
+      if (filtro === "caducados") return esCaducado(c);
+      return true;
+    });
+
+    // Ordenar
+    items = [...items].sort((a, b) => {
+      if (orden === "recientes") return 0; // ya viene ordenado por created_at desc del backend
+      if (orden === "fecha_obra") {
+        const da = a.fecha_fin ? new Date(a.fecha_fin).getTime() : 0;
+        const db = b.fecha_fin ? new Date(b.fecha_fin).getTime() : 0;
+        return db - da;
+      }
+      if (orden === "grupo") {
+        const ga = `${a.clasificacion_grupo ?? ""}${a.clasificacion_subgrupo ?? ""}`;
+        const gb = `${b.clasificacion_grupo ?? ""}${b.clasificacion_subgrupo ?? ""}`;
+        return ga.localeCompare(gb);
+      }
+      if (orden === "importe") {
+        return Number(b.importe_adjudicacion ?? 0) - Number(a.importe_adjudicacion ?? 0);
+      }
+      return 0;
+    });
+
+    return items;
+  }, [certificados, filtro, orden]);
+
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -117,58 +155,67 @@ export default function CertificadosPage() {
         </p>
       </div>
 
-      {/* Filtros */}
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        {/* Pills de estado */}
-        <div
-          className="flex flex-wrap gap-1.5"
-          role="group"
-          aria-label="Filtrar por estado"
-        >
-          {ESTADOS.map((e) => (
+      {/* Filtros + ordenación */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        {/* Pills de filtro */}
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar certificados">
+          {FILTROS.map((f) => (
             <button
-              key={e.value}
-              onClick={() => setEstadoFiltro(e.value)}
+              key={f.value}
+              onClick={() => setFiltro(f.value)}
               className={`
                 rounded-full px-3 py-1 text-xs font-semibold transition-colors
                 ${
-                  estadoFiltro === e.value
+                  filtro === f.value
                     ? "bg-primary-500 text-white"
                     : "bg-muted text-muted-foreground hover:bg-primary-50 hover:text-primary-700 dark:hover:bg-primary-900/20"
                 }
               `}
             >
-              {e.label}
+              {f.label}
             </button>
           ))}
         </div>
 
-        {/* Select de grupo ROLECE */}
-        <select
-          value={grupoFiltro}
-          onChange={(e) => setGrupoFiltro(e.target.value)}
-          className="
-            rounded-lg bg-surface ring-1 ring-border
-            px-3 py-1 text-sm text-foreground
-            focus:outline-none focus:ring-2 focus:ring-primary-500
-            transition-shadow
-          "
-          aria-label="Filtrar por grupo ROLECE"
-        >
-          <option value="">Todos los grupos</option>
-          {GRUPOS_ROLECE.map((g) => (
-            <option key={g.value} value={g.value}>
-              {g.label}
-            </option>
-          ))}
-        </select>
+        {/* Ordenar */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
+          <select
+            value={orden}
+            onChange={(e) => setOrden(e.target.value as Orden)}
+            className="
+              rounded-lg bg-surface ring-1 ring-border
+              px-3 py-1 text-sm text-foreground
+              focus:outline-none focus:ring-2 focus:ring-primary-500
+              transition-shadow
+            "
+            aria-label="Ordenar certificados"
+          >
+            {ORDENES.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {/* Cabecera de columnas (sólo desktop) */}
+      {!isLoading && !isError && lista.length > 0 && (
+        <div className="mb-1 hidden lg:flex items-center gap-4 px-6 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="flex-1">Certificado</div>
+          <div className="w-36 text-right">Período</div>
+          <div className="w-28 text-right">Importe</div>
+          <div className="w-20 text-center">Grupo</div>
+          <div className="w-20 text-center">Estado</div>
+        </div>
+      )}
 
       {/* Estados de carga */}
       {isLoading && (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <CardSkeleton key={i} />
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <RowSkeleton key={i} />
           ))}
         </div>
       )}
@@ -184,24 +231,24 @@ export default function CertificadosPage() {
         </div>
       )}
 
-      {!isLoading && !isError && certificados && certificados.length === 0 && (
+      {!isLoading && !isError && lista.length === 0 && (
         <div className="flex flex-col items-center gap-4 py-20 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
             <FileText className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
           </div>
           <div className="space-y-1">
             <p className="text-sm font-semibold text-foreground">
-              {estadoFiltro !== "todos" || grupoFiltro
-                ? "Sin resultados para estos filtros"
+              {filtro !== "todos"
+                ? "Sin resultados para este filtro"
                 : "Aún no hay certificados"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {estadoFiltro !== "todos" || grupoFiltro
-                ? "Prueba a cambiar los filtros"
+              {filtro !== "todos"
+                ? "Prueba con otro filtro"
                 : "Sube tu primer certificado de obra para empezar"}
             </p>
           </div>
-          {estadoFiltro === "todos" && !grupoFiltro && (
+          {filtro === "todos" && (
             <button
               onClick={() => setModalOpen(true)}
               className="
@@ -217,12 +264,23 @@ export default function CertificadosPage() {
         </div>
       )}
 
-      {!isLoading && !isError && certificados && certificados.length > 0 && (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {certificados.map((cert) => (
-            <CertificadoCard key={cert.id} cert={cert} />
+      {!isLoading && !isError && lista.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {lista.map((cert) => (
+            <CertificadoCard
+              key={cert.id}
+              cert={cert}
+              caducado={esCaducado(cert)}
+            />
           ))}
         </div>
+      )}
+
+      {/* Contador */}
+      {!isLoading && !isError && certificados && certificados.length > 0 && (
+        <p className="mt-4 text-xs text-muted-foreground text-right">
+          {lista.length} de {certificados.length} certificados
+        </p>
       )}
 
       {/* Modal */}

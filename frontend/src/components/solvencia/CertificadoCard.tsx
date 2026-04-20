@@ -27,14 +27,14 @@ const estadoStyles: Record<EstadoCertificado, EstadoStyle> = {
     iconColor: "text-primary-500",
   },
   pendiente_revision: {
-    label: "Pendiente de revisión",
+    label: "Pendiente",
     Icon: AlertCircle,
-    stripe: "bg-primary-200",
+    stripe: "bg-amber-400",
     badge: "bg-warning/10 ring-warning/25 dark:bg-warning/20",
     iconColor: "text-warning",
   },
   validado: {
-    label: "Validado",
+    label: "Válido",
     Icon: CheckCircle2,
     stripe: "bg-success",
     badge: "bg-success/10 ring-success/25 dark:bg-success/20",
@@ -55,21 +55,20 @@ const importeFormatter = new Intl.NumberFormat("es-ES", {
   maximumFractionDigits: 0,
 });
 
-const fechaFormatter = new Intl.DateTimeFormat("es-ES", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
-
 function formatFechaCorta(d: Date) {
   return new Intl.DateTimeFormat("es-ES", {
-    day: "numeric",
     month: "short",
-    year: "2-digit",
+    year: "numeric",
   }).format(d);
 }
 
-export function CertificadoCard({ cert }: { cert: CertificadoObraListItem }) {
+export function CertificadoCard({
+  cert,
+  caducado = false,
+}: {
+  cert: CertificadoObraListItem;
+  caducado?: boolean;
+}) {
   const estilo = estadoStyles[cert.estado];
   const StatusIcon = estilo.Icon;
   const importe = Number(cert.importe_adjudicacion);
@@ -77,6 +76,16 @@ export function CertificadoCard({ cert }: { cert: CertificadoObraListItem }) {
   const fechaFin = cert.fecha_fin ? new Date(cert.fecha_fin) : null;
   const tieneExtractionError =
     cert.estado === "pendiente_revision" && Boolean(cert.extraction_error);
+
+  const stripeColor = tieneExtractionError
+    ? "bg-danger"
+    : caducado
+      ? "bg-muted-foreground/40"
+      : estilo.stripe;
+
+  const badgeOverride = caducado
+    ? "bg-muted ring-border text-muted-foreground"
+    : null;
 
   return (
     <Link
@@ -92,108 +101,91 @@ export function CertificadoCard({ cert }: { cert: CertificadoObraListItem }) {
         "
       >
         {/* Franja lateral de estado */}
-        <div
-          className={`w-2 flex-shrink-0 ${
-            tieneExtractionError ? "bg-danger" : estilo.stripe
-          }`}
-          aria-hidden="true"
-        />
+        <div className={`w-1.5 flex-shrink-0 ${stripeColor}`} aria-hidden="true" />
 
-        <div className="flex flex-1 flex-col gap-4 p-5">
-          {/* Badge de estado */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div
-              className={`
-                inline-flex items-center gap-1.5
-                rounded-full px-3 py-1
-                text-xs font-semibold text-muted-foreground
-                ring-1 ring-inset
-                ${estilo.badge}
-              `}
-              role="status"
-            >
-              <StatusIcon
-                className={`h-3.5 w-3.5 ${estilo.iconColor}`}
-                aria-hidden="true"
-              />
-              {estilo.label}
+        <div className="flex flex-1 items-center gap-4 px-4 py-3 min-w-0">
+          {/* Título + organismo — crece */}
+          <div className="flex-1 min-w-0">
+            <h3 className="truncate text-sm font-semibold leading-snug text-foreground group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+              {cert.titulo || <span className="text-muted-foreground italic">Sin título</span>}
+            </h3>
+            {cert.organismo && (
+              <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                <Building2 className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                <span className="truncate">{cert.organismo}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Período */}
+          <div className="hidden sm:block w-36 flex-shrink-0 text-right">
+            {(fechaInicio || fechaFin) ? (
+              <div className="text-xs font-medium tabular-nums text-foreground">
+                {fechaInicio && fechaFin
+                  ? `${formatFechaCorta(fechaInicio)} – ${formatFechaCorta(fechaFin)}`
+                  : fechaFin
+                    ? formatFechaCorta(fechaFin)
+                    : fechaInicio
+                      ? formatFechaCorta(fechaInicio)
+                      : "—"}
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
+            <div className="text-[11px] text-muted-foreground">Período</div>
+          </div>
+
+          {/* Importe */}
+          <div className="hidden md:block w-28 flex-shrink-0 text-right">
+            <div className="text-sm font-semibold tabular-nums text-foreground">
+              {importe > 0 ? importeFormatter.format(importe) : "—"}
             </div>
-            {tieneExtractionError && (
+            <div className="text-[11px] text-muted-foreground">Importe</div>
+          </div>
+
+          {/* Grupo ROLECE */}
+          <div className="hidden lg:block w-20 flex-shrink-0 text-center">
+            {cert.clasificacion_grupo ? (
+              <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
+                <Tag className="h-3 w-3" aria-hidden="true" />
+                {cert.clasificacion_grupo}
+                {cert.clasificacion_subgrupo && `-${cert.clasificacion_subgrupo}`}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
+          </div>
+
+          {/* Badge de estado */}
+          <div className="flex-shrink-0">
+            {tieneExtractionError ? (
               <span
                 className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger ring-1 ring-inset ring-danger/25"
                 title={cert.extraction_error ?? undefined}
               >
                 <AlertCircle className="h-3 w-3" aria-hidden="true" />
-                Extracción fallida
+                Error
+              </span>
+            ) : (
+              <span
+                className={`
+                  inline-flex items-center gap-1.5
+                  rounded-full px-2.5 py-1
+                  text-xs font-semibold text-muted-foreground
+                  ring-1 ring-inset
+                  ${badgeOverride ?? estilo.badge}
+                `}
+                role="status"
+              >
+                {caducado ? (
+                  <Clock className="h-3 w-3" aria-hidden="true" />
+                ) : (
+                  <StatusIcon className={`h-3 w-3 ${estilo.iconColor}`} aria-hidden="true" />
+                )}
+                {caducado ? "Caducado" : estilo.label}
               </span>
             )}
           </div>
-
-          {/* Título + organismo */}
-          <div className="space-y-1.5">
-            <h3 className="line-clamp-2 text-base font-semibold leading-snug text-foreground">
-              {cert.titulo || "Sin título"}
-            </h3>
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <Building2 className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
-              <span className="truncate">{cert.organismo}</span>
-            </div>
-          </div>
-
-          {/* Datos clave */}
-          <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
-            <div>
-              <div className="mb-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Importe
-              </div>
-              <div className="text-lg font-semibold tabular-nums text-foreground">
-                {importe > 0 ? importeFormatter.format(importe) : "—"}
-              </div>
-            </div>
-            {(fechaInicio || fechaFin) && (
-              <div>
-                <div className="mb-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Período
-                </div>
-                <div className="text-sm font-medium tabular-nums text-foreground">
-                  {fechaInicio && fechaFin
-                    ? `${formatFechaCorta(fechaInicio)} – ${formatFechaCorta(fechaFin)}`
-                    : fechaFin
-                      ? fechaFormatter.format(fechaFin)
-                      : fechaInicio
-                        ? fechaFormatter.format(fechaInicio)
-                        : "—"}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Tags */}
-          {(cert.clasificacion_grupo || cert.cpv_codes.length > 0) && (
-            <div className="flex flex-wrap gap-1.5">
-              {cert.clasificacion_grupo && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
-                  <Tag className="h-3 w-3" aria-hidden="true" />
-                  Grupo {cert.clasificacion_grupo}
-                  {cert.clasificacion_subgrupo && `-${cert.clasificacion_subgrupo}`}
-                </span>
-              )}
-              {cert.cpv_codes.slice(0, 2).map((cpv) => (
-                <span
-                  key={cpv}
-                  className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground"
-                >
-                  <Tag className="h-3 w-3" aria-hidden="true" />
-                  {cpv}
-                </span>
-              ))}
-              {cert.cpv_codes.length > 2 && (
-                <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
-                  +{cert.cpv_codes.length - 2}
-                </span>
-              )}
-            </div>
-          )}
         </div>
       </article>
     </Link>
