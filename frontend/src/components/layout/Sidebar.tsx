@@ -34,8 +34,6 @@ function SubNavItem({ sub, isActive }: { sub: SubModule; isActive: boolean }) {
 
 function NavItem({ module, pathname }: { module: Module; pathname: string }) {
   const isParentActive = pathname.startsWith(module.href);
-  const isExactActive = pathname === module.href;
-
   const showChildren = module.children && isParentActive;
 
   if (!module.available) {
