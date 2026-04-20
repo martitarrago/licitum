@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -274,34 +275,52 @@ function ExtractionPending({
   forceReextractPending: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center gap-6 rounded-xl bg-surface-raised p-10 text-center ring-1 ring-border">
-      <div
-        className={`flex h-16 w-16 items-center justify-center rounded-full ${
-          timeout
-            ? "bg-warning/10"
-            : "bg-primary-50 dark:bg-primary-900/30"
-        }`}
-      >
-        {timeout ? (
+    <div className="flex flex-col items-center gap-8 rounded-xl bg-surface-raised p-12 text-center ring-1 ring-border">
+      {/* Spinner o warning */}
+      {timeout ? (
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-warning/10">
           <AlertTriangle className="h-8 w-8 text-warning" aria-hidden="true" />
-        ) : (
-          <Clock className="h-8 w-8 text-primary-500" aria-hidden="true" />
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="relative flex h-16 w-16 items-center justify-center">
+          {/* Anillos pulsantes */}
+          <span className="absolute inset-0 animate-ping rounded-full bg-primary-500/20" />
+          <span className="absolute inset-2 animate-ping rounded-full bg-primary-500/15 [animation-delay:300ms]" />
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-900/30">
+            <RefreshCw className="h-7 w-7 animate-spin text-primary-500 [animation-duration:2s]" aria-hidden="true" />
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2">
         <p className="text-base font-semibold text-foreground">
-          {timeout ? "La extracción tarda más de lo normal" : "Extrayendo datos del PDF"}
+          {timeout ? "Tarda más de lo esperado" : "Extrayendo datos del certificado…"}
         </p>
         <p className="max-w-sm text-sm text-muted-foreground">
           {timeout
-            ? "Lleva más de 2 minutos procesando. Es posible que el worker haya fallado. Puedes forzar un reintento."
-            : "Claude está analizando el certificado. Suele tardar menos de un minuto. La página se actualizará automáticamente."}
+            ? "Lleva más de 2 minutos. Es posible que el proceso haya fallado. Puedes forzar un reintento."
+            : "Estamos leyendo el documento para identificar importes, fechas, organismo y clasificación. Suele tardar entre 30 y 60 segundos."}
         </p>
       </div>
+
+      {/* Skeleton del formulario — para hacer la espera más amena */}
+      {!timeout && (
+        <div className="w-full max-w-sm space-y-3 text-left">
+          {[["Organismo contratante", "w-3/4"], ["Importe", "w-1/2"], ["Fechas", "w-2/3"], ["Clasificación", "w-2/5"]].map(
+            ([label, w]) => (
+              <div key={label}>
+                <div className="mb-1.5 h-2.5 w-24 rounded bg-muted animate-pulse" />
+                <div className={`h-9 rounded-lg bg-muted animate-pulse ${w}`} />
+              </div>
+            ),
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-center gap-3">
         <button
           onClick={onRefresh}
-          className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
+          className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
         >
           <RefreshCw className="h-4 w-4" aria-hidden="true" />
           Actualizar ahora
@@ -310,7 +329,7 @@ function ExtractionPending({
           <button
             onClick={onForceReextract}
             disabled={forceReextractPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:pointer-events-none disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:pointer-events-none disabled:opacity-60"
           >
             <RefreshCw
               className={`h-4 w-4 ${forceReextractPending ? "animate-spin" : ""}`}
@@ -671,16 +690,28 @@ function ReviewForm({
 
 // ─── CertificadoFinalizado ────────────────────────────────────────────────────
 
-function CertificadoFinalizado({ cert }: { cert: CertificadoObraRead }) {
+function CertificadoFinalizado({
+  cert,
+  onVolver,
+}: {
+  cert: CertificadoObraRead;
+  onVolver: () => void;
+}) {
   const readCls =
     "w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground";
   const labelCls =
     "mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted-foreground";
 
-  const importe = Number(cert.importe_adjudicacion);
+  const importe = Number(cert.importe_adjudicacion ?? 0);
 
   return (
     <div className="space-y-4 p-6">
+      <button
+        onClick={onVolver}
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        ← Volver a certificados
+      </button>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <div className={labelCls}>Organismo contratante</div>
@@ -740,6 +771,7 @@ function CertificadoFinalizado({ cert }: { cert: CertificadoObraRead }) {
 
 export function CertificadoRevision({ id }: { id: string }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const [, setTick] = useState(0);
 
   const { data: cert, isLoading, isError } = useQuery({
@@ -870,7 +902,10 @@ export function CertificadoRevision({ id }: { id: string }) {
                 <div className="border-b border-border px-6 py-4">
                   <EstadoBadge estado={cert.estado} />
                 </div>
-                <CertificadoFinalizado cert={cert} />
+                <CertificadoFinalizado
+                  cert={cert}
+                  onVolver={() => router.push("/solvencia/certificados")}
+                />
               </>
             )}
           </div>

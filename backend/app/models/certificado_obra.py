@@ -47,18 +47,18 @@ class CertificadoObra(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base
         nullable=False,
         index=True,
     )
-    titulo: Mapped[str] = mapped_column(String(512), nullable=False)
-    organismo: Mapped[str] = mapped_column(String(255), nullable=False)
-    importe_adjudicacion: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
-    fecha_fin: Mapped[date] = mapped_column(Date, nullable=False)
+    titulo: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    organismo: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    importe_adjudicacion: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    fecha_inicio: Mapped[date | None] = mapped_column(Date, nullable=True)
+    fecha_fin: Mapped[date | None] = mapped_column(Date, nullable=True)
     cpv_codes: Mapped[list[str]] = mapped_column(
         ARRAY(String(16)), nullable=False, default=list
     )
     clasificacion_grupo: Mapped[str | None] = mapped_column(String(8), nullable=True)
     clasificacion_subgrupo: Mapped[str | None] = mapped_column(String(8), nullable=True)
-    numero_expediente: Mapped[str] = mapped_column(
-        String(128), nullable=False, unique=True, index=True
+    numero_expediente: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, unique=True, index=True
     )
     estado: Mapped[EstadoCertificado] = mapped_column(
         EstadoCertificadoType,

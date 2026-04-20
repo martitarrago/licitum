@@ -51,6 +51,15 @@ EXTRACTION_TOOL: dict = {
                     "Fecha de fin / recepción de la obra en formato ISO YYYY-MM-DD."
                 ),
             },
+            "titulo": {
+                "type": ["string", "null"],
+                "description": (
+                    "Título descriptivo corto de la obra (máx 80 caracteres), "
+                    "p.ej. 'Pavimentación carrer Major, Reus' o "
+                    "'Construcción piscina municipal Vilafranca'. "
+                    "Extrae del objeto del contrato. Null si no aparece."
+                ),
+            },
             "organismo": {
                 "type": ["string", "null"],
                 "description": (
@@ -156,6 +165,11 @@ async def _ejecutar(certificado_id: UUID) -> None:
                 )
             else:
                 cert.extracted_data = datos
+                # Actualiza campos del modelo con los valores extraídos
+                if datos.get("titulo") and not cert.titulo:
+                    cert.titulo = datos["titulo"][:512]
+                if datos.get("organismo") and not cert.organismo:
+                    cert.organismo = datos["organismo"][:255]
                 logger.info(
                     "Certificado %s: extracción OK (confianza=%s)",
                     certificado_id,

@@ -40,6 +40,7 @@ class R2Storage:
                 Key=key,
                 Body=body,
                 ContentType=content_type,
+                ContentDisposition="inline",
             )
         return f"{self._public_url_base}/{key}"
 

@@ -1,46 +1,38 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, FileUp, X } from "lucide-react";
 import { certificadosApi } from "@/lib/api/certificados";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
-type Step = "drop" | "form";
-
 interface UploadModalProps {
   onClose: () => void;
 }
 
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function UploadModal({ onClose }: UploadModalProps) {
+  const router = useRouter();
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [step, setStep] = useState<Step>("drop");
   const [file, setFile] = useState<File | null>(null);
-  const [titulo, setTitulo] = useState("");
-  const [organismo, setOrganismo] = useState("");
   const [progress, setProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [touched, setTouched] = useState({ titulo: false, organismo: false });
 
   const acceptFile = useCallback((f: File) => {
     if (f.type !== "application/pdf") {
       setError("Solo se aceptan archivos PDF.");
       return;
     }
+    if (f.size > 25 * 1024 * 1024) {
+      setError("El archivo supera el tamaño máximo de 25 MB.");
+      return;
+    }
     setFile(f);
-    setTitulo(f.name.replace(/\.pdf$/i, ""));
-    setOrganismo("");
-    setTouched({ titulo: false, organismo: false });
     setError(null);
-    setStep("form");
   }, []);
 
   const onDrop = useCallback(
@@ -57,7 +49,6 @@ export function UploadModal({ onClose }: UploadModalProps) {
     e.preventDefault();
     setDragging(true);
   };
-
   const onDragLeave = () => setDragging(false);
 
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,58 +56,26 @@ export function UploadModal({ onClose }: UploadModalProps) {
     if (f) acceptFile(f);
   };
 
-  const tituloTrim = titulo.trim();
-  const organismoTrim = organismo.trim();
-  const isValid = tituloTrim.length > 0 && organismoTrim.length > 0;
-
-  const handleSubmit = async () => {
+  const handleUpload = async () => {
     if (!file) return;
-    setTouched({ titulo: true, organismo: true });
-    if (!isValid) {
-      setError("Título y organismo son obligatorios.");
-      return;
-    }
-
     setError(null);
     setUploading(true);
     setProgress(0);
 
-    const today = todayIso();
-    const expediente = `EXP-${Date.now()}`;
-
     const fd = new FormData();
     fd.append("pdf", file);
     fd.append("empresa_id", EMPRESA_DEMO_ID);
-    fd.append("titulo", tituloTrim);
-    fd.append("organismo", organismoTrim);
-    // El backend aún requiere estos campos. Se auto-rellenan con placeholders
-    // que el usuario editará en la página de revisión tras la extracción.
-    fd.append("importe_adjudicacion", "0");
-    fd.append("fecha_inicio", today);
-    fd.append("fecha_fin", today);
-    fd.append("numero_expediente", expediente);
 
     try {
-      await certificadosApi.upload(fd, setProgress);
+      const cert = await certificadosApi.upload(fd, setProgress);
       await qc.invalidateQueries({ queryKey: ["certificados"] });
       onClose();
+      router.push(`/solvencia/certificados/${cert.id}/revisar`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al subir el archivo");
       setUploading(false);
     }
   };
-
-  const inputCls = (hasError: boolean) =>
-    `w-full rounded-lg bg-surface ring-1 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 transition-shadow ${
-      hasError
-        ? "ring-danger/50 focus:ring-danger"
-        : "ring-border focus:ring-primary-500"
-    }`;
-  const labelCls =
-    "mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted-foreground";
-
-  const tituloError = touched.titulo && !tituloTrim;
-  const organismoError = touched.organismo && !organismoTrim;
 
   return (
     <div
@@ -126,6 +85,7 @@ export function UploadModal({ onClose }: UploadModalProps) {
       }}
     >
       <div className="w-full max-w-md rounded-xl bg-surface-raised ring-1 ring-border shadow-md">
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-base font-semibold text-foreground">
             Subir certificado de obra
@@ -141,8 +101,9 @@ export function UploadModal({ onClose }: UploadModalProps) {
           )}
         </div>
 
-        <div className="p-6">
-          {step === "drop" && (
+        <div className="p-6 space-y-4">
+          {/* Zona drop */}
+          {!file ? (
             <div
               role="button"
               tabIndex={0}
@@ -177,10 +138,9 @@ export function UploadModal({ onClose }: UploadModalProps) {
                 </p>
               </div>
             </div>
-          )}
-
-          {step === "form" && file && (
-            <div className="space-y-5">
+          ) : (
+            /* Archivo seleccionado */
+            <div className="space-y-4">
               <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2.5">
                 <FileUp className="h-4 w-4 flex-shrink-0 text-primary-500" aria-hidden="true" />
                 <span className="truncate text-sm font-medium text-foreground">
@@ -189,56 +149,24 @@ export function UploadModal({ onClose }: UploadModalProps) {
                 <span className="ml-auto flex-shrink-0 text-xs text-muted-foreground tabular-nums">
                   {(file.size / 1024 / 1024).toFixed(1)} MB
                 </span>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className={labelCls}>
-                    Título <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className={inputCls(tituloError)}
-                    value={titulo}
-                    onChange={(e) => setTitulo(e.target.value)}
-                    onBlur={() => setTouched((t) => ({ ...t, titulo: true }))}
-                    placeholder="Descripción de la obra"
-                    disabled={uploading}
-                    aria-invalid={tituloError}
-                  />
-                  {tituloError && (
-                    <p className="mt-1 text-xs text-danger">
-                      El título es obligatorio.
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className={labelCls}>
-                    Organismo <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className={inputCls(organismoError)}
-                    value={organismo}
-                    onChange={(e) => setOrganismo(e.target.value)}
-                    onBlur={() => setTouched((t) => ({ ...t, organismo: true }))}
-                    placeholder="Ajuntament de Barcelona…"
-                    disabled={uploading}
-                    aria-invalid={organismoError}
-                  />
-                  {organismoError && (
-                    <p className="mt-1 text-xs text-danger">
-                      El organismo es obligatorio.
-                    </p>
-                  )}
-                </div>
+                {!uploading && (
+                  <button
+                    onClick={() => setFile(null)}
+                    className="ml-1 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                    aria-label="Quitar archivo"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Claude extraerá importe, fechas, CPVs y clasificación del PDF
-                automáticamente. Podrás revisar y corregir todo antes de validar.
+                Extraeremos la información del certificado automáticamente. En el
+                siguiente paso podrás revisar y corregir los datos antes de validarlos.
+                Suele tardar entre 30 y 60 segundos.
               </p>
 
+              {/* Barra de progreso */}
               {uploading && (
                 <div className="space-y-1.5">
                   <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -253,6 +181,7 @@ export function UploadModal({ onClose }: UploadModalProps) {
                 </div>
               )}
 
+              {/* Error */}
               {error && (
                 <div className="flex items-start gap-2 rounded-lg bg-danger/10 px-3 py-2 ring-1 ring-danger/25">
                   <AlertCircle className="h-4 w-4 flex-shrink-0 text-danger mt-0.5" aria-hidden="true" />
@@ -262,19 +191,14 @@ export function UploadModal({ onClose }: UploadModalProps) {
 
               <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
                 <button
-                  onClick={() => {
-                    setStep("drop");
-                    setFile(null);
-                    setError(null);
-                    setProgress(0);
-                  }}
+                  onClick={() => setFile(null)}
                   disabled={uploading}
                   className="text-sm text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                 >
                   ← Cambiar archivo
                 </button>
                 <button
-                  onClick={handleSubmit}
+                  onClick={handleUpload}
                   disabled={uploading}
                   className="
                     inline-flex items-center gap-2 rounded-lg
@@ -285,14 +209,15 @@ export function UploadModal({ onClose }: UploadModalProps) {
                   "
                 >
                   <FileUp className="h-4 w-4" aria-hidden="true" />
-                  {uploading ? "Subiendo…" : "Subir y extraer"}
+                  {uploading ? "Subiendo…" : "Subir certificado"}
                 </button>
               </div>
             </div>
           )}
 
-          {step === "drop" && error && (
-            <p className="mt-3 text-center text-sm text-danger">{error}</p>
+          {/* Error en zona drop */}
+          {!file && error && (
+            <p className="mt-2 text-center text-sm text-danger">{error}</p>
           )}
         </div>
 
