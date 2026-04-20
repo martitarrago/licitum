@@ -458,8 +458,12 @@ function ReviewForm({
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const field = (key: keyof FormValues) => ({
-    value: form[key],
+  type StringField = {
+    [K in keyof FormValues]: FormValues[K] extends string ? K : never;
+  }[keyof FormValues];
+
+  const field = (key: StringField) => ({
+    value: form[key] as string,
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm((prev) => ({ ...prev, [key]: e.target.value })),
   });
