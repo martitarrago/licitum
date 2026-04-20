@@ -965,7 +965,7 @@ function EliminarModal({
                 Eliminar certificado
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Se eliminará <span className="font-medium text-foreground">"{titulo}"</span> del expediente. Esta acción no se puede deshacer.
+                Se eliminará <span className="font-medium text-foreground">&ldquo;{titulo}&rdquo;</span> del expediente. Esta acción no se puede deshacer.
               </p>
             </div>
           </div>
