@@ -49,6 +49,29 @@ function esPorCaducar(cert: CertificadoObraListItem): boolean {
   return antigüedad > CINCO_ANIOS_MS - SEIS_MESES_MS && antigüedad <= CINCO_ANIOS_MS;
 }
 
+function detectarDuplicados(certs: CertificadoObraListItem[]): Set<string> {
+  const duplicados = new Set<string>();
+  for (let i = 0; i < certs.length; i++) {
+    for (let j = i + 1; j < certs.length; j++) {
+      const a = certs[i], b = certs[j];
+      if (!a.organismo || !b.organismo) continue;
+      if (a.organismo.trim().toLowerCase() !== b.organismo.trim().toLowerCase()) continue;
+      if (!a.fecha_fin || !b.fecha_fin) continue;
+      const diffDias = Math.abs(new Date(a.fecha_fin).getTime() - new Date(b.fecha_fin).getTime()) / (1000 * 60 * 60 * 24);
+      if (diffDias > 30) continue;
+      const ia = Number(a.importe_adjudicacion) || 0;
+      const ib = Number(b.importe_adjudicacion) || 0;
+      if (ia > 0 && ib > 0) {
+        const ratio = Math.abs(ia - ib) / Math.max(ia, ib);
+        if (ratio > 0.15) continue;
+      }
+      duplicados.add(a.id);
+      duplicados.add(b.id);
+    }
+  }
+  return duplicados;
+}
+
 // ─── Skeleton ────────────────────────────────────────────────────────────────
 
 function RowSkeleton() {
@@ -90,6 +113,11 @@ export default function CertificadosPage() {
       return active ? 4_000 : false;
     },
   });
+
+  const duplicados = useMemo(
+    () => (certificados ? detectarDuplicados(certificados) : new Set<string>()),
+    [certificados]
+  );
 
   const lista = useMemo(() => {
     if (!certificados) return [];
@@ -284,6 +312,7 @@ export default function CertificadosPage() {
               cert={cert}
               caducado={esCaducado(cert)}
               porCaducar={esPorCaducar(cert)}
+              posibleDuplicado={duplicados.has(cert.id)}
             />
           ))}
         </div>

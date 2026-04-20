@@ -66,10 +66,12 @@ export function CertificadoCard({
   cert,
   caducado = false,
   porCaducar = false,
+  posibleDuplicado = false,
 }: {
   cert: CertificadoObraListItem;
   caducado?: boolean;
   porCaducar?: boolean;
+  posibleDuplicado?: boolean;
 }) {
   const estilo = estadoStyles[cert.estado];
   const StatusIcon = estilo.Icon;
@@ -202,6 +204,11 @@ export function CertificadoCard({
             {cert.es_valido_solvencia === false && cert.estado === "validado" && (
               <span className="text-[10px] font-medium text-warning">
                 No computa solvencia
+              </span>
+            )}
+            {posibleDuplicado && (
+              <span className="text-[10px] font-medium text-muted-foreground">
+                Posible duplicado
               </span>
             )}
           </div>

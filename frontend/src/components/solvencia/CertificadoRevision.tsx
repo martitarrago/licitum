@@ -11,6 +11,7 @@ import {
   ExternalLink,
   FileText,
   RefreshCw,
+  Trash2,
   Undo2,
   XCircle,
 } from "lucide-react";
@@ -922,12 +923,108 @@ function CertificadoFinalizado({
   );
 }
 
+// ─── EliminarModal ────────────────────────────────────────────────────────────
+
+function EliminarModal({
+  titulo,
+  onConfirm,
+  onCancel,
+  isPending,
+}: {
+  titulo: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  const [input, setInput] = useState("");
+  const confirmado = input.trim().toLowerCase() === "x";
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isPending) onCancel();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onCancel, isPending]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget && !isPending) onCancel(); }}
+    >
+      <div className="w-full max-w-sm rounded-xl bg-surface-raised shadow-md ring-1 ring-border">
+        <div className="space-y-4 p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-danger/10">
+              <Trash2 className="h-5 w-5 text-danger" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-foreground">
+                Eliminar certificado
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Se eliminará <span className="font-medium text-foreground">"{titulo}"</span> del expediente. Esta acción no se puede deshacer.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">
+              Escribe <span className="font-mono font-bold">x</span> para confirmar
+            </label>
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && confirmado && !isPending) onConfirm(); }}
+              disabled={isPending}
+              placeholder="x"
+              className="w-full rounded-lg bg-surface ring-1 ring-border px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-danger transition-shadow"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-border px-6 py-4">
+          <button
+            onClick={onCancel}
+            disabled={isPending}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!confirmado || isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-danger/90 disabled:pointer-events-none disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-danger"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            {isPending ? "Eliminando…" : "Eliminar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export function CertificadoRevision({ id }: { id: string }) {
   const qc = useQueryClient();
   const router = useRouter();
   const [, setTick] = useState(0);
+  const [eliminarOpen, setEliminarOpen] = useState(false);
+
+  const eliminarMutation = useMutation({
+    mutationFn: () => certificadosApi.eliminar(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["certificados"] });
+      qc.removeQueries({ queryKey: ["certificado", id] });
+      router.push("/solvencia/certificados");
+    },
+  });
 
   const { data: cert, isLoading, isError } = useQuery({
     queryKey: ["certificado", id],
@@ -995,23 +1092,23 @@ export function CertificadoRevision({ id }: { id: string }) {
               )}
           </div>
 
-          {!procesando && (
-            <div className="flex flex-wrap items-center gap-4">
-              {typeof confianzaGlobal === "number" && tieneDatos && (
-                <div className="flex items-center gap-2">
-                  {(() => {
-                    const { label, cls } = confianzaStyle(confianzaGlobal);
-                    return (
-                      <span className="text-sm text-muted-foreground">
-                        Confianza:{" "}
-                        <span className={`font-semibold ${cls}`}>
-                          {label} ({Math.round(confianzaGlobal * 100)}%)
-                        </span>
+          <div className="flex flex-wrap items-center gap-4">
+            {!procesando && typeof confianzaGlobal === "number" && tieneDatos && (
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const { label, cls } = confianzaStyle(confianzaGlobal);
+                  return (
+                    <span className="text-sm text-muted-foreground">
+                      Confianza:{" "}
+                      <span className={`font-semibold ${cls}`}>
+                        {label} ({Math.round(confianzaGlobal * 100)}%)
                       </span>
-                    );
-                  })()}
-                </div>
-              )}
+                    </span>
+                  );
+                })()}
+              </div>
+            )}
+            {!procesando && (
               <a
                 href={`/api/v1/solvencia/certificados/${cert.id}/pdf`}
                 target="_blank"
@@ -1021,8 +1118,16 @@ export function CertificadoRevision({ id }: { id: string }) {
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                 Abrir PDF original
               </a>
-            </div>
-          )}
+            )}
+            <button
+              onClick={() => setEliminarOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+              title="Eliminar certificado"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Eliminar
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1066,6 +1171,15 @@ export function CertificadoRevision({ id }: { id: string }) {
             )}
           </div>
         </div>
+      )}
+
+      {eliminarOpen && (
+        <EliminarModal
+          titulo={cert.titulo || "este certificado"}
+          onConfirm={() => eliminarMutation.mutate()}
+          onCancel={() => setEliminarOpen(false)}
+          isPending={eliminarMutation.isPending}
+        />
       )}
     </div>
   );

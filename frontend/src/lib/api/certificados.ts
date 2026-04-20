@@ -171,6 +171,11 @@ export const certificadosApi = {
       { method: "POST" }
     ),
 
+  eliminar: (id: string) =>
+    fetch(`${API_BASE}/api/v1/solvencia/certificados/${id}`, { method: "DELETE" }).then(
+      (res) => { if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`); }
+    ),
+
   resumenSolvencia: (empresa_id: string) =>
     apiFetch<ResumenSolvencia>(
       `/api/v1/solvencia/certificados/resumen-solvencia?empresa_id=${empresa_id}`
