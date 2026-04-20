@@ -38,8 +38,14 @@ function isProcesandoTimeout(cert: CertificadoObraRead): boolean {
   return Date.now() - updatedAt > PROCESANDO_TIMEOUT_MS;
 }
 
+function isAwaitingExtraction(cert: CertificadoObraRead): boolean {
+  // Cert recién creado — worker aún no ha empezado (sin error, sin datos)
+  return cert.estado === "pendiente_revision" && !hasExtractionData(cert) && cert.extraction_error === null;
+}
+
 function hasExtractionFailed(cert: CertificadoObraRead): boolean {
-  return cert.estado === "pendiente_revision" && !hasExtractionData(cert);
+  // Solo cuando el worker corrió y falló explícitamente
+  return cert.estado === "pendiente_revision" && !hasExtractionData(cert) && cert.extraction_error !== null;
 }
 
 function confianzaStyle(value: number) {
@@ -779,8 +785,9 @@ export function CertificadoRevision({ id }: { id: string }) {
     queryFn: () => certificadosApi.get(id),
     refetchInterval: (query) => {
       const data = query.state.data;
-      if (!data) return 5_000;
-      return isStillProcessing(data) ? 5_000 : false;
+      if (!data) return 3_000;
+      if (isStillProcessing(data) || isAwaitingExtraction(data)) return 3_000;
+      return false;
     },
   });
 
@@ -815,7 +822,7 @@ export function CertificadoRevision({ id }: { id: string }) {
     );
   }
 
-  const procesando = isStillProcessing(cert);
+  const procesando = isStillProcessing(cert) || isAwaitingExtraction(cert);
   const timeoutProcesando = isProcesandoTimeout(cert);
   const extraccionFallida = hasExtractionFailed(cert);
   const tieneDatos = hasExtractionData(cert);
@@ -857,7 +864,7 @@ export function CertificadoRevision({ id }: { id: string }) {
                 </div>
               )}
               <a
-                href={cert.pdf_url}
+                href={`/api/v1/solvencia/certificados/${cert.id}/pdf`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-sm text-primary-500 transition-colors hover:text-primary-700"
@@ -882,7 +889,7 @@ export function CertificadoRevision({ id }: { id: string }) {
       ) : (
         <div className="grid gap-6 items-start lg:grid-cols-[1fr,480px]">
           <div className="lg:sticky lg:top-4">
-            <PdfViewer url={cert.pdf_url} />
+            <PdfViewer url={`/api/v1/solvencia/certificados/${cert.id}/pdf`} />
           </div>
 
           <div className="overflow-hidden rounded-xl bg-surface-raised ring-1 ring-border">

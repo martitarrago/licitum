@@ -66,18 +66,22 @@ export default function CertificadosPage() {
         estado: estadoFiltro !== "todos" ? estadoFiltro : undefined,
         clasificacion_grupo: grupoFiltro || undefined,
       }),
-    // Poll every 5s while any cert is processing
+    // Poll mientras algún cert está procesando o esperando extracción
     refetchInterval: (query) => {
       const data = query.state.data as CertificadoObraListItem[] | undefined;
       if (!data) return false;
-      return data.some((c) => c.estado === "procesando") ? 5_000 : false;
+      const active = data.some(
+        (c) => c.estado === "procesando" ||
+          (c.estado === "pendiente_revision" && !c.extraction_error),
+      );
+      return active ? 4_000 : false;
     },
   });
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       {/* Header */}
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">
             Certificados de obra
@@ -98,6 +102,19 @@ export default function CertificadosPage() {
           <Plus className="h-4 w-4" aria-hidden="true" />
           Subir certificado
         </button>
+      </div>
+
+      {/* Explicación */}
+      <div className="mb-8 rounded-xl bg-primary-50 px-5 py-4 ring-1 ring-primary-100 dark:bg-primary-900/10 dark:ring-primary-800/30">
+        <p className="text-sm text-foreground">
+          <span className="font-semibold">¿Qué son los certificados de obra?</span>{" "}
+          Son los documentos que acreditan las obras que ha realizado tu empresa: actas de recepción,
+          certificados finales de obra y documentos similares emitidos por el organismo contratante.
+        </p>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Súbelos aquí en PDF — extraeremos los datos automáticamente y formarán tu expediente
+          técnico, que el sistema usará para saber a qué licitaciones puedes presentarte.
+        </p>
       </div>
 
       {/* Filtros */}

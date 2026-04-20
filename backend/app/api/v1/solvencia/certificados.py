@@ -6,7 +6,9 @@ from decimal import Decimal
 from typing import Annotated, Sequence
 from uuid import UUID, uuid4
 
+import httpx
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -321,3 +323,23 @@ async def rechazar_certificado(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CertificadoObra:
     return await _transicionar_estado(db, certificado_id, EstadoCertificado.rechazado)
+
+
+@router.get(
+    "/{certificado_id}/pdf",
+    summary="Proxy del PDF — devuelve el archivo con headers correctos para iframe",
+)
+async def proxy_pdf(
+    certificado_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> StreamingResponse:
+    cert = await _get_certificado_or_404(db, certificado_id)
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(cert.pdf_url)
+        if r.status_code != 200:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, "No se pudo recuperar el PDF")
+    return StreamingResponse(
+        content=iter([r.content]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "inline"},
+    )

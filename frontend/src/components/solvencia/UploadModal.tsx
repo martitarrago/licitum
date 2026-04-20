@@ -62,16 +62,24 @@ export function UploadModal({ onClose }: UploadModalProps) {
     setUploading(true);
     setProgress(0);
 
+    // Avance simulado hasta 80% para dar sensación de progreso durante la subida
+    const fakeInterval = setInterval(() => {
+      setProgress((p) => (p < 80 ? Math.min(p + 3, 80) : p));
+    }, 400);
+
     const fd = new FormData();
     fd.append("pdf", file);
     fd.append("empresa_id", EMPRESA_DEMO_ID);
 
     try {
-      const cert = await certificadosApi.upload(fd, setProgress);
+      const cert = await certificadosApi.upload(fd, () => {});
+      clearInterval(fakeInterval);
+      setProgress(100);
       await qc.invalidateQueries({ queryKey: ["certificados"] });
       onClose();
       router.push(`/solvencia/certificados/${cert.id}/revisar`);
     } catch (err) {
+      clearInterval(fakeInterval);
       setError(err instanceof Error ? err.message : "Error al subir el archivo");
       setUploading(false);
     }
@@ -160,23 +168,27 @@ export function UploadModal({ onClose }: UploadModalProps) {
                 )}
               </div>
 
-              <p className="text-xs text-muted-foreground">
-                Extraeremos la información del certificado automáticamente. En el
-                siguiente paso podrás revisar y corregir los datos antes de validarlos.
-                Suele tardar entre 30 y 60 segundos.
-              </p>
+              <div className="rounded-lg bg-muted px-4 py-3 space-y-1">
+                <p className="text-sm font-medium text-foreground">
+                  Extraeremos la información automáticamente
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  En el siguiente paso podrás revisar y corregir los datos antes
+                  de validarlos. Suele tardar entre 30 y 60 segundos.
+                </p>
+              </div>
 
               {/* Barra de progreso */}
               {uploading && (
                 <div className="space-y-1.5">
                   <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-primary-500 transition-all duration-300"
+                      className="h-full rounded-full bg-primary-500 transition-all duration-[2000ms] ease-out"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
                   <p className="text-right text-xs tabular-nums text-muted-foreground">
-                    {progress}%
+                    {progress < 100 ? "Subiendo…" : "Procesando…"}
                   </p>
                 </div>
               )}
@@ -209,7 +221,7 @@ export function UploadModal({ onClose }: UploadModalProps) {
                   "
                 >
                   <FileUp className="h-4 w-4" aria-hidden="true" />
-                  {uploading ? "Subiendo…" : "Subir certificado"}
+                  {uploading ? "Subiendo…" : "Subir y extraer información"}
                 </button>
               </div>
             </div>

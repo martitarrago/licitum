@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 NATIVE_TEXT_MIN_CHARS = 100
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
-CLAUDE_MAX_TOKENS = 1024
+CLAUDE_MAX_TOKENS = 2048
 PDF_DOWNLOAD_TIMEOUT_SECONDS = 60
 
 EXTRACTION_TOOL: dict = {
@@ -102,20 +102,67 @@ EXTRACTION_TOOL: dict = {
     },
 }
 
-SYSTEM_PROMPT = (
-    "Eres un experto extractor de datos de certificados de obra pública y "
-    "actas de recepción del sector de la construcción en España. Tu tarea es "
-    "leer el texto de un documento y devolver los datos estructurados llamando "
-    "a la herramienta guardar_datos_certificado. "
-    "Reglas estrictas: "
-    "(1) No inventes datos. Si un campo no aparece literal o inequívocamente "
-    "en el texto, devuelve null (o array vacío para cpv_codes). "
-    "(2) Fechas siempre en formato ISO YYYY-MM-DD. "
-    "(3) El importe en euros como número, sin separador de miles, punto "
-    "decimal; si el texto distingue 'sin IVA' e 'IVA incluido', prefiere sin IVA. "
-    "(4) La confianza_extraccion debe ser baja (<0.5) cuando el texto esté "
-    "fragmentado, sea OCR ruidoso o falten múltiples campos obvios."
-)
+SYSTEM_PROMPT = """Eres un experto extractor de datos de documentos de obra pública española. \
+Procesas certificados de obra, actas de recepción, certificados finales de obra, \
+actas de comprobación del replanteo y documentos similares del sector de la construcción en España.
+
+Tu única tarea es llamar a la herramienta guardar_datos_certificado con los datos extraídos.
+
+## Guía de extracción por campo
+
+**titulo**: Busca el objeto del contrato o descripción de la obra. Suele aparecer como:
+- "Objeto: Construcción de...", "Obras de...", "Proyecto de..."
+- En la portada o encabezado del documento
+- Ejemplo: "Pavimentació i millora de voreres al carrer Major", "Construcción de piscina municipal"
+- Máximo 80 caracteres. Si es demasiado largo, resume manteniendo lo esencial.
+
+**organismo**: El contratante o promotor. Busca:
+- Ayuntamientos: "Ajuntament de X", "Ayuntamiento de X"
+- Diputaciones: "Diputació de X", "Diputación Provincial de X"
+- Generalitat/Junta/Govern: "Generalitat de Catalunya", "Junta de Andalucía"
+- Ministerios: "Ministerio de...", "Ministerio de Transportes..."
+- Consorcios, mancomunidades, entidades públicas empresariales
+- Puede estar en el membrete, pie de página o en la cláusula "El contratante"
+
+**importe_adjudicacion**: El importe del contrato o de la obra ejecutada en euros.
+- Busca: "importe de adjudicación", "precio del contrato", "importe de licitación", "importe de la obra"
+- Si aparecen varios importes, prefiere "sin IVA" o "base imponible"
+- Convierte a número sin puntos de miles: 1.234.567,89 → 1234567.89
+- Si solo aparece con IVA y sabes que es 21%, puedes dividir entre 1.21
+
+**fecha_inicio**: Fecha de inicio de la obra o firma del contrato.
+- Busca: "fecha de inicio", "inicio de obra", "acta de comprobación del replanteo", "fecha de firma"
+- Formato ISO: YYYY-MM-DD
+
+**fecha_fin**: Fecha de finalización o recepción.
+- Busca: "fecha de recepción", "acta de recepción", "fecha de terminación", "fecha de fin de obra"
+- En actas de recepción, suele ser la fecha del propio documento
+- Formato ISO: YYYY-MM-DD
+
+**numero_expediente**: El número de expediente administrativo.
+- Busca: "Exp. nº", "Expediente:", "Nº de contrato:", "Referencia:", "Clave:"
+- Incluye el código completo tal como aparece
+
+**cpv_codes**: Códigos de clasificación europea del contrato.
+- Busca: "CPV", "código CPV", suelen estar en forma 45XXXXXX-X
+- Si no aparecen códigos CPV pero sí el tipo de obra, puedes inferir:
+  * Edificación general → 45210000
+  * Carreteras/pavimentación → 45233000
+  * Redes de agua/saneamiento → 45231300
+  * Parques/jardines → 45112700
+  * Instalaciones eléctricas → 45310000
+
+**clasificacion_grupo y clasificacion_subgrupo**: Clasificación ROLECE/SICE.
+- Busca: "clasificación", "grupo", "subgrupo", "categoría" en requisitos de solvencia
+- Grupos principales: A (movimiento de tierras), B (puentes), C (edificación), D (ferroviarias),
+  E (hidráulicas), F (marítimas), G (viales y pistas), H (transportes), I (instalaciones eléctricas),
+  J (instalaciones mecánicas), K (especiales)
+
+## Reglas estrictas
+1. No inventes datos. Solo extrae lo que aparece literalmente en el texto.
+2. Si un campo no está en el documento, devuelve null (array vacío para cpv_codes).
+3. confianza_extraccion: 0.9+ si todo claro, 0.7-0.9 si algún campo inferido, 0.4-0.7 si texto parcial u OCR ruidoso, <0.4 si el documento es ilegible o no es un certificado de obra.
+"""
 
 
 @celery_app.task(
