@@ -142,4 +142,10 @@ export const certificadosApi = {
     }).then((res) => {
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
     }),
+
+  revertir: (id: string) =>
+    apiFetch<CertificadoObraRead>(
+      `/api/v1/solvencia/certificados/${id}/revertir`,
+      { method: "POST" }
+    ),
 };

@@ -31,14 +31,13 @@ const ORDENES: { value: Orden; label: string }[] = [
   { value: "importe", label: "Importe" },
 ];
 
-// Un certificado validado con fecha_fin hace más de 10 años se considera caducado
-// (solvencia acreditada expira; ROLECE exige los últimos 10 años)
-const DIEZ_ANIOS_MS = 10 * 365.25 * 24 * 60 * 60 * 1000;
+// Período de referencia LCSP art. 88: los últimos 5 años
+const CINCO_ANIOS_MS = 5 * 365.25 * 24 * 60 * 60 * 1000;
 
 function esCaducado(cert: CertificadoObraListItem): boolean {
   if (cert.estado !== "validado") return false;
   if (!cert.fecha_fin) return false;
-  return Date.now() - new Date(cert.fecha_fin).getTime() > DIEZ_ANIOS_MS;
+  return Date.now() - new Date(cert.fecha_fin).getTime() > CINCO_ANIOS_MS;
 }
 
 // ─── Skeleton ────────────────────────────────────────────────────────────────

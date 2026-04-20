@@ -6,9 +6,8 @@ from decimal import Decimal
 from typing import Annotated, Sequence
 from uuid import UUID, uuid4
 
-import httpx
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -302,6 +301,28 @@ async def reextraer_certificado(
 
 
 @router.post(
+    "/{certificado_id}/revertir",
+    response_model=CertificadoObraRead,
+    summary="Devuelve el certificado a pendiente_revision para re-edición",
+)
+async def revertir_certificado(
+    certificado_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CertificadoObra:
+    cert = await _get_certificado_or_404(db, certificado_id)
+    if cert.estado not in (EstadoCertificado.validado, EstadoCertificado.rechazado):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Solo se puede revertir desde 'validado' o 'rechazado' "
+            f"(estado actual: '{cert.estado.value}')",
+        )
+    cert.estado = EstadoCertificado.pendiente_revision
+    await db.commit()
+    await db.refresh(cert)
+    return cert
+
+
+@router.post(
     "/{certificado_id}/validar",
     response_model=CertificadoObraRead,
     summary="Marca el certificado como validado",
@@ -327,19 +348,11 @@ async def rechazar_certificado(
 
 @router.get(
     "/{certificado_id}/pdf",
-    summary="Proxy del PDF — devuelve el archivo con headers correctos para iframe",
+    summary="Redirige al PDF en R2 (Content-Disposition: inline para iframe)",
 )
 async def proxy_pdf(
     certificado_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> StreamingResponse:
+) -> RedirectResponse:
     cert = await _get_certificado_or_404(db, certificado_id)
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.get(cert.pdf_url)
-        if r.status_code != 200:
-            raise HTTPException(status.HTTP_502_BAD_GATEWAY, "No se pudo recuperar el PDF")
-    return StreamingResponse(
-        content=iter([r.content]),
-        media_type="application/pdf",
-        headers={"Content-Disposition": "inline"},
-    )
+    return RedirectResponse(url=cert.pdf_url, status_code=307)

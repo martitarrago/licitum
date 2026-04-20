@@ -11,6 +11,7 @@ import {
   ExternalLink,
   FileText,
   RefreshCw,
+  Undo2,
   XCircle,
 } from "lucide-react";
 import {
@@ -239,7 +240,7 @@ function ConfirmValidarModal({
               </h2>
               <p className="mt-1.5 text-sm text-muted-foreground">
                 Los datos se guardarán como parte del expediente técnico de la
-                empresa. Esta acción no se puede deshacer.
+                empresa. Podrás revertirlo a pendiente si necesitas corregirlo.
               </p>
             </div>
           </div>
@@ -703,6 +704,17 @@ function CertificadoFinalizado({
   cert: CertificadoObraRead;
   onVolver: () => void;
 }) {
+  const qc = useQueryClient();
+  const [confirmRevertir, setConfirmRevertir] = useState(false);
+
+  const revertirMutation = useMutation({
+    mutationFn: () => certificadosApi.revertir(cert.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["certificado", cert.id] });
+      qc.invalidateQueries({ queryKey: ["certificados"] });
+    },
+  });
+
   const readCls =
     "w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground";
   const labelCls =
@@ -712,12 +724,48 @@ function CertificadoFinalizado({
 
   return (
     <div className="space-y-4 p-6">
-      <button
-        onClick={onVolver}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        ← Volver a certificados
-      </button>
+      <div className="flex items-center justify-between gap-3">
+        <button
+          onClick={onVolver}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          ← Volver a certificados
+        </button>
+        <button
+          onClick={() => setConfirmRevertir(true)}
+          disabled={revertirMutation.isPending}
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+          title="Volver a editar este certificado"
+        >
+          <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Revertir a pendiente
+        </button>
+      </div>
+
+      {confirmRevertir && (
+        <div className="rounded-lg bg-warning/10 px-4 py-3 ring-1 ring-warning/25 flex items-start justify-between gap-3">
+          <p className="text-sm text-foreground">
+            ¿Revertir a pendiente de revisión?
+          </p>
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={() => setConfirmRevertir(false)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                setConfirmRevertir(false);
+                revertirMutation.mutate();
+              }}
+              className="text-xs font-semibold text-warning hover:text-warning/80"
+            >
+              Confirmar
+            </button>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <div className={labelCls}>Organismo contratante</div>
