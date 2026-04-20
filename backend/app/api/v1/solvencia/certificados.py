@@ -261,10 +261,15 @@ async def reextraer_certificado(
 ) -> Response:
     cert = await _get_certificado_or_404(db, certificado_id)
 
-    if cert.estado != EstadoCertificado.pendiente_revision:
+    # Permitimos re-extraer desde pendiente_revision y también desde procesando
+    # (por si el worker murió mid-execution sin poder completar el finally).
+    if cert.estado not in (
+        EstadoCertificado.pendiente_revision,
+        EstadoCertificado.procesando,
+    ):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"Solo se puede re-extraer desde 'pendiente_revision' "
+            f"Solo se puede re-extraer desde 'pendiente_revision' o 'procesando' "
             f"(estado actual: '{cert.estado.value}')",
         )
 
@@ -275,6 +280,10 @@ async def reextraer_certificado(
             "El certificado ya tiene datos extraídos. "
             "Envía `forzar: true` para sobreescribirlos.",
         )
+
+    # Limpia el error previo al re-encolar
+    cert.extraction_error = None
+    await db.commit()
 
     try:
         extraer_certificado.delay(str(certificado_id))

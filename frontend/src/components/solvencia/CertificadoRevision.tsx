@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertCircle,
   AlertTriangle,
   CheckCircle2,
   Clock,
@@ -19,27 +20,25 @@ import {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function isExtractionReady(cert: CertificadoObraRead): boolean {
-  return (
-    cert.estado !== "procesando" &&
-    typeof cert.extracted_data?.confianza_extraccion === "number"
-  );
+const PROCESANDO_TIMEOUT_MS = 2 * 60 * 1000;
+
+function hasExtractionData(cert: CertificadoObraRead): boolean {
+  return typeof cert.extracted_data?.confianza_extraccion === "number";
 }
 
-function isPendingExtraction(cert: CertificadoObraRead): boolean {
-  return (
-    !isExtractionReady(cert) &&
-    cert.estado !== "validado" &&
-    cert.estado !== "rechazado"
-  );
+function isStillProcessing(cert: CertificadoObraRead): boolean {
+  return cert.estado === "procesando";
 }
 
-function showTwoColumn(cert: CertificadoObraRead): boolean {
-  return (
-    cert.estado === "validado" ||
-    cert.estado === "rechazado" ||
-    isExtractionReady(cert)
-  );
+function isProcesandoTimeout(cert: CertificadoObraRead): boolean {
+  if (cert.estado !== "procesando") return false;
+  const updatedAt = new Date(cert.updated_at).getTime();
+  if (Number.isNaN(updatedAt)) return false;
+  return Date.now() - updatedAt > PROCESANDO_TIMEOUT_MS;
+}
+
+function hasExtractionFailed(cert: CertificadoObraRead): boolean {
+  return cert.estado === "pendiente_revision" && !hasExtractionData(cert);
 }
 
 function confianzaStyle(value: number) {
@@ -263,28 +262,110 @@ function ConfirmValidarModal({
 
 // ─── ExtractionPending ────────────────────────────────────────────────────────
 
-function ExtractionPending({ onRefresh }: { onRefresh: () => void }) {
+function ExtractionPending({
+  onRefresh,
+  timeout,
+  onForceReextract,
+  forceReextractPending,
+}: {
+  onRefresh: () => void;
+  timeout: boolean;
+  onForceReextract: () => void;
+  forceReextractPending: boolean;
+}) {
   return (
     <div className="flex flex-col items-center gap-6 rounded-xl bg-surface-raised p-10 text-center ring-1 ring-border">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-900/30">
-        <Clock className="h-8 w-8 text-primary-500" aria-hidden="true" />
+      <div
+        className={`flex h-16 w-16 items-center justify-center rounded-full ${
+          timeout
+            ? "bg-warning/10"
+            : "bg-primary-50 dark:bg-primary-900/30"
+        }`}
+      >
+        {timeout ? (
+          <AlertTriangle className="h-8 w-8 text-warning" aria-hidden="true" />
+        ) : (
+          <Clock className="h-8 w-8 text-primary-500" aria-hidden="true" />
+        )}
       </div>
       <div className="space-y-2">
         <p className="text-base font-semibold text-foreground">
-          Extrayendo datos del PDF
+          {timeout ? "La extracción tarda más de lo normal" : "Extrayendo datos del PDF"}
         </p>
-        <p className="max-w-xs text-sm text-muted-foreground">
-          Claude está analizando el certificado. Suele tardar menos de un
-          minuto. La página se actualizará automáticamente.
+        <p className="max-w-sm text-sm text-muted-foreground">
+          {timeout
+            ? "Lleva más de 2 minutos procesando. Es posible que el worker haya fallado. Puedes forzar un reintento."
+            : "Claude está analizando el certificado. Suele tardar menos de un minuto. La página se actualizará automáticamente."}
         </p>
       </div>
-      <button
-        onClick={onRefresh}
-        className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
-      >
-        <RefreshCw className="h-4 w-4" aria-hidden="true" />
-        Actualizar ahora
-      </button>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <button
+          onClick={onRefresh}
+          className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          Actualizar ahora
+        </button>
+        {timeout && (
+          <button
+            onClick={onForceReextract}
+            disabled={forceReextractPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:pointer-events-none disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${forceReextractPending ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />
+            {forceReextractPending ? "Reintentando…" : "Forzar re-extracción"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── ExtractionErrorBanner ────────────────────────────────────────────────────
+
+function ExtractionErrorBanner({
+  error,
+  onReextract,
+  reextractPending,
+}: {
+  error: string | null;
+  onReextract: () => void;
+  reextractPending: boolean;
+}) {
+  return (
+    <div className="border-b border-border bg-danger/5 px-6 py-4">
+      <div className="flex items-start gap-3">
+        <AlertCircle
+          className="mt-0.5 h-5 w-5 flex-shrink-0 text-danger"
+          aria-hidden="true"
+        />
+        <div className="flex-1 space-y-2">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              La extracción automática no pudo completarse
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {error
+                ? `Motivo: ${error}`
+                : "No se obtuvieron datos del PDF. Puedes reintentar la extracción o rellenar los campos manualmente."}
+            </p>
+          </div>
+          <button
+            onClick={onReextract}
+            disabled={reextractPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-700 disabled:pointer-events-none disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${reextractPending ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />
+            {reextractPending ? "Reintentando…" : "Reintentar extracción"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -302,29 +383,44 @@ interface FormValues {
   clasificacion_subgrupo: string;
 }
 
-function fromExtracted(data: Partial<ExtractedData>): FormValues {
+function fromCert(cert: CertificadoObraRead): FormValues {
+  const data = cert.extracted_data as Partial<ExtractedData>;
+  const importe =
+    data.importe_adjudicacion != null
+      ? String(data.importe_adjudicacion)
+      : cert.importe_adjudicacion && Number(cert.importe_adjudicacion) > 0
+        ? String(cert.importe_adjudicacion)
+        : "";
   return {
-    organismo: data.organismo ?? "",
-    importe_adjudicacion:
-      data.importe_adjudicacion != null
-        ? String(data.importe_adjudicacion)
-        : "",
-    fecha_inicio: data.fecha_inicio ?? "",
-    fecha_fin: data.fecha_fin ?? "",
-    numero_expediente: data.numero_expediente ?? "",
-    cpv_codes: (data.cpv_codes ?? []).join(", "),
-    clasificacion_grupo: data.clasificacion_grupo ?? "",
-    clasificacion_subgrupo: data.clasificacion_subgrupo ?? "",
+    organismo: data.organismo ?? cert.organismo ?? "",
+    importe_adjudicacion: importe,
+    fecha_inicio: data.fecha_inicio ?? cert.fecha_inicio ?? "",
+    fecha_fin: data.fecha_fin ?? cert.fecha_fin ?? "",
+    numero_expediente:
+      data.numero_expediente ??
+      (cert.numero_expediente && !cert.numero_expediente.startsWith("EXP-")
+        ? cert.numero_expediente
+        : ""),
+    cpv_codes: (data.cpv_codes ?? cert.cpv_codes ?? []).join(", "),
+    clasificacion_grupo: data.clasificacion_grupo ?? cert.clasificacion_grupo ?? "",
+    clasificacion_subgrupo:
+      data.clasificacion_subgrupo ?? cert.clasificacion_subgrupo ?? "",
   };
 }
 
-function ReviewForm({ cert }: { cert: CertificadoObraRead }) {
+function ReviewForm({
+  cert,
+  showConfianza = true,
+}: {
+  cert: CertificadoObraRead;
+  showConfianza?: boolean;
+}) {
   const qc = useQueryClient();
   const extracted = cert.extracted_data as Partial<ExtractedData>;
   const confianzaGlobal = extracted.confianza_extraccion ?? 0;
   const confianzaCampos = extracted.confianza_campos;
 
-  const [form, setForm] = useState<FormValues>(() => fromExtracted(extracted));
+  const [form, setForm] = useState<FormValues>(() => fromCert(cert));
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -374,28 +470,30 @@ function ReviewForm({ cert }: { cert: CertificadoObraRead }) {
   return (
     <>
       <div className="space-y-5 p-6">
-        {/* Confianza global */}
-        <div className="flex flex-wrap items-center gap-3 rounded-lg bg-muted px-4 py-2.5">
-          {(() => {
-            const { label, cls } = confianzaStyle(confianzaGlobal);
-            return (
-              <>
-                <span className="text-xs text-muted-foreground">
-                  Confianza de extracción:
-                </span>
-                <span className={`text-xs font-semibold ${cls}`}>
-                  {label} ({Math.round(confianzaGlobal * 100)}%)
-                </span>
-                {confianzaGlobal < 0.5 && (
-                  <span className="inline-flex items-center gap-1 rounded-md bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger ring-1 ring-danger/25">
-                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                    Revisar con atención
+        {/* Confianza global — solo si hay datos extraídos */}
+        {showConfianza && (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg bg-muted px-4 py-2.5">
+            {(() => {
+              const { label, cls } = confianzaStyle(confianzaGlobal);
+              return (
+                <>
+                  <span className="text-xs text-muted-foreground">
+                    Confianza de extracción:
                   </span>
-                )}
-              </>
-            );
-          })()}
-        </div>
+                  <span className={`text-xs font-semibold ${cls}`}>
+                    {label} ({Math.round(confianzaGlobal * 100)}%)
+                  </span>
+                  {confianzaGlobal < 0.5 && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger ring-1 ring-danger/25">
+                      <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                      Revisar con atención
+                    </span>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
 
         {/* Campos del formulario */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -642,6 +740,7 @@ function CertificadoFinalizado({ cert }: { cert: CertificadoObraRead }) {
 
 export function CertificadoRevision({ id }: { id: string }) {
   const qc = useQueryClient();
+  const [, setTick] = useState(0);
 
   const { data: cert, isLoading, isError } = useQuery({
     queryKey: ["certificado", id],
@@ -649,7 +748,22 @@ export function CertificadoRevision({ id }: { id: string }) {
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return 5_000;
-      return isPendingExtraction(data) ? 5_000 : false;
+      return isStillProcessing(data) ? 5_000 : false;
+    },
+  });
+
+  // Re-render cada 15s mientras procesa, para detectar timeout sin esperar al backend
+  useEffect(() => {
+    if (!cert || !isStillProcessing(cert)) return;
+    const interval = setInterval(() => setTick((t) => t + 1), 15_000);
+    return () => clearInterval(interval);
+  }, [cert]);
+
+  const reextractMutation = useMutation({
+    mutationFn: (forzar: boolean) => certificadosApi.reextraer(id, forzar),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["certificado", id] });
+      qc.invalidateQueries({ queryKey: ["certificados"] });
     },
   });
 
@@ -669,7 +783,10 @@ export function CertificadoRevision({ id }: { id: string }) {
     );
   }
 
-  const dosTColumnas = showTwoColumn(cert);
+  const procesando = isStillProcessing(cert);
+  const timeoutProcesando = isProcesandoTimeout(cert);
+  const extraccionFallida = hasExtractionFailed(cert);
+  const tieneDatos = hasExtractionData(cert);
   const confianzaGlobal = cert.extracted_data?.confianza_extraccion;
 
   return (
@@ -690,10 +807,9 @@ export function CertificadoRevision({ id }: { id: string }) {
               )}
           </div>
 
-          {/* Confianza global + enlace PDF — solo cuando hay datos extraídos */}
-          {dosTColumnas && (
+          {!procesando && (
             <div className="flex flex-wrap items-center gap-4">
-              {typeof confianzaGlobal === "number" && (
+              {typeof confianzaGlobal === "number" && tieneDatos && (
                 <div className="flex items-center gap-2">
                   {(() => {
                     const { label, cls } = confianzaStyle(confianzaGlobal);
@@ -722,28 +838,35 @@ export function CertificadoRevision({ id }: { id: string }) {
         </div>
       </header>
 
-      {/* Extracción en curso — pantalla completa */}
-      {isPendingExtraction(cert) ? (
+      {procesando ? (
         <ExtractionPending
           onRefresh={() =>
             qc.invalidateQueries({ queryKey: ["certificado", id] })
           }
+          timeout={timeoutProcesando}
+          onForceReextract={() => reextractMutation.mutate(true)}
+          forceReextractPending={reextractMutation.isPending}
         />
       ) : (
-        /* Layout dos columnas */
         <div className="grid gap-6 items-start lg:grid-cols-[1fr,480px]">
-          {/* Columna izquierda — visor PDF, sticky en desktop */}
           <div className="lg:sticky lg:top-4">
             <PdfViewer url={cert.pdf_url} />
           </div>
 
-          {/* Columna derecha — formulario o vista final */}
-          <div className="rounded-xl bg-surface-raised ring-1 ring-border">
+          <div className="overflow-hidden rounded-xl bg-surface-raised ring-1 ring-border">
             {cert.estado === "pendiente_revision" ? (
-              <ReviewForm cert={cert} />
+              <>
+                {extraccionFallida && (
+                  <ExtractionErrorBanner
+                    error={cert.extraction_error}
+                    onReextract={() => reextractMutation.mutate(true)}
+                    reextractPending={reextractMutation.isPending}
+                  />
+                )}
+                <ReviewForm cert={cert} showConfianza={tieneDatos} />
+              </>
             ) : (
               <>
-                {/* Badge resultado en la parte superior del panel */}
                 <div className="border-b border-border px-6 py-4">
                   <EstadoBadge estado={cert.estado} />
                 </div>

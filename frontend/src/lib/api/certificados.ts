@@ -34,6 +34,7 @@ export interface CertificadoObraListItem {
   clasificacion_subgrupo: string | null;
   pdf_url: string;
   estado: EstadoCertificado;
+  extraction_error: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -132,4 +133,13 @@ export const certificadosApi = {
       `/api/v1/solvencia/certificados/${id}/rechazar`,
       { method: "POST" }
     ),
+
+  reextraer: (id: string, forzar = false) =>
+    fetch(`${API_BASE}/api/v1/solvencia/certificados/${id}/reextraer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ forzar }),
+    }).then((res) => {
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+    }),
 };

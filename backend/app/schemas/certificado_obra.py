@@ -49,6 +49,7 @@ class CertificadoObraListItem(CertificadoObraBase):
     empresa_id: uuid.UUID
     estado: EstadoCertificado
     pdf_url: str
+    extraction_error: str | None = None
     created_at: datetime
     updated_at: datetime
 

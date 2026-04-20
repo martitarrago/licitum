@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Date, ForeignKey, Numeric, String, TypeDecorator
+from sqlalchemy import Date, ForeignKey, Numeric, String, Text, TypeDecorator
 from sqlalchemy.dialects.postgresql import ARRAY, ENUM as PGEnum, JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -70,5 +70,6 @@ class CertificadoObra(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base
     extracted_data: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
     )
+    extraction_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     empresa: Mapped[Empresa] = relationship(back_populates="certificados")

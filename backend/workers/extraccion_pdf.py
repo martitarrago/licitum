@@ -112,10 +112,6 @@ SYSTEM_PROMPT = (
 @celery_app.task(
     name="workers.extraccion_pdf.extraer_certificado",
     bind=True,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_backoff_max=600,
-    max_retries=3,
 )
 def extraer_certificado(self, certificado_id: str) -> None:
     """Worker de extracción de datos del PDF de un certificado de obra.
@@ -125,6 +121,9 @@ def extraer_certificado(self, certificado_id: str) -> None:
       2. Descarga el PDF, extrae texto (pdfplumber, con fallback OCR).
       3. Llama a Claude con structured output y escribe extracted_data.
       4. procesando → pendiente_revision (SIEMPRE; el usuario confirma después).
+
+    Los errores se persisten en `extraction_error` para que el frontend pueda
+    mostrarlos al usuario (sin retries silenciosos: si falla, falla una vez).
     """
     asyncio.run(_ejecutar(UUID(certificado_id)))
 
@@ -141,20 +140,37 @@ async def _ejecutar(certificado_id: UUID) -> None:
             return
 
         cert.estado = EstadoCertificado.procesando
+        cert.extraction_error = None
         await session.commit()
 
+        error_msg: str | None = None
         try:
             pdf_bytes = await _descargar_pdf(cert.pdf_url)
             texto = _extraer_texto(pdf_bytes)
             datos = await _extraer_con_claude(texto)
-            cert.extracted_data = datos
-            logger.info(
-                "Certificado %s: extracción OK (confianza=%s)",
+            if not datos:
+                error_msg = (
+                    "Claude no devolvió datos estructurados. "
+                    "Puede ser por ANTHROPIC_API_KEY ausente, límite de rate "
+                    "o texto del PDF irrecuperable."
+                )
+            else:
+                cert.extracted_data = datos
+                logger.info(
+                    "Certificado %s: extracción OK (confianza=%s)",
+                    certificado_id,
+                    datos.get("confianza_extraccion"),
+                )
+        except Exception as exc:  # noqa: BLE001
+            error_msg = f"{type(exc).__name__}: {exc}"
+            logger.exception(
+                "Certificado %s: fallo de extracción — %s",
                 certificado_id,
-                datos.get("confianza_extraccion"),
+                error_msg,
             )
         finally:
             cert.estado = EstadoCertificado.pendiente_revision
+            cert.extraction_error = error_msg
             await session.commit()
 
 
@@ -203,10 +219,13 @@ def _extraer_texto_ocr(pdf_bytes: bytes) -> str:
 
 async def _extraer_con_claude(texto: str) -> dict:
     if not settings.anthropic_api_key:
-        logger.warning(
-            "ANTHROPIC_API_KEY no configurada; extracted_data queda vacío"
+        raise RuntimeError("ANTHROPIC_API_KEY no está configurada en el entorno")
+
+    if not texto.strip():
+        raise RuntimeError(
+            "No se pudo extraer texto del PDF (ni nativo ni OCR). "
+            "Verifica que el PDF contenga texto legible."
         )
-        return {}
 
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
     respuesta = await client.messages.create(
@@ -240,7 +259,6 @@ async def _extraer_con_claude(texto: str) -> dict:
         if block.type == "tool_use" and block.name == "guardar_datos_certificado":
             return dict(block.input)
 
-    logger.warning(
-        "Claude no devolvió bloque tool_use; extracted_data queda vacío"
+    raise RuntimeError(
+        "Claude no devolvió un bloque tool_use con los datos estructurados"
     )
-    return {}

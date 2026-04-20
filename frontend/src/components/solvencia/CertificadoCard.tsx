@@ -61,11 +61,22 @@ const fechaFormatter = new Intl.DateTimeFormat("es-ES", {
   year: "numeric",
 });
 
+function formatFechaCorta(d: Date) {
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
+  }).format(d);
+}
+
 export function CertificadoCard({ cert }: { cert: CertificadoObraListItem }) {
   const estilo = estadoStyles[cert.estado];
   const StatusIcon = estilo.Icon;
   const importe = Number(cert.importe_adjudicacion);
+  const fechaInicio = cert.fecha_inicio ? new Date(cert.fecha_inicio) : null;
   const fechaFin = cert.fecha_fin ? new Date(cert.fecha_fin) : null;
+  const tieneExtractionError =
+    cert.estado === "pendiente_revision" && Boolean(cert.extraction_error);
 
   return (
     <Link
@@ -82,13 +93,15 @@ export function CertificadoCard({ cert }: { cert: CertificadoObraListItem }) {
       >
         {/* Franja lateral de estado */}
         <div
-          className={`w-2 flex-shrink-0 ${estilo.stripe}`}
+          className={`w-2 flex-shrink-0 ${
+            tieneExtractionError ? "bg-danger" : estilo.stripe
+          }`}
           aria-hidden="true"
         />
 
         <div className="flex flex-1 flex-col gap-4 p-5">
           {/* Badge de estado */}
-          <div>
+          <div className="flex flex-wrap items-center gap-2">
             <div
               className={`
                 inline-flex items-center gap-1.5
@@ -105,6 +118,15 @@ export function CertificadoCard({ cert }: { cert: CertificadoObraListItem }) {
               />
               {estilo.label}
             </div>
+            {tieneExtractionError && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger ring-1 ring-inset ring-danger/25"
+                title={cert.extraction_error ?? undefined}
+              >
+                <AlertCircle className="h-3 w-3" aria-hidden="true" />
+                Extracción fallida
+              </span>
+            )}
           </div>
 
           {/* Título + organismo */}
@@ -128,13 +150,19 @@ export function CertificadoCard({ cert }: { cert: CertificadoObraListItem }) {
                 {importe > 0 ? importeFormatter.format(importe) : "—"}
               </div>
             </div>
-            {fechaFin && (
+            {(fechaInicio || fechaFin) && (
               <div>
                 <div className="mb-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Fecha fin
+                  Período
                 </div>
                 <div className="text-sm font-medium tabular-nums text-foreground">
-                  {fechaFormatter.format(fechaFin)}
+                  {fechaInicio && fechaFin
+                    ? `${formatFechaCorta(fechaInicio)} – ${formatFechaCorta(fechaFin)}`
+                    : fechaFin
+                      ? fechaFormatter.format(fechaFin)
+                      : fechaInicio
+                        ? fechaFormatter.format(fechaInicio)
+                        : "—"}
                 </div>
               </div>
             )}

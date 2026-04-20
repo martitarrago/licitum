@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FileUp, X } from "lucide-react";
+import { AlertCircle, FileUp, X } from "lucide-react";
 import { certificadosApi } from "@/lib/api/certificados";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
@@ -28,6 +28,7 @@ export function UploadModal({ onClose }: UploadModalProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [touched, setTouched] = useState({ titulo: false, organismo: false });
 
   const acceptFile = useCallback((f: File) => {
     if (f.type !== "application/pdf") {
@@ -36,11 +37,12 @@ export function UploadModal({ onClose }: UploadModalProps) {
     }
     setFile(f);
     setTitulo(f.name.replace(/\.pdf$/i, ""));
+    setOrganismo("");
+    setTouched({ titulo: false, organismo: false });
     setError(null);
     setStep("form");
   }, []);
 
-  // Drop handlers
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -63,8 +65,18 @@ export function UploadModal({ onClose }: UploadModalProps) {
     if (f) acceptFile(f);
   };
 
+  const tituloTrim = titulo.trim();
+  const organismoTrim = organismo.trim();
+  const isValid = tituloTrim.length > 0 && organismoTrim.length > 0;
+
   const handleSubmit = async () => {
     if (!file) return;
+    setTouched({ titulo: true, organismo: true });
+    if (!isValid) {
+      setError("Título y organismo son obligatorios.");
+      return;
+    }
+
     setError(null);
     setUploading(true);
     setProgress(0);
@@ -75,8 +87,10 @@ export function UploadModal({ onClose }: UploadModalProps) {
     const fd = new FormData();
     fd.append("pdf", file);
     fd.append("empresa_id", EMPRESA_DEMO_ID);
-    fd.append("titulo", titulo.trim() || file.name.replace(/\.pdf$/i, ""));
-    fd.append("organismo", organismo.trim() || "Pendiente de revisión");
+    fd.append("titulo", tituloTrim);
+    fd.append("organismo", organismoTrim);
+    // El backend aún requiere estos campos. Se auto-rellenan con placeholders
+    // que el usuario editará en la página de revisión tras la extracción.
     fd.append("importe_adjudicacion", "0");
     fd.append("fecha_inicio", today);
     fd.append("fecha_fin", today);
@@ -92,13 +106,19 @@ export function UploadModal({ onClose }: UploadModalProps) {
     }
   };
 
-  const inputCls =
-    "w-full rounded-lg bg-surface ring-1 ring-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 transition-shadow";
+  const inputCls = (hasError: boolean) =>
+    `w-full rounded-lg bg-surface ring-1 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 transition-shadow ${
+      hasError
+        ? "ring-danger/50 focus:ring-danger"
+        : "ring-border focus:ring-primary-500"
+    }`;
   const labelCls =
     "mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted-foreground";
 
+  const tituloError = touched.titulo && !tituloTrim;
+  const organismoError = touched.organismo && !organismoTrim;
+
   return (
-    /* Overlay */
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 backdrop-blur-sm p-4"
       onClick={(e) => {
@@ -106,7 +126,6 @@ export function UploadModal({ onClose }: UploadModalProps) {
       }}
     >
       <div className="w-full max-w-md rounded-xl bg-surface-raised ring-1 ring-border shadow-md">
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-base font-semibold text-foreground">
             Subir certificado de obra
@@ -123,7 +142,6 @@ export function UploadModal({ onClose }: UploadModalProps) {
         </div>
 
         <div className="p-6">
-          {/* Step 1 — Drop zone */}
           {step === "drop" && (
             <div
               role="button"
@@ -148,10 +166,7 @@ export function UploadModal({ onClose }: UploadModalProps) {
               `}
             >
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-900/30">
-                <FileUp
-                  className="h-7 w-7 text-primary-500"
-                  aria-hidden="true"
-                />
+                <FileUp className="h-7 w-7 text-primary-500" aria-hidden="true" />
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-foreground">
@@ -164,10 +179,8 @@ export function UploadModal({ onClose }: UploadModalProps) {
             </div>
           )}
 
-          {/* Step 2 — Form */}
           {step === "form" && file && (
             <div className="space-y-5">
-              {/* Nombre del archivo */}
               <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2.5">
                 <FileUp className="h-4 w-4 flex-shrink-0 text-primary-500" aria-hidden="true" />
                 <span className="truncate text-sm font-medium text-foreground">
@@ -178,42 +191,54 @@ export function UploadModal({ onClose }: UploadModalProps) {
                 </span>
               </div>
 
-              {/* Campos opcionales */}
               <div className="space-y-4">
                 <div>
                   <label className={labelCls}>
-                    Título <span className="normal-case font-normal">(opcional)</span>
+                    Título <span className="text-danger">*</span>
                   </label>
                   <input
                     type="text"
-                    className={inputCls}
+                    className={inputCls(tituloError)}
                     value={titulo}
                     onChange={(e) => setTitulo(e.target.value)}
+                    onBlur={() => setTouched((t) => ({ ...t, titulo: true }))}
                     placeholder="Descripción de la obra"
                     disabled={uploading}
+                    aria-invalid={tituloError}
                   />
+                  {tituloError && (
+                    <p className="mt-1 text-xs text-danger">
+                      El título es obligatorio.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className={labelCls}>
-                    Organismo <span className="normal-case font-normal">(opcional)</span>
+                    Organismo <span className="text-danger">*</span>
                   </label>
                   <input
                     type="text"
-                    className={inputCls}
+                    className={inputCls(organismoError)}
                     value={organismo}
                     onChange={(e) => setOrganismo(e.target.value)}
+                    onBlur={() => setTouched((t) => ({ ...t, organismo: true }))}
                     placeholder="Ajuntament de Barcelona…"
                     disabled={uploading}
+                    aria-invalid={organismoError}
                   />
+                  {organismoError && (
+                    <p className="mt-1 text-xs text-danger">
+                      El organismo es obligatorio.
+                    </p>
+                  )}
                 </div>
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Claude extraerá el resto de datos del PDF automáticamente.
-                Podrás revisarlos y corregirlos antes de guardar.
+                Claude extraerá importe, fechas, CPVs y clasificación del PDF
+                automáticamente. Podrás revisar y corregir todo antes de validar.
               </p>
 
-              {/* Progress bar */}
               {uploading && (
                 <div className="space-y-1.5">
                   <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -228,14 +253,13 @@ export function UploadModal({ onClose }: UploadModalProps) {
                 </div>
               )}
 
-              {/* Error */}
               {error && (
-                <p className="rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger ring-1 ring-danger/25">
-                  {error}
-                </p>
+                <div className="flex items-start gap-2 rounded-lg bg-danger/10 px-3 py-2 ring-1 ring-danger/25">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0 text-danger mt-0.5" aria-hidden="true" />
+                  <p className="text-sm text-danger">{error}</p>
+                </div>
               )}
 
-              {/* Actions */}
               <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
                 <button
                   onClick={() => {
@@ -267,13 +291,11 @@ export function UploadModal({ onClose }: UploadModalProps) {
             </div>
           )}
 
-          {/* Error en step 1 */}
           {step === "drop" && error && (
             <p className="mt-3 text-center text-sm text-danger">{error}</p>
           )}
         </div>
 
-        {/* Hidden file input */}
         <input
           ref={fileInputRef}
           type="file"
