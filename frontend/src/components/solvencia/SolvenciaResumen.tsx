@@ -68,7 +68,7 @@ export function SolvenciaResumen() {
             Solvencia acreditada · últimos 5 años
           </p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-serif text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+            <span className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
               {eur.format(Number(data.anualidad_media))}
             </span>
           </div>
@@ -78,7 +78,7 @@ export function SolvenciaResumen() {
         </div>
 
         <div className="text-right">
-          <span className="font-serif text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+          <span className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
             {data.total_obras}
           </span>
           <p className="mt-0.5 text-xs text-muted-foreground">
