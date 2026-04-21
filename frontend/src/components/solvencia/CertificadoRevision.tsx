@@ -1149,10 +1149,11 @@ export function CertificadoRevision({ id }: { id: string }) {
               href={`/api/v1/solvencia/certificados/${cert.id}/pdf`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
             >
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-              Abrir PDF
+              <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+              Ver PDF
+              <ExternalLink className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
             </a>
           )}
           <button
