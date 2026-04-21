@@ -157,7 +157,7 @@ export function CertificadoCard({
           </div>
 
           {/* Badge de estado */}
-          <div className="flex-shrink-0 flex flex-col items-end gap-1">
+          <div className="flex-shrink-0 flex flex-col items-end gap-1 lg:w-28">
             {tieneExtractionError ? (
               <span
                 className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger ring-1 ring-inset ring-danger/25"

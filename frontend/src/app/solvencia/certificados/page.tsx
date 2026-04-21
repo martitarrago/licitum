@@ -241,12 +241,12 @@ export default function CertificadosPage() {
 
       {/* Cabecera de columnas (sólo desktop) */}
       {!isLoading && !isError && lista.length > 0 && (
-        <div className="mb-1 hidden lg:flex items-center gap-4 px-6 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <div className="mb-1 hidden lg:flex items-center gap-4 px-5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           <div className="flex-1">Certificado</div>
           <div className="w-36 text-right">Período</div>
           <div className="w-28 text-right">Importe</div>
-          <div className="w-20 text-center">Grupo</div>
-          <div className="w-20 text-center">Estado</div>
+          <div className="w-24 text-center">Grupo</div>
+          <div className="w-28 text-right">Estado</div>
         </div>
       )}
 
