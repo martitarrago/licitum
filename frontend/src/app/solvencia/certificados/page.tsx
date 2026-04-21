@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, ArrowUpDown, CheckCircle2, Clock, FileText, Plus, XCircle } from "lucide-react";
+import { AlertCircle, ArrowUpDown, CheckCircle2, ChevronDown, Clock, FileText, Plus, XCircle } from "lucide-react";
 import {
   certificadosApi,
   type CertificadoObraListItem,
@@ -97,6 +97,7 @@ export default function CertificadosPage() {
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [orden, setOrden] = useState<Orden>("recientes");
   const [modalOpen, setModalOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const { data: certificados, isLoading, isError } = useQuery({
     queryKey: ["certificados"],
@@ -179,21 +180,73 @@ export default function CertificadosPage() {
         </button>
       </div>
 
-      {/* Explicación */}
-      <div className="mb-8 rounded-xl bg-muted px-5 py-4 ring-1 ring-border">
-        <p className="text-sm text-foreground">
-          <span className="font-semibold">¿Qué son los certificados de obra?</span>{" "}
-          Son los documentos que acreditan las obras que ha realizado tu empresa: actas de recepción,
-          certificados finales de obra y documentos similares emitidos por el organismo contratante.
-        </p>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Súbelos aquí en PDF — extraeremos los datos automáticamente y formarán tu expediente
-          técnico, que el sistema usará para saber a qué licitaciones puedes presentarte.
-        </p>
+      {/* Explicación colapsable */}
+      <div className="mb-6">
+        <button
+          onClick={() => setInfoOpen((v) => !v)}
+          aria-expanded={infoOpen}
+          className="flex w-full items-center justify-between rounded-xl bg-muted px-5 py-3.5 ring-1 ring-border text-left transition-colors hover:bg-neutral-200 dark:hover:bg-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground"
+        >
+          <span className="text-sm font-semibold text-foreground">
+            ¿Qué documentos acreditan solvencia de obra?
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform duration-200 ${infoOpen ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+
+        {infoOpen && (
+          <div className="mt-1 rounded-xl ring-1 ring-border bg-surface-raised px-5 py-5 text-sm space-y-4">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-success">
+                Documentos válidos
+              </p>
+              <ul className="space-y-1.5 text-muted-foreground">
+                <li><span className="font-medium text-foreground">Acta de recepción de obra</span> — el organismo acepta la obra terminada. Incluye fecha, conformidad e importe. Es el más valorado.</li>
+                <li><span className="font-medium text-foreground">Certificado de buena ejecución</span> — emitido por el organismo contratante confirmando ejecución correcta, en plazo y por el importe acordado.</li>
+                <li><span className="font-medium text-foreground">Certificado de obra ejecutada</span> — emitido a petición de la empresa por el organismo contratante. Equivalente al anterior.</li>
+                <li><span className="font-medium text-foreground">Clasificación ROLECE</span> — para obras de más de 500.000 € sustituye a todos los anteriores. Si tienes clasificación activa, la JCCPE ya verificó tu solvencia.</li>
+              </ul>
+            </div>
+            <div className="border-t border-border pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-danger">
+                Documentos que NO son válidos
+              </p>
+              <ul className="space-y-1.5 text-muted-foreground">
+                <li><span className="font-medium text-foreground">Contratos de adjudicación</span> — acreditan que te adjudicaron la obra, no que la terminaste.</li>
+                <li><span className="font-medium text-foreground">Certificaciones parciales</span> — las certificaciones mensuales durante la ejecución no cuentan. Solo la recepción final.</li>
+                <li><span className="font-medium text-foreground">Subcontratación</span> — si ejecutaste como subcontratista, el organismo no reconoce esa obra. Solo cuenta el contratista principal.</li>
+                <li><span className="font-medium text-foreground">Obras de más de 5 años</span> — la LCSP (art. 88) limita el período a los últimos 5 años.</li>
+                <li><span className="font-medium text-foreground">Certificados de asistencia técnica</span> — acreditan al técnico o ingeniero que dirigió la obra, no a la constructora que la ejecutó.</li>
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Panel de solvencia */}
       <SolvenciaResumen />
+
+      {/* Leyenda de estados */}
+      <div className="mb-3 hidden lg:flex items-center gap-4 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden="true" />
+          Válido
+        </span>
+        <span className="flex items-center gap-1.5">
+          <AlertCircle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+          Pendiente revisión
+        </span>
+        <span className="flex items-center gap-1.5">
+          <XCircle className="h-3.5 w-3.5 text-danger" aria-hidden="true" />
+          Rechazado
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          Caducado
+        </span>
+      </div>
 
       {/* Filtros + ordenación */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -241,34 +294,13 @@ export default function CertificadosPage() {
 
       {/* Cabecera de columnas (sólo desktop) */}
       {!isLoading && !isError && lista.length > 0 && (
-        <>
-          <div className="mb-1 hidden lg:flex items-center gap-4 px-5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            <div className="flex-1">Certificado</div>
-            <div className="w-36 text-right">Período</div>
-            <div className="w-28 text-right">Importe</div>
-            <div className="w-24 text-center">Grupo</div>
-            <div className="w-16 text-center">Estado</div>
-          </div>
-          {/* Leyenda de estados */}
-          <div className="mb-2 hidden lg:flex items-center justify-end gap-4 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3 text-success" />
-              Válido
-            </span>
-            <span className="flex items-center gap-1">
-              <AlertCircle className="h-3 w-3 text-warning" />
-              Pendiente
-            </span>
-            <span className="flex items-center gap-1">
-              <XCircle className="h-3 w-3 text-danger" />
-              Rechazado
-            </span>
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3 text-muted-foreground" />
-              Caducado
-            </span>
-          </div>
-        </>
+        <div className="mb-1 hidden lg:flex items-center gap-4 px-5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="flex-1">Certificado</div>
+          <div className="w-36 text-right">Período</div>
+          <div className="w-28 text-right">Importe</div>
+          <div className="w-24 text-center">Grupo</div>
+          <div className="w-16 text-center">Estado</div>
+        </div>
       )}
 
       {/* Estados de carga */}
