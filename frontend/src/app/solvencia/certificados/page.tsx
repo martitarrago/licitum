@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Clock, FileText, Plus, XCircle } from "lucide-react";
 import {
@@ -99,6 +99,18 @@ export default function CertificadosPage() {
   const [ordenDir, setOrdenDir] = useState<"asc" | "desc">("desc");
   const [modalOpen, setModalOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [ordenOpen, setOrdenOpen] = useState(false);
+  const ordenRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ordenRef.current && !ordenRef.current.contains(e.target as Node)) {
+        setOrdenOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const { data: certificados, isLoading, isError } = useQuery({
     queryKey: ["certificados"],
@@ -277,29 +289,53 @@ export default function CertificadosPage() {
 
         {/* Ordenar */}
         <div className="flex items-center gap-1.5" aria-label="Ordenar certificados">
-          <div className="relative">
-            <select
-              value={orden}
-              onChange={(e) => setOrden(e.target.value as Orden)}
+          {/* Dropdown custom */}
+          <div className="relative" ref={ordenRef}>
+            <button
+              onClick={() => setOrdenOpen((v) => !v)}
               className="
-                appearance-none cursor-pointer
-                rounded-full bg-muted pl-3 pr-7 py-1
+                inline-flex items-center gap-1.5 cursor-pointer
+                rounded-full bg-muted pl-3 pr-2.5 py-1
                 text-xs font-semibold text-muted-foreground
                 ring-1 ring-border
                 hover:bg-neutral-200 dark:hover:bg-neutral-800
-                focus:outline-none focus:ring-foreground
-                transition-colors
+                transition-colors focus:outline-none
               "
             >
-              {ORDENES.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <ChevronDown
-              className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground"
-              aria-hidden="true"
-            />
+              {ORDENES.find((o) => o.value === orden)?.label}
+              <ChevronDown
+                className={`h-3 w-3 text-muted-foreground transition-transform duration-150 ${ordenOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              />
+            </button>
+
+            {ordenOpen && (
+              <div className="
+                absolute right-0 top-full mt-1 z-20
+                min-w-[140px] rounded-xl
+                bg-surface-raised ring-1 ring-border shadow-lg
+                overflow-hidden py-1
+              ">
+                {ORDENES.map((o) => (
+                  <button
+                    key={o.value}
+                    onClick={() => { setOrden(o.value); setOrdenOpen(false); }}
+                    className={`
+                      w-full text-left px-3 py-1.5 text-xs font-semibold transition-colors
+                      ${orden === o.value
+                        ? "bg-foreground text-surface"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }
+                    `}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Dirección */}
           <button
             onClick={() => setOrdenDir((d) => (d === "desc" ? "asc" : "desc"))}
             title={ordenDir === "desc" ? "Mayor a menor — pulsa para invertir" : "Menor a mayor — pulsa para invertir"}
@@ -309,7 +345,7 @@ export default function CertificadosPage() {
               ring-1 ring-border
               text-muted-foreground
               hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800
-              transition-colors focus:outline-none focus:ring-foreground
+              transition-colors focus:outline-none
             "
           >
             {ordenDir === "desc"
