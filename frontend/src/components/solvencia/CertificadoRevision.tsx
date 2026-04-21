@@ -8,6 +8,8 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   ExternalLink,
   FileText,
@@ -16,6 +18,11 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
+
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 import {
   type CertificadoObraRead,
   type ExtractedData,
@@ -169,50 +176,101 @@ function EstadoBadge({ estado }: { estado: CertificadoObraRead["estado"] }) {
 
 // ─── PdfViewer ────────────────────────────────────────────────────────────────
 
+const PDF_LOADING = (
+  <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
+    <FileText className="h-8 w-8 animate-pulse" aria-hidden="true" />
+    <span className="text-sm">Cargando PDF…</span>
+  </div>
+);
+
 function PdfViewer({ url }: { url: string }) {
-  const [loaded, setLoaded] = useState(false);
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [width, setWidth] = useState(0);
   const [failed, setFailed] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+    setWidth(el.clientWidth);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) setWidth(entry.contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const renderWidth = Math.max(width - 24, 200);
 
   return (
-    <div className="relative h-[50vh] overflow-hidden rounded-xl bg-muted ring-1 ring-border lg:h-[calc(100vh-10rem)]">
-      {/* Loading skeleton */}
-      {!loaded && !failed && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
-          <FileText className="h-8 w-8 animate-pulse" aria-hidden="true" />
-          <span className="text-sm">Cargando PDF…</span>
-        </div>
-      )}
-
-      {/* Fallback si el iframe falla */}
-      {failed ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
-          <FileText className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-          <div className="space-y-1">
+    <div className="flex h-[60vh] flex-col overflow-hidden rounded-xl bg-muted ring-1 ring-border lg:h-[calc(100vh-10rem)]">
+      <div ref={containerRef} className="flex-1 overflow-auto">
+        {failed ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+            <FileText className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
             <p className="text-sm font-medium text-foreground">
-              No se puede previsualizar el PDF
+              No se pudo cargar el PDF
             </p>
-            <p className="text-xs text-muted-foreground">
-              Ábrelo en una nueva pestaña para consultarlo
-            </p>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground/70 hover:text-foreground"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              Abrir en nueva pestaña
+            </a>
           </div>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
+        ) : (
+          <div className="flex justify-center p-3">
+            <Document
+              file={url}
+              onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+              onLoadError={() => setFailed(true)}
+              loading={PDF_LOADING}
+              error={
+                <div className="p-6 text-center text-sm text-danger">
+                  Error al cargar el PDF.
+                </div>
+              }
+            >
+              {width > 0 && (
+                <Page
+                  pageNumber={pageNumber}
+                  width={renderWidth}
+                  renderAnnotationLayer={false}
+                  renderTextLayer={false}
+                  className="shadow-sm"
+                />
+              )}
+            </Document>
+          </div>
+        )}
+      </div>
+
+      {numPages && numPages > 1 && !failed && (
+        <div className="flex shrink-0 items-center justify-center gap-4 border-t border-border bg-surface-raised px-4 py-2">
+          <button
+            onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+            disabled={pageNumber === 1}
+            className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            aria-label="Página anterior"
           >
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-            Abrir PDF
-          </a>
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            Página {pageNumber} de {numPages}
+          </span>
+          <button
+            onClick={() => setPageNumber((p) => Math.min(numPages, p + 1))}
+            disabled={pageNumber === numPages}
+            className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            aria-label="Página siguiente"
+          >
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
-      ) : (
-        <iframe
-          src={url}
-          title="Certificado de obra PDF"
-          className={`h-full w-full transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
-          onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
-        />
       )}
     </div>
   );
