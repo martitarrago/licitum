@@ -22,28 +22,28 @@ const estadoStyles: Record<EstadoCertificado, EstadoStyle> = {
   procesando: {
     label: "Procesando",
     Icon: Clock,
-    stripe: "bg-foreground",
-    badge: "bg-muted ring-border dark:bg-muted dark:ring-border",
+    stripe: "",
+    badge: "bg-muted ring-border",
     iconColor: "text-foreground",
   },
   pendiente_revision: {
     label: "Pendiente",
     Icon: AlertCircle,
-    stripe: "bg-amber-400",
+    stripe: "",
     badge: "bg-warning/10 ring-warning/25 dark:bg-warning/20",
     iconColor: "text-warning",
   },
   validado: {
     label: "Válido",
     Icon: CheckCircle2,
-    stripe: "bg-success",
+    stripe: "",
     badge: "bg-success/10 ring-success/25 dark:bg-success/20",
     iconColor: "text-success",
   },
   rechazado: {
     label: "Rechazado",
     Icon: XCircle,
-    stripe: "bg-danger",
+    stripe: "",
     badge: "bg-danger/10 ring-danger/25 dark:bg-danger/20",
     iconColor: "text-danger",
   },
@@ -81,14 +81,6 @@ export function CertificadoCard({
   const tieneExtractionError =
     cert.estado === "pendiente_revision" && Boolean(cert.extraction_error);
 
-  const stripeColor = tieneExtractionError
-    ? "bg-danger"
-    : caducado
-      ? "bg-muted-foreground/40"
-      : porCaducar
-        ? "bg-amber-400"
-        : estilo.stripe;
-
   const badgeOverride = caducado
     ? "bg-muted ring-border text-muted-foreground"
     : null;
@@ -106,10 +98,7 @@ export function CertificadoCard({
           shadow-sm transition-shadow group-hover:shadow-md
         "
       >
-        {/* Franja lateral de estado */}
-        <div className={`w-1.5 flex-shrink-0 ${stripeColor}`} aria-hidden="true" />
-
-        <div className="flex flex-1 items-center gap-4 px-4 py-3 min-w-0">
+        <div className="flex flex-1 items-center gap-4 px-5 py-3 min-w-0">
           {/* Título + organismo — crece */}
           <div className="flex-1 min-w-0">
             <h3 className="truncate text-sm font-semibold leading-snug text-foreground group-hover:text-foreground/70 transition-colors">

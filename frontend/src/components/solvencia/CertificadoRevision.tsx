@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   AlertTriangle,
+  ArrowLeft,
   CheckCircle2,
   Clock,
   ExternalLink,
@@ -20,6 +21,7 @@ import {
   type ExtractedData,
   certificadosApi,
 } from "@/lib/api/certificados";
+import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -63,6 +65,53 @@ const importeFormatter = new Intl.NumberFormat("es-ES", {
   currency: "EUR",
   maximumFractionDigits: 0,
 });
+
+const compactFormatter = new Intl.NumberFormat("es-ES", {
+  style: "currency",
+  currency: "EUR",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+// ─── SolvenciaWidget ─────────────────────────────────────────────────────────
+
+function SolvenciaWidget({ cert }: { cert: CertificadoObraRead }) {
+  const { data } = useQuery({
+    queryKey: ["resumen-solvencia"],
+    queryFn: () => certificadosApi.resumenSolvencia(EMPRESA_DEMO_ID),
+    staleTime: 60_000,
+  });
+
+  if (!data || data.total_obras === 0) return null;
+
+  const importeCert = Number(cert.importe_adjudicacion ?? 0);
+  const aportacionAnual = importeCert > 0 ? importeCert / 5 : null;
+
+  return (
+    <div className="rounded-lg bg-muted/60 ring-1 ring-border px-4 py-3 space-y-1">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Tu solvencia acreditada
+      </p>
+      <div className="flex items-baseline gap-2">
+        <span className="text-base font-bold tabular-nums text-foreground">
+          {compactFormatter.format(Number(data.anualidad_media))}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          anualidad media · {data.total_obras} {data.total_obras === 1 ? "obra" : "obras"}
+        </span>
+      </div>
+      {aportacionAnual !== null && cert.estado === "pendiente_revision" && (
+        <p className="text-xs text-muted-foreground">
+          Si validas:{" "}
+          <span className="font-semibold text-foreground">
+            +{compactFormatter.format(aportacionAnual)}/año
+          </span>{" "}
+          <span className="text-muted-foreground/70">(importe ÷ 5 años LCSP)</span>
+        </p>
+      )}
+    </div>
+  );
+}
 
 // ─── EstadoBadge ─────────────────────────────────────────────────────────────
 
@@ -519,7 +568,7 @@ function ReviewForm({
     <>
       {/* Banner documento inválido — si la IA lo detectó como no válido */}
       {cert.es_valido_solvencia === false && cert.razon_invalidez && (
-        <div className="border-b border-border bg-warning/5 px-6 py-4">
+        <div className="shrink-0 border-b border-border bg-warning/5 px-6 py-4">
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-warning" aria-hidden="true" />
             <div>
@@ -535,7 +584,11 @@ function ReviewForm({
         </div>
       )}
 
+      <div className="flex-1 overflow-y-auto min-h-0">
       <div className="space-y-5 p-6">
+        {/* Widget de solvencia */}
+        <SolvenciaWidget cert={cert} />
+
         {/* Confianza global — solo si hay datos extraídos */}
         {showConfianza && (
           <div className="flex flex-wrap items-center gap-3 rounded-lg bg-muted px-4 py-2.5">
@@ -743,47 +796,49 @@ function ReviewForm({
           </div>
         </div>
 
-        {/* Error */}
-        {actionError && (
-          <p className="rounded-lg bg-danger/10 px-4 py-2 text-sm text-danger ring-1 ring-danger/25">
-            {actionError}
-          </p>
-        )}
+      </div>
+      </div>
 
-        {/* Acciones */}
-        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">
-          <p className="mr-auto text-xs text-muted-foreground">
-            Los cambios se guardan al validar o rechazar.
-          </p>
-          <button
-            onClick={() => {
-              setActionError(null);
-              mutation.mutate("rechazar");
-            }}
-            disabled={mutation.isPending}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:pointer-events-none disabled:opacity-50"
-          >
-            {mutation.isPending && mutation.variables === "rechazar" ? (
-              <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <XCircle className="h-4 w-4" aria-hidden="true" />
-            )}
-            {mutation.isPending && mutation.variables === "rechazar"
-              ? "Rechazando…"
-              : "Rechazar"}
-          </button>
-          <button
-            onClick={() => {
-              setActionError(null);
-              setConfirmOpen(true);
-            }}
-            disabled={mutation.isPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-success px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-success/90 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-success"
-          >
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            Validar certificado
-          </button>
-        </div>
+      {/* Error — justo encima del footer */}
+      {actionError && (
+        <p className="shrink-0 border-t border-border bg-danger/5 px-6 py-2.5 text-sm text-danger">
+          {actionError}
+        </p>
+      )}
+
+      {/* Acciones — sticky footer */}
+      <div className="shrink-0 flex flex-wrap items-center justify-end gap-3 border-t border-border bg-surface-raised px-6 py-4">
+        <p className="mr-auto text-xs text-muted-foreground">
+          Los cambios se guardan al validar o rechazar.
+        </p>
+        <button
+          onClick={() => {
+            setActionError(null);
+            mutation.mutate("rechazar");
+          }}
+          disabled={mutation.isPending}
+          className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:pointer-events-none disabled:opacity-50"
+        >
+          {mutation.isPending && mutation.variables === "rechazar" ? (
+            <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <XCircle className="h-4 w-4" aria-hidden="true" />
+          )}
+          {mutation.isPending && mutation.variables === "rechazar"
+            ? "Rechazando…"
+            : "Rechazar"}
+        </button>
+        <button
+          onClick={() => {
+            setActionError(null);
+            setConfirmOpen(true);
+          }}
+          disabled={mutation.isPending}
+          className="inline-flex items-center gap-2 rounded-lg bg-success px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-success/90 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-success"
+        >
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          Validar certificado
+        </button>
       </div>
 
       {/* Modal de confirmación */}
@@ -805,10 +860,8 @@ function ReviewForm({
 
 function CertificadoFinalizado({
   cert,
-  onVolver,
 }: {
   cert: CertificadoObraRead;
-  onVolver: () => void;
 }) {
   const qc = useQueryClient();
   const [confirmRevertir, setConfirmRevertir] = useState(false);
@@ -829,14 +882,9 @@ function CertificadoFinalizado({
   const importe = Number(cert.importe_adjudicacion ?? 0);
 
   return (
+    <div className="flex-1 overflow-y-auto min-h-0">
     <div className="space-y-4 p-6">
-      <div className="flex items-center justify-between gap-3">
-        <button
-          onClick={onVolver}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          ← Volver a certificados
-        </button>
+      <div className="flex items-center justify-end gap-3">
         <button
           onClick={() => setConfirmRevertir(true)}
           disabled={revertirMutation.isPending}
@@ -924,6 +972,7 @@ function CertificadoFinalizado({
         )}
       </div>
     </div>
+    </div>
   );
 }
 
@@ -940,8 +989,10 @@ function EliminarModal({
   onCancel: () => void;
   isPending: boolean;
 }) {
+  const palabraConfirmar = titulo === "este certificado" ? "ELIMINAR" : titulo;
   const [input, setInput] = useState("");
-  const confirmado = input.trim().toLowerCase() === "x";
+  const confirmado =
+    input.trim().toLowerCase() === palabraConfirmar.trim().toLowerCase();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -976,8 +1027,11 @@ function EliminarModal({
 
           <div>
             <label className="mb-1.5 block text-sm font-medium text-foreground">
-              Escribe <span className="font-mono font-bold">x</span> para confirmar
+              Escribe el nombre del certificado para confirmar
             </label>
+            <p className="mb-2 rounded-md bg-muted px-3 py-1.5 font-mono text-xs text-foreground break-all">
+              {palabraConfirmar}
+            </p>
             <input
               ref={inputRef}
               type="text"
@@ -985,8 +1039,8 @@ function EliminarModal({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && confirmado && !isPending) onConfirm(); }}
               disabled={isPending}
-              placeholder="x"
-              className="w-full rounded-lg bg-surface ring-1 ring-border px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-danger transition-shadow"
+              placeholder="Escribe aquí…"
+              className="w-full rounded-lg bg-surface ring-1 ring-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-danger transition-shadow"
             />
           </div>
         </div>
@@ -1079,60 +1133,70 @@ export function CertificadoRevision({ id }: { id: string }) {
   const confianzaGlobal = cert.extracted_data?.confianza_extraccion;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      {/* Header */}
-      <header className="mb-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <EstadoBadge estado={cert.estado} />
-            <h1 className="text-xl font-semibold text-foreground">
-              {cert.titulo || "Certificado sin título"}
-            </h1>
-            {cert.numero_expediente &&
-              !cert.numero_expediente.startsWith("EXP-") && (
-                <p className="text-sm text-muted-foreground">
-                  Exp. {cert.numero_expediente}
-                </p>
-              )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4">
-            {!procesando && typeof confianzaGlobal === "number" && tieneDatos && (
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const { label, cls } = confianzaStyle(confianzaGlobal);
-                  return (
-                    <span className="text-sm text-muted-foreground">
-                      Confianza:{" "}
-                      <span className={`font-semibold ${cls}`}>
-                        {label} ({Math.round(confianzaGlobal * 100)}%)
-                      </span>
-                    </span>
-                  );
-                })()}
-              </div>
-            )}
-            {!procesando && (
-              <a
-                href={`/api/v1/solvencia/certificados/${cert.id}/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-foreground/70 transition-colors hover:text-foreground"
-              >
-                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                Abrir PDF original
-              </a>
-            )}
-            <button
-              onClick={() => setEliminarOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
-              title="Eliminar certificado"
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      {/* Breadcrumb + acciones */}
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <button
+          onClick={() => router.push("/solvencia/certificados")}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+          Certificados de obra
+        </button>
+        <div className="flex items-center gap-3">
+          {!procesando && (
+            <a
+              href={`/api/v1/solvencia/certificados/${cert.id}/pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Eliminar
-            </button>
-          </div>
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              Abrir PDF
+            </a>
+          )}
+          <button
+            onClick={() => setEliminarOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            Eliminar
+          </button>
         </div>
+      </div>
+
+      {/* Título y meta */}
+      <header className="mb-6 space-y-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <EstadoBadge estado={cert.estado} />
+          {!procesando && typeof confianzaGlobal === "number" && tieneDatos && (
+            (() => {
+              const { label, cls } = confianzaStyle(confianzaGlobal);
+              return (
+                <span className="text-xs text-muted-foreground">
+                  Confianza:{" "}
+                  <span className={`font-semibold ${cls}`}>
+                    {label} ({Math.round(confianzaGlobal * 100)}%)
+                  </span>
+                </span>
+              );
+            })()
+          )}
+        </div>
+        <h1 className="text-2xl font-semibold text-foreground leading-snug">
+          {cert.titulo || "Certificado sin título"}
+        </h1>
+        {((cert.numero_expediente && !cert.numero_expediente.startsWith("EXP-")) || cert.organismo) && (
+          <p className="text-sm text-muted-foreground">
+            {cert.numero_expediente && !cert.numero_expediente.startsWith("EXP-")
+              ? `Exp. ${cert.numero_expediente}`
+              : ""}
+            {cert.numero_expediente && !cert.numero_expediente.startsWith("EXP-") && cert.organismo
+              ? " · "
+              : ""}
+            {cert.organismo ?? ""}
+          </p>
+        )}
       </header>
 
       {procesando ? (
@@ -1150,9 +1214,9 @@ export function CertificadoRevision({ id }: { id: string }) {
             <PdfViewer url={`/api/v1/solvencia/certificados/${cert.id}/pdf`} />
           </div>
 
-          <div className="overflow-hidden rounded-xl bg-surface-raised ring-1 ring-border">
+          <div className="overflow-hidden rounded-xl bg-surface-raised ring-1 ring-border flex flex-col lg:sticky lg:top-4 lg:max-h-[calc(100vh-10rem)]">
             {cert.estado === "pendiente_revision" ? (
-              <>
+              <div className="flex flex-col flex-1 min-h-0">
                 {extraccionFallida && (
                   <ExtractionErrorBanner
                     error={cert.extraction_error}
@@ -1161,17 +1225,14 @@ export function CertificadoRevision({ id }: { id: string }) {
                   />
                 )}
                 <ReviewForm cert={cert} showConfianza={tieneDatos} />
-              </>
+              </div>
             ) : (
-              <>
-                <div className="border-b border-border px-6 py-4">
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="shrink-0 border-b border-border px-6 py-4">
                   <EstadoBadge estado={cert.estado} />
                 </div>
-                <CertificadoFinalizado
-                  cert={cert}
-                  onVolver={() => router.push("/solvencia/certificados")}
-                />
-              </>
+                <CertificadoFinalizado cert={cert} />
+              </div>
             )}
           </div>
         </div>

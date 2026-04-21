@@ -11,22 +11,11 @@ const importeFormatter = new Intl.NumberFormat("es-ES", {
   maximumFractionDigits: 1,
 });
 
-const GRUPO_COLORS: Record<string, string> = {
-  A: "bg-orange-400",
-  B: "bg-yellow-400",
-  C: "bg-blue-500",
-  D: "bg-purple-500",
-  E: "bg-cyan-500",
-  F: "bg-teal-500",
-  G: "bg-green-500",
-  H: "bg-pink-500",
-  I: "bg-rose-500",
-  J: "bg-indigo-500",
-  K: "bg-amber-500",
-};
+const GRUPO_OPACITIES = ["90", "75", "60", "50", "40", "35", "30"];
 
-function grupoColor(grupo: string) {
-  return GRUPO_COLORS[grupo] ?? "bg-muted-foreground/40";
+function grupoColor(idx: number) {
+  const op = GRUPO_OPACITIES[idx % GRUPO_OPACITIES.length];
+  return `bg-foreground/${op}`;
 }
 
 export function SolvenciaResumen() {
@@ -80,16 +69,16 @@ export function SolvenciaResumen() {
 
       {data.por_grupo.length > 0 && (
         <div className="px-5 py-3 space-y-2">
-          {data.por_grupo.map((g) => {
+          {data.por_grupo.map((g, idx) => {
             const pct = maxImporte > 0 ? (Number(g.importe_total) / maxImporte) * 100 : 0;
             return (
               <div key={g.grupo} className="flex items-center gap-3">
                 <span className="w-20 flex-shrink-0 text-xs font-medium text-muted-foreground truncate">
                   Grupo {g.grupo}
                 </span>
-                <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-500 ${grupoColor(g.grupo)}`}
+                    className={`h-full rounded-full transition-all duration-500 ${grupoColor(idx)}`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>
