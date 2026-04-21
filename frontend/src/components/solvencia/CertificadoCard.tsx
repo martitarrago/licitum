@@ -157,32 +157,32 @@ export function CertificadoCard({
           </div>
 
           {/* Badge de estado */}
-          <div className="flex-shrink-0 flex flex-col items-end gap-1 lg:w-28">
+          <div className="flex-shrink-0 flex flex-col items-end gap-1 lg:w-16">
             {tieneExtractionError ? (
               <span
-                className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger ring-1 ring-inset ring-danger/25"
-                title={cert.extraction_error ?? undefined}
+                className="inline-flex items-center gap-1 rounded-full bg-danger/10 px-2 py-1 text-xs font-semibold text-danger ring-1 ring-inset ring-danger/25"
+                title={cert.extraction_error ?? "Error de extracción"}
               >
-                <AlertCircle className="h-3 w-3" aria-hidden="true" />
-                Error
+                <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="sr-only">Error</span>
               </span>
             ) : (
               <span
                 className={`
-                  inline-flex items-center gap-1.5
-                  rounded-full px-2.5 py-1
-                  text-xs font-semibold text-muted-foreground
+                  inline-flex items-center justify-center
+                  rounded-full p-1.5
                   ring-1 ring-inset
                   ${badgeOverride ?? estilo.badge}
                 `}
                 role="status"
+                title={caducado ? "Caducado" : estilo.label}
               >
                 {caducado ? (
-                  <Clock className="h-3 w-3" aria-hidden="true" />
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                 ) : (
-                  <StatusIcon className={`h-3 w-3 ${estilo.iconColor}`} aria-hidden="true" />
+                  <StatusIcon className={`h-3.5 w-3.5 ${estilo.iconColor}`} aria-hidden="true" />
                 )}
-                {caducado ? "Caducado" : estilo.label}
+                <span className="sr-only">{caducado ? "Caducado" : estilo.label}</span>
               </span>
             )}
             {porCaducar && !caducado && (
@@ -192,12 +192,12 @@ export function CertificadoCard({
             )}
             {cert.es_valido_solvencia === false && cert.estado === "validado" && (
               <span className="text-[10px] font-medium text-warning">
-                No computa solvencia
+                No computa
               </span>
             )}
             {posibleDuplicado && (
               <span className="text-[10px] font-medium text-muted-foreground">
-                Posible duplicado
+                Duplicado
               </span>
             )}
           </div>

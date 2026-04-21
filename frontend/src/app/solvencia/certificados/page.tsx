@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpDown, FileText, Plus } from "lucide-react";
+import { AlertCircle, ArrowUpDown, CheckCircle2, Clock, FileText, Plus, XCircle } from "lucide-react";
 import {
   certificadosApi,
   type CertificadoObraListItem,
@@ -241,13 +241,34 @@ export default function CertificadosPage() {
 
       {/* Cabecera de columnas (sólo desktop) */}
       {!isLoading && !isError && lista.length > 0 && (
-        <div className="mb-1 hidden lg:flex items-center gap-4 px-5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          <div className="flex-1">Certificado</div>
-          <div className="w-36 text-right">Período</div>
-          <div className="w-28 text-right">Importe</div>
-          <div className="w-24 text-center">Grupo</div>
-          <div className="w-28 text-right">Estado</div>
-        </div>
+        <>
+          <div className="mb-1 hidden lg:flex items-center gap-4 px-5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <div className="flex-1">Certificado</div>
+            <div className="w-36 text-right">Período</div>
+            <div className="w-28 text-right">Importe</div>
+            <div className="w-24 text-center">Grupo</div>
+            <div className="w-16 text-center">Estado</div>
+          </div>
+          {/* Leyenda de estados */}
+          <div className="mb-2 hidden lg:flex items-center justify-end gap-4 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3 text-success" />
+              Válido
+            </span>
+            <span className="flex items-center gap-1">
+              <AlertCircle className="h-3 w-3 text-warning" />
+              Pendiente
+            </span>
+            <span className="flex items-center gap-1">
+              <XCircle className="h-3 w-3 text-danger" />
+              Rechazado
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3 text-muted-foreground" />
+              Caducado
+            </span>
+          </div>
+        </>
       )}
 
       {/* Estados de carga */}
