@@ -560,6 +560,7 @@ function ReviewForm({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["certificado", cert.id] });
       qc.invalidateQueries({ queryKey: ["certificados"] });
+      qc.invalidateQueries({ queryKey: ["resumen-solvencia"] });
       setConfirmOpen(false);
     },
     onError: (err: Error) => {
@@ -884,6 +885,7 @@ function CertificadoFinalizado({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["certificado", cert.id] });
       qc.invalidateQueries({ queryKey: ["certificados"] });
+      qc.invalidateQueries({ queryKey: ["resumen-solvencia"] });
     },
   });
 
@@ -1092,6 +1094,7 @@ export function CertificadoRevision({ id }: { id: string }) {
     mutationFn: () => certificadosApi.eliminar(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["certificados"] });
+      qc.invalidateQueries({ queryKey: ["resumen-solvencia"] });
       qc.removeQueries({ queryKey: ["certificado", id] });
       router.push("/solvencia/certificados");
     },

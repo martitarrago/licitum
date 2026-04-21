@@ -22,7 +22,7 @@ export function SolvenciaResumen() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["resumen-solvencia"],
     queryFn: () => certificadosApi.resumenSolvencia(EMPRESA_DEMO_ID),
-    staleTime: 60_000,
+    staleTime: 0,
   });
 
   if (isLoading) {
