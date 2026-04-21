@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -186,26 +186,26 @@ const PDF_LOADING = (
 function PdfViewer({ url }: { url: string }) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
-  const [width, setWidth] = useState(0);
+  const [width, setWidth] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
+  useLayoutEffect(() => {
     const el = containerRef.current;
-    setWidth(el.clientWidth);
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) setWidth(entry.contentRect.width);
-    });
+    if (!el) return;
+    const measure = () => setWidth(el.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  const renderWidth = Math.max(width - 24, 200);
+  const pagePadding = 24; // p-3 izq+dcha
+  const renderWidth = width ? Math.max(width - pagePadding, 280) : null;
 
   return (
-    <div className="flex h-[60vh] flex-col overflow-hidden rounded-xl bg-muted ring-1 ring-border lg:h-[calc(100vh-10rem)]">
-      <div ref={containerRef} className="flex-1 overflow-auto">
+    <div className="flex h-[60vh] w-full flex-col overflow-hidden rounded-xl bg-muted ring-1 ring-border lg:h-[calc(100vh-10rem)]">
+      <div ref={containerRef} className="flex-1 w-full overflow-auto p-3">
         {failed ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
             <FileText className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
@@ -223,29 +223,27 @@ function PdfViewer({ url }: { url: string }) {
             </a>
           </div>
         ) : (
-          <div className="flex justify-center p-3">
-            <Document
-              file={url}
-              onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-              onLoadError={() => setFailed(true)}
-              loading={PDF_LOADING}
-              error={
-                <div className="p-6 text-center text-sm text-danger">
-                  Error al cargar el PDF.
-                </div>
-              }
-            >
-              {width > 0 && (
-                <Page
-                  pageNumber={pageNumber}
-                  width={renderWidth}
-                  renderAnnotationLayer={false}
-                  renderTextLayer={false}
-                  className="shadow-sm"
-                />
-              )}
-            </Document>
-          </div>
+          <Document
+            file={url}
+            onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+            onLoadError={() => setFailed(true)}
+            loading={PDF_LOADING}
+            error={
+              <div className="p-6 text-center text-sm text-danger">
+                Error al cargar el PDF.
+              </div>
+            }
+          >
+            {renderWidth !== null && (
+              <Page
+                pageNumber={pageNumber}
+                width={renderWidth}
+                renderAnnotationLayer={false}
+                renderTextLayer={false}
+                className="mx-auto shadow-sm"
+              />
+            )}
+          </Document>
         )}
       </div>
 
@@ -1283,8 +1281,8 @@ export function CertificadoRevision({ id }: { id: string }) {
           forceReextractPending={reextractMutation.isPending}
         />
       ) : (
-        <div className="grid gap-6 items-start lg:grid-cols-[1fr,480px]">
-          <div className="lg:sticky lg:top-4">
+        <div className="grid gap-6 items-start lg:grid-cols-[minmax(0,1fr),440px]">
+          <div className="w-full lg:sticky lg:top-4">
             <PdfViewer url={`/api/v1/solvencia/certificados/${cert.id}/pdf`} />
           </div>
 
