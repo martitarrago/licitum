@@ -99,6 +99,15 @@ El sistema propone. El usuario confirma. Sin bypass posible.
 - src/lib/jccpe.ts — 11 grupos, 68 subgrupos, 6 categorías ROLECE con rangos de anualidad
 - src/lib/api/certificados.ts + clasificaciones.ts
 - Proxy Next.js → backend configurado en next.config.mjs
+- Sidebar con todos los módulos (M1–M8, activo solo M3) en src/components/layout/
+- SolvenciaResumen panel: 2 KPI tiles (anualidad media + obras) + desglose ROLECE
+- PdfViewer con react-pdf (client-side, evita fallback nativo del browser Edge/Chrome
+  cuando está configurado para descargar PDFs). Worker en /public/pdf.worker.min.mjs
+- Backend endpoint /pdf hace StreamingResponse (no RedirectResponse) → same-origin,
+  elimina problemas de cross-origin iframe
+- Detección de duplicados con banner + modal de confirmación antes de eliminar
+- Iconos-only para estados con leyenda + accordion "¿Qué son los certificados?"
+- Sort dropdown compacto con toggle asc/desc + default sort por estado + fecha_fin
 
 ### Cómo arrancar el stack local
 IMPORTANTE: usar el venv, NO py -3.11 directamente (no tiene uvicorn).
@@ -124,42 +133,51 @@ npm run dev
 
 Si el puerto 8001 está ocupado (TIME_WAIT de Windows): cambiar a 8002 en next.config.mjs y arrancar en ese puerto.
 
-### Próxima sesión — por hacer (en orden)
+### Próxima sesión — por hacer (2026-04-22)
 
-#### 0. Opcional pero recomendado: deploy a Railway antes de continuar
-- Permite probar con PDFs reales sin depender del stack local frágil de Windows
-- CORS ya está en main.py (allow_origins=["http://localhost:3000"]) — añadir dominio de Vercel
-- Variables Railway: DATABASE_URL, R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
-  R2_BUCKET_NAME, R2_PUBLIC_URL, CELERY_BROKER_URL, CELERY_RESULT_BACKEND, ANTHROPIC_API_KEY
-- Sin auth todavía — desplegar en modo "demo interno" está bien
+#### 1. Visor PDF — mejorar vista
+- Toolbar con controles de zoom (+/- y fit-to-width)
+- Thumbnail sidebar opcional para documentos largos
+- Posiblemente usar renderTextLayer para permitir selección/copiar texto
+- Archivo: frontend/src/components/solvencia/CertificadoRevision.tsx (PdfViewer)
 
-#### 1. Sidebar de navegación (PRIORIDAD ALTA)
-Crear layout con sidebar que contenga todos los módulos:
-- M1 Dashboard (placeholder)
-- M2 Radar IA (placeholder)
-- M3 Solvencia → /solvencia/certificados y /solvencia/clasificaciones (activo)
-- M4–M8 (placeholders con "Próximamente")
-Componentes: src/components/layout/Sidebar.tsx + src/app/layout.tsx actualizado
-Diseño: igual que el design system — fondo surface, borde border, íconos lucide-react
+#### 2. Animación de carga durante extracción
+- Cuando el certificado está en estado "procesando", animar el skeleton del
+  formulario para que parezca que se van rellenando los campos en vivo (efecto
+  "typing" o reveal progresivo). Ahora mismo hay spinner + texto estático.
+- Archivo: ExtractionPending en CertificadoRevision.tsx (ya existe pero es estático)
 
-#### 2. UI/UX polish M3
-- UploadModal: los campos titulo/organismo deben ser OBLIGATORIOS (el backend los requiere)
-  Actualmente se auto-rellenan con valores placeholder — mostrar formulario completo al usuario
-- CertificadoCard: mostrar fecha_inicio y fecha_fin además de fecha_fin sola
-- /revisar: si extracted_data está vacío (extracción falló o sin créditos API), mostrar
-  mensaje claro "La extracción automática no pudo completarse" + opción de rellenar manual
-- Estado "procesando": timeout visual si lleva >2 min (el worker puede fallar silenciosamente)
+#### 3. Orden por estado — nueva prioridad
+Actualmente: pendiente_revision → procesando → validado → rechazado (ver ESTADO_ORDEN).
+Cambiar a: **validado → pendiente_revision → rechazado/error** (con "error" primero
+dentro de pendiente si cert.extraction_error !== null).
+- Archivo: frontend/src/app/solvencia/certificados/page.tsx (constante ESTADO_ORDEN)
 
-#### 3. Prueba con PDFs reales (requiere créditos Anthropic)
-- Subir certificados/actas de recepción reales de obras españolas
-- Verificar que Claude extrae bien: importe, fechas, organismo, CPV, clasificación
-- Ajustar el prompt en workers/extraccion_pdf.py si hay campos que no se extraen bien
-- Probar con PDF escaneado (OCR path) y PDF nativo (pdfplumber path)
+#### 4. Selección múltiple + eliminación masiva
+- Añadir checkbox en cada CertificadoCard
+- Barra de acciones flotante cuando hay ≥1 seleccionado: "N seleccionados · Eliminar"
+- Modal de confirmación mostrando lista de títulos a eliminar
+- Backend: endpoint DELETE /certificados/batch (body: { ids: UUID[] }) o llamadas
+  secuenciales al endpoint existente si es suficientemente rápido
+- Archivos:
+  - frontend: page.tsx + CertificadoCard.tsx (prop `selected`, `onToggleSelect`)
+  - backend: nuevo endpoint en certificados.py
 
-#### 4. Pendientes menores
-- CRUD de empresas: endpoints GET/POST/PATCH para la tabla empresas (sin frontend aún)
+#### 5. Eliminar duplicados — mostrar cuáles ANTES de confirmar
+Actualmente el banner dice "hay N duplicados" y al confirmar los elimina.
+Cambiar: expandir el banner para mostrar la lista exacta de certificados que se
+van a eliminar (con título, fecha, importe) y cuál se mantiene. El usuario debe
+poder ver qué se pierde antes de decir sí.
+- Archivo: page.tsx (banner de duplicados + modal de confirmación)
+- Helpers existentes: esDuplicadoPar, calcularEliminables
+
+#### 6. Pendientes arrastrados
+- Deploy a Railway (backend) + Vercel (frontend) para probar con PDFs reales
+  - CORS: añadir dominio de Vercel a allow_origins en main.py
+  - Variables Railway: DATABASE_URL, R2_*, CELERY_*, ANTHROPIC_API_KEY
+- CRUD de empresas: endpoints GET/POST/PATCH (sin frontend aún)
 - extracted_data: validar schema con Pydantic antes de guardar (actualmente JSONB libre)
-- CORS: añadir el dominio de producción a allow_origins cuando se haga deploy
+- Prueba con PDFs reales (requiere créditos Anthropic) — afinar prompt del worker
 
 ### Notas técnicas importantes
 - Sin autenticación — pendiente para fase posterior (JWT o Supabase Auth)
