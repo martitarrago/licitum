@@ -7,7 +7,7 @@ from typing import Annotated, Sequence
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -425,11 +425,18 @@ async def rechazar_certificado(
 
 @router.get(
     "/{certificado_id}/pdf",
-    summary="Redirige al PDF en R2 (Content-Disposition: inline para iframe)",
+    summary="Proxy del PDF desde R2 — same-origin para el iframe",
 )
 async def proxy_pdf(
     certificado_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> RedirectResponse:
+    storage: Annotated[R2Storage, Depends(get_storage)],
+) -> StreamingResponse:
     cert = await _get_certificado_or_404(db, certificado_id)
-    return RedirectResponse(url=cert.pdf_url, status_code=307)
+    key = storage.key_from_url(cert.pdf_url)
+    pdf_bytes = await storage.get_bytes(key)
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "inline", "Cache-Control": "private, max-age=3600"},
+    )

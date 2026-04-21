@@ -44,6 +44,18 @@ class R2Storage:
             )
         return f"{self._public_url_base}/{key}"
 
+    def key_from_url(self, url: str) -> str:
+        """Extrae la key S3 a partir de la URL pública almacenada."""
+        prefix = self._public_url_base + "/"
+        if not url.startswith(prefix):
+            raise ValueError(f"URL inesperada: {url!r}")
+        return url[len(prefix):]
+
+    async def get_bytes(self, key: str) -> bytes:
+        async with self._client() as s3:
+            resp = await s3.get_object(Bucket=self._bucket, Key=key)
+            return await resp["Body"].read()
+
     async def delete(self, key: str) -> None:
         async with self._client() as s3:
             await s3.delete_object(Bucket=self._bucket, Key=key)

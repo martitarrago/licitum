@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { Info } from "lucide-react";
 import { certificadosApi } from "@/lib/api/certificados";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
@@ -20,6 +21,18 @@ function grupoLabel(g: string) {
   return g === "Sin clasificar" ? g : `Grupo ${g}`;
 }
 
+function TileSkeleton() {
+  return (
+    <div className="flex-1 rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm px-5 py-4">
+      <div className="space-y-3">
+        <div className="h-3 w-28 animate-pulse rounded bg-muted" />
+        <div className="h-8 w-32 animate-pulse rounded bg-muted" />
+        <div className="h-2 w-24 animate-pulse rounded bg-muted" />
+      </div>
+    </div>
+  );
+}
+
 export function SolvenciaResumen() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["resumen-solvencia"],
@@ -29,12 +42,9 @@ export function SolvenciaResumen() {
 
   if (isLoading) {
     return (
-      <div className="mb-6 rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm px-6 py-5">
-        <div className="space-y-3">
-          <div className="h-3 w-40 animate-pulse rounded bg-muted" />
-          <div className="h-8 w-32 animate-pulse rounded bg-muted" />
-          <div className="h-2 w-full animate-pulse rounded bg-muted" />
-        </div>
+      <div className="mb-6 flex flex-col sm:flex-row gap-3">
+        <TileSkeleton />
+        <TileSkeleton />
       </div>
     );
   }
@@ -43,12 +53,11 @@ export function SolvenciaResumen() {
 
   if (data.total_obras === 0) {
     return (
-      <div className="mb-6 rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm px-6 py-5">
-        <p className="text-sm font-semibold text-foreground">
-          Solvencia acreditada
+      <div className="mb-6 rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm px-5 py-4">
+        <p className="text-[11px] font-medium text-muted-foreground">
+          Solvencia acreditada · últimos 5 años
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">últimos 5 años</p>
-        <p className="mt-3 text-sm text-muted-foreground">
+        <p className="mt-2 text-sm text-muted-foreground">
           Aún no hay certificados válidos con fecha de fin e importe registrados.
           Completa esos campos al revisar cada certificado para ver tu solvencia aquí.
         </p>
@@ -60,30 +69,41 @@ export function SolvenciaResumen() {
   const totalAcumulado = data.por_grupo.reduce((sum, g) => sum + Number(g.importe_total), 0);
 
   return (
-    <div className="mb-6 rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm overflow-hidden">
-      {/* Cabecera principal */}
-      <div className="px-6 pt-5 pb-4 flex flex-wrap items-start justify-between gap-6 border-b border-border/60">
-        <div>
-          <p className="text-[11px] font-medium text-muted-foreground">
-            Solvencia acreditada · últimos 5 años
-          </p>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
-              {eur.format(Number(data.anualidad_media))}
+    <div className="mb-6 space-y-3">
+      {/* KPI tiles */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm px-5 py-4">
+          <div className="flex items-center gap-1.5">
+            <p className="text-[11px] font-medium text-muted-foreground">
+              Anualidad media
+            </p>
+            <span
+              title="Importe medio anual de obra certificada en los últimos 5 años (LCSP art. 88). Determina el tamaño máximo de licitación a la que puedes optar."
+              className="text-muted-foreground/70 hover:text-muted-foreground cursor-help"
+            >
+              <Info className="h-3 w-3" />
             </span>
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            anualidad media
+          <p className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+            {eur.format(Number(data.anualidad_media))}
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            últimos 5 años
           </p>
         </div>
 
-        <div className="text-right">
-          <span className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
-            {data.total_obras}
-          </span>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {data.total_obras === 1 ? "obra certificada" : "obras certificadas"}
+        <div className="flex-1 rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm px-5 py-4">
+          <p className="text-[11px] font-medium text-muted-foreground">
+            Obras certificadas
           </p>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+              {data.total_obras}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {data.total_obras === 1 ? "obra" : "obras"}
+            </span>
+          </div>
           <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
             {eur.format(totalAcumulado)} acumulado
           </p>
@@ -92,7 +112,7 @@ export function SolvenciaResumen() {
 
       {/* Desglose por grupo */}
       {data.por_grupo.length > 0 && (
-        <div className="px-6 py-4">
+        <div className="rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm px-5 py-4">
           <p className="mb-3 text-[11px] font-medium text-muted-foreground">
             Desglose por grupo ROLECE
           </p>
