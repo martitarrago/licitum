@@ -218,25 +218,24 @@ export default function CertificadosPage() {
         </div>
 
         {/* Ordenar */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
-          <select
-            value={orden}
-            onChange={(e) => setOrden(e.target.value as Orden)}
-            className="
-              rounded-lg bg-surface ring-1 ring-border
-              px-3 py-1 text-sm text-foreground
-              focus:outline-none focus:ring-2 focus:ring-foreground
-              transition-shadow
-            "
-            aria-label="Ordenar certificados"
-          >
-            {ORDENES.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+        <div className="flex items-center gap-1.5" role="group" aria-label="Ordenar certificados">
+          <ArrowUpDown className="h-3 w-3 text-muted-foreground mr-1 shrink-0" aria-hidden="true" />
+          {ORDENES.map((o) => (
+            <button
+              key={o.value}
+              onClick={() => setOrden(o.value)}
+              className={`
+                rounded-full px-3 py-1 text-xs font-semibold transition-colors
+                ${
+                  orden === o.value
+                    ? "bg-foreground text-surface"
+                    : "bg-muted text-muted-foreground hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800"
+                }
+              `}
+            >
+              {o.label}
+            </button>
+          ))}
         </div>
       </div>
 
