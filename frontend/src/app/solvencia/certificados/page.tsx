@@ -24,9 +24,17 @@ const FILTROS: { value: Filtro; label: string }[] = [
   { value: "por_caducar", label: "Por caducar" },
 ];
 
-type Orden = "recientes" | "fecha_obra" | "grupo" | "importe";
+type Orden = "estado" | "recientes" | "fecha_obra" | "grupo" | "importe";
+
+const ESTADO_ORDEN: Record<string, number> = {
+  pendiente_revision: 0,
+  procesando: 1,
+  validado: 2,
+  rechazado: 3,
+};
 
 const ORDENES: { value: Orden; label: string }[] = [
+  { value: "estado", label: "Estado" },
   { value: "recientes", label: "Recientes" },
   { value: "fecha_obra", label: "Fecha de obra" },
   { value: "grupo", label: "Grupo ROLECE" },
@@ -95,7 +103,7 @@ function RowSkeleton() {
 
 export default function CertificadosPage() {
   const [filtro, setFiltro] = useState<Filtro>("todos");
-  const [orden, setOrden] = useState<Orden>("recientes");
+  const [orden, setOrden] = useState<Orden>("estado");
   const [ordenDir, setOrdenDir] = useState<"asc" | "desc">("desc");
   const [modalOpen, setModalOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -148,6 +156,15 @@ export default function CertificadosPage() {
     // Ordenar
     const dir = ordenDir === "desc" ? -1 : 1;
     items = [...items].sort((a, b) => {
+      if (orden === "estado") {
+        const ea = ESTADO_ORDEN[a.estado] ?? 9;
+        const eb = ESTADO_ORDEN[b.estado] ?? 9;
+        if (ea !== eb) return (ea - eb) * dir;
+        // Secundario: fecha_fin desc (más reciente primero)
+        const da = a.fecha_fin ? new Date(a.fecha_fin).getTime() : 0;
+        const db = b.fecha_fin ? new Date(b.fecha_fin).getTime() : 0;
+        return db - da;
+      }
       if (orden === "recientes") {
         // El backend devuelve created_at desc; asc = invertir
         return ordenDir === "asc" ? 1 : -1;
