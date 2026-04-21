@@ -39,7 +39,21 @@ export function SolvenciaResumen() {
     );
   }
 
-  if (isError || !data || data.total_obras === 0) return null;
+  if (isError || !data) return null;
+
+  if (data.total_obras === 0) {
+    return (
+      <div className="mb-6 rounded-xl bg-surface-raised ring-1 ring-border shadow-sm px-5 py-4">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
+          Solvencia acreditada · últimos 5 años
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Aún no hay certificados válidos con fecha de fin e importe registrados.
+          Completa esos campos al revisar cada certificado para ver tu solvencia aquí.
+        </p>
+      </div>
+    );
+  }
 
   const maxImporte = Math.max(...data.por_grupo.map((g) => Number(g.importe_total)));
 

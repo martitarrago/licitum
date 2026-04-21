@@ -82,10 +82,23 @@ function SolvenciaWidget({ cert }: { cert: CertificadoObraRead }) {
     staleTime: 60_000,
   });
 
-  if (!data || data.total_obras === 0) return null;
+  if (!data) return null;
 
   const importeCert = Number(cert.importe_adjudicacion ?? 0);
   const aportacionAnual = importeCert > 0 ? importeCert / 5 : null;
+
+  if (data.total_obras === 0) {
+    return (
+      <div className="rounded-lg bg-muted/60 ring-1 ring-border px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+          Tu solvencia acreditada
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Sin obras válidas aún. Necesitas importe y fecha de fin rellenados.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg bg-muted/60 ring-1 ring-border px-4 py-3 space-y-1">
