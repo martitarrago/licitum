@@ -1152,8 +1152,7 @@ export function CertificadoRevision({ id }: { id: string }) {
               className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
             >
               <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-              Ver PDF
-              <ExternalLink className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+              Descargar certificado
             </a>
           )}
           <button
