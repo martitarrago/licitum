@@ -276,7 +276,7 @@ export default function CertificadosPage() {
         {infoOpen && (
           <div className="mt-1 rounded-xl ring-1 ring-border bg-surface-raised px-5 py-5 text-sm space-y-4">
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-success">
+              <p className="mb-2 text-xs font-semibold text-foreground">
                 Documentos válidos
               </p>
               <ul className="space-y-1.5 text-muted-foreground">
@@ -287,8 +287,8 @@ export default function CertificadosPage() {
               </ul>
             </div>
             <div className="border-t border-border pt-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-danger">
-                Documentos que NO son válidos
+              <p className="mb-2 text-xs font-semibold text-foreground">
+                Documentos no válidos
               </p>
               <ul className="space-y-1.5 text-muted-foreground">
                 <li><span className="font-medium text-foreground">Contratos de adjudicación</span> — acreditan que te adjudicaron la obra, no que la terminaste.</li>

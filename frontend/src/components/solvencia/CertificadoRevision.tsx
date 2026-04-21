@@ -12,8 +12,8 @@ import {
   ExternalLink,
   FileText,
   RefreshCw,
+  Pencil,
   Trash2,
-  Undo2,
   XCircle,
 } from "lucide-react";
 import {
@@ -904,8 +904,8 @@ function CertificadoFinalizado({
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
           title="Volver a editar este certificado"
         >
-          <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
-          Revertir a pendiente
+          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+          Editar
         </button>
       </div>
 

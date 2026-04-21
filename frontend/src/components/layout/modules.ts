@@ -60,7 +60,7 @@ export const MODULE_GROUPS: ModuleGroup[] = [
       },
       {
         id: "m3",
-        code: "M3",
+        code: "",
         label: "Solvencia",
         href: "/solvencia",
         icon: ShieldCheck,
