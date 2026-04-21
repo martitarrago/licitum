@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Clock, FileText, Plus, XCircle } from "lucide-react";
 import {
   certificadosApi,
@@ -57,27 +57,51 @@ function esPorCaducar(cert: CertificadoObraListItem): boolean {
   return antigüedad > CINCO_ANIOS_MS - SEIS_MESES_MS && antigüedad <= CINCO_ANIOS_MS;
 }
 
+function esDuplicadoPar(a: CertificadoObraListItem, b: CertificadoObraListItem): boolean {
+  if (!a.organismo || !b.organismo) return false;
+  if (a.organismo.trim().toLowerCase() !== b.organismo.trim().toLowerCase()) return false;
+  if (!a.fecha_fin || !b.fecha_fin) return false;
+  const diffDias = Math.abs(new Date(a.fecha_fin).getTime() - new Date(b.fecha_fin).getTime()) / (1000 * 60 * 60 * 24);
+  if (diffDias > 30) return false;
+  const ia = Number(a.importe_adjudicacion) || 0;
+  const ib = Number(b.importe_adjudicacion) || 0;
+  if (ia > 0 && ib > 0) {
+    const ratio = Math.abs(ia - ib) / Math.max(ia, ib);
+    if (ratio > 0.15) return false;
+  }
+  return true;
+}
+
 function detectarDuplicados(certs: CertificadoObraListItem[]): Set<string> {
   const duplicados = new Set<string>();
   for (let i = 0; i < certs.length; i++) {
     for (let j = i + 1; j < certs.length; j++) {
-      const a = certs[i], b = certs[j];
-      if (!a.organismo || !b.organismo) continue;
-      if (a.organismo.trim().toLowerCase() !== b.organismo.trim().toLowerCase()) continue;
-      if (!a.fecha_fin || !b.fecha_fin) continue;
-      const diffDias = Math.abs(new Date(a.fecha_fin).getTime() - new Date(b.fecha_fin).getTime()) / (1000 * 60 * 60 * 24);
-      if (diffDias > 30) continue;
-      const ia = Number(a.importe_adjudicacion) || 0;
-      const ib = Number(b.importe_adjudicacion) || 0;
-      if (ia > 0 && ib > 0) {
-        const ratio = Math.abs(ia - ib) / Math.max(ia, ib);
-        if (ratio > 0.15) continue;
+      if (esDuplicadoPar(certs[i], certs[j])) {
+        duplicados.add(certs[i].id);
+        duplicados.add(certs[j].id);
       }
-      duplicados.add(a.id);
-      duplicados.add(b.id);
     }
   }
   return duplicados;
+}
+
+function calcularEliminables(certs: CertificadoObraListItem[]): string[] {
+  const toDelete = new Set<string>();
+  for (let i = 0; i < certs.length; i++) {
+    for (let j = i + 1; j < certs.length; j++) {
+      const a = certs[i], b = certs[j];
+      if (toDelete.has(a.id) || toDelete.has(b.id)) continue;
+      if (!esDuplicadoPar(a, b)) continue;
+      // Conservar el que tenga más campos completos
+      const score = (c: CertificadoObraListItem) =>
+        (c.titulo ? 1 : 0) +
+        (Number(c.importe_adjudicacion) > 0 ? 1 : 0) +
+        (c.fecha_inicio ? 1 : 0) +
+        (c.clasificacion_grupo ? 1 : 0);
+      toDelete.add(score(a) >= score(b) ? b.id : a.id);
+    }
+  }
+  return Array.from(toDelete);
 }
 
 // ─── Skeleton ────────────────────────────────────────────────────────────────
@@ -109,6 +133,9 @@ export default function CertificadosPage() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [ordenOpen, setOrdenOpen] = useState(false);
   const ordenRef = useRef<HTMLDivElement>(null);
+  const [confirmarDuplicados, setConfirmarDuplicados] = useState(false);
+  const [eliminandoDuplicados, setEliminandoDuplicados] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -140,6 +167,22 @@ export default function CertificadosPage() {
     () => (certificados ? detectarDuplicados(certificados) : new Set<string>()),
     [certificados]
   );
+
+  const eliminables = useMemo(
+    () => (certificados ? calcularEliminables(certificados) : []),
+    [certificados]
+  );
+
+  async function handleEliminarDuplicados() {
+    setEliminandoDuplicados(true);
+    try {
+      await Promise.all(eliminables.map((id) => certificadosApi.eliminar(id)));
+      await queryClient.invalidateQueries({ queryKey: ["certificados"] });
+    } finally {
+      setEliminandoDuplicados(false);
+      setConfirmarDuplicados(false);
+    }
+  }
 
   const lista = useMemo(() => {
     if (!certificados) return [];
@@ -261,6 +304,25 @@ export default function CertificadosPage() {
 
       {/* Panel de solvencia */}
       <SolvenciaResumen />
+
+      {/* Banner duplicados */}
+      {duplicados.size > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-4 rounded-xl bg-warning/10 px-4 py-3 ring-1 ring-warning/25">
+          <div className="flex items-center gap-2 text-sm text-warning">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+            <span>
+              Se detectaron <span className="font-semibold">{eliminables.length} certificado{eliminables.length !== 1 ? "s" : ""} duplicado{eliminables.length !== 1 ? "s" : ""}</span>.
+              Se conservará el que tenga más campos completos.
+            </span>
+          </div>
+          <button
+            onClick={() => setConfirmarDuplicados(true)}
+            className="flex-shrink-0 rounded-lg bg-warning px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-85"
+          >
+            Eliminar duplicados
+          </button>
+        </div>
+      )}
 
       {/* Leyenda de estados */}
       <div className="mb-3 hidden lg:flex items-center gap-4 text-[11px] text-muted-foreground">
@@ -459,8 +521,38 @@ export default function CertificadosPage() {
         </p>
       )}
 
-      {/* Modal */}
+      {/* Modal subida */}
       {modalOpen && <UploadModal onClose={() => setModalOpen(false)} />}
+
+      {/* Modal confirmar eliminación duplicados */}
+      {confirmarDuplicados && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-surface-raised ring-1 ring-border shadow-xl p-6">
+            <h2 className="text-base font-semibold text-foreground mb-2">
+              Eliminar {eliminables.length} duplicado{eliminables.length !== 1 ? "s" : ""}
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Se eliminarán los certificados con menos datos completos. Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmarDuplicados(false)}
+                disabled={eliminandoDuplicados}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground bg-muted hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEliminarDuplicados}
+                disabled={eliminandoDuplicados}
+                className="rounded-lg px-4 py-2 text-sm font-medium bg-danger text-white hover:opacity-85 transition-opacity disabled:opacity-50"
+              >
+                {eliminandoDuplicados ? "Eliminando…" : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
