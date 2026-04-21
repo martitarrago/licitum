@@ -40,7 +40,7 @@ export default function ClasificacionesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
-          <ShieldCheck className="h-4 w-4 text-primary-500" aria-hidden="true" />
+          <ShieldCheck className="h-4 w-4 text-foreground" aria-hidden="true" />
           <span className="text-xs text-muted-foreground">
             Fuente: JCCPE — Real Decreto 1098/2001
           </span>

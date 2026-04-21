@@ -14,7 +14,7 @@ export function ModulePlaceholder({ titulo, descripcion, icon: Icon }: ModulePla
       </div>
       <h1 className="text-lg font-semibold text-foreground mb-1">{titulo}</h1>
       <p className="max-w-sm text-sm text-muted-foreground">{descripcion}</p>
-      <div className="mt-4 rounded-full bg-primary-500/10 px-4 py-1.5 text-xs font-semibold text-primary-500 ring-1 ring-primary-500/20">
+      <div className="mt-4 rounded-full bg-muted px-4 py-1.5 text-xs font-semibold text-foreground ring-1 ring-border">
         Próximamente
       </div>
     </main>

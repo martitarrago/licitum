@@ -129,13 +129,13 @@ export function UploadModal({ onClose }: UploadModalProps) {
                 transition-colors
                 ${
                   dragging
-                    ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
-                    : "border-border bg-muted hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/10"
+                    ? "border-foreground bg-muted"
+                    : "border-border bg-muted hover:border-foreground/40 hover:bg-muted/80"
                 }
               `}
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-900/30">
-                <FileUp className="h-7 w-7 text-primary-500" aria-hidden="true" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                <FileUp className="h-7 w-7 text-foreground" aria-hidden="true" />
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-foreground">
@@ -150,7 +150,7 @@ export function UploadModal({ onClose }: UploadModalProps) {
             /* Archivo seleccionado */
             <div className="space-y-4">
               <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2.5">
-                <FileUp className="h-4 w-4 flex-shrink-0 text-primary-500" aria-hidden="true" />
+                <FileUp className="h-4 w-4 flex-shrink-0 text-foreground" aria-hidden="true" />
                 <span className="truncate text-sm font-medium text-foreground">
                   {file.name}
                 </span>
@@ -183,7 +183,7 @@ export function UploadModal({ onClose }: UploadModalProps) {
                 <div className="space-y-1.5">
                   <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-primary-500 transition-all duration-[2000ms] ease-out"
+                      className="h-full rounded-full bg-foreground transition-all duration-[2000ms] ease-out"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
@@ -214,10 +214,10 @@ export function UploadModal({ onClose }: UploadModalProps) {
                   disabled={uploading}
                   className="
                     inline-flex items-center gap-2 rounded-lg
-                    bg-primary-500 px-4 py-2 text-sm font-medium text-white
-                    transition-colors hover:bg-primary-700
+                    bg-foreground px-4 py-2 text-sm font-medium text-surface
+                    transition-colors hover:opacity-85
                     disabled:pointer-events-none disabled:opacity-60
-                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500
+                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground
                   "
                 >
                   <FileUp className="h-4 w-4" aria-hidden="true" />

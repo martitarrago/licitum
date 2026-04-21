@@ -22,9 +22,9 @@ const estadoStyles: Record<EstadoCertificado, EstadoStyle> = {
   procesando: {
     label: "Procesando",
     Icon: Clock,
-    stripe: "bg-primary-500",
-    badge: "bg-primary-50 ring-primary-200 dark:bg-primary-900/20 dark:ring-primary-700/30",
-    iconColor: "text-primary-500",
+    stripe: "bg-foreground",
+    badge: "bg-muted ring-border dark:bg-muted dark:ring-border",
+    iconColor: "text-foreground",
   },
   pendiente_revision: {
     label: "Pendiente",
@@ -96,7 +96,7 @@ export function CertificadoCard({
   return (
     <Link
       href={`/solvencia/certificados/${cert.id}/revisar`}
-      className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 rounded-xl"
+      className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground rounded-xl"
     >
       <article
         className="
@@ -112,7 +112,7 @@ export function CertificadoCard({
         <div className="flex flex-1 items-center gap-4 px-4 py-3 min-w-0">
           {/* Título + organismo — crece */}
           <div className="flex-1 min-w-0">
-            <h3 className="truncate text-sm font-semibold leading-snug text-foreground group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+            <h3 className="truncate text-sm font-semibold leading-snug text-foreground group-hover:text-foreground/70 transition-colors">
               {cert.titulo || <span className="text-muted-foreground italic">Sin título</span>}
             </h3>
             {cert.organismo && (

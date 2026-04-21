@@ -115,9 +115,9 @@ function validateForm(f: RowForm): string | null {
 // ─── Shared cell/input styles ─────────────────────────────────────────────────
 
 const selectCls =
-  "rounded-lg bg-surface ring-1 ring-border px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 transition-shadow w-full";
+  "rounded-lg bg-surface ring-1 ring-border px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground transition-shadow w-full";
 const inputCls =
-  "rounded-lg bg-surface ring-1 ring-border px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 transition-shadow w-full tabular-nums";
+  "rounded-lg bg-surface ring-1 ring-border px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground transition-shadow w-full tabular-nums";
 const tdCls = "px-4 py-3 text-sm text-foreground";
 const thCls =
   "px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground";
@@ -150,7 +150,7 @@ function EditRow({
   return (
     <>
       {/* Fila de inputs */}
-      <tr className="bg-primary-50 dark:bg-primary-900/10">
+      <tr className="bg-muted/60">
         <td className="px-4 py-2">
           <select
             value={form.grupo}
@@ -226,7 +226,7 @@ function EditRow({
             <button
               onClick={onSave}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-surface transition-colors hover:opacity-85 disabled:opacity-50"
               aria-label="Guardar"
             >
               <Check className="h-3.5 w-3.5" aria-hidden="true" />
@@ -245,7 +245,7 @@ function EditRow({
       </tr>
       {/* Fila de error — ocupa el ancho completo */}
       {error && (
-        <tr className="bg-primary-50 dark:bg-primary-900/10">
+        <tr className="bg-muted/60">
           <td colSpan={7} className="px-4 pb-3 pt-0">
             <p className="rounded-lg bg-danger/10 px-3 py-1.5 text-xs text-danger ring-1 ring-danger/25">
               {error}
@@ -482,7 +482,7 @@ export function ClasificacionesTabla({
         <div className="border-t border-border px-4 py-3">
           <button
             onClick={startNew}
-            className="text-sm font-medium text-primary-500 transition-colors hover:text-primary-700"
+            className="text-sm font-medium text-foreground transition-colors hover:text-foreground/70"
           >
             + Añadir clasificación
           </button>

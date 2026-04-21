@@ -78,7 +78,7 @@ function EstadoBadge({ estado }: { estado: CertificadoObraRead["estado"] }) {
     },
     procesando: {
       label: "Procesando",
-      cls: "bg-primary-50 ring-primary-200 dark:bg-primary-900/20 dark:ring-primary-700/30",
+      cls: "bg-muted ring-border",
       Icon: RefreshCw,
     },
     validado: {
@@ -137,7 +137,7 @@ function PdfViewer({ url }: { url: string }) {
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary-500 hover:text-primary-700 transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             Abrir PDF
@@ -292,10 +292,10 @@ function ExtractionPending({
       ) : (
         <div className="relative flex h-16 w-16 items-center justify-center">
           {/* Anillos pulsantes */}
-          <span className="absolute inset-0 animate-ping rounded-full bg-primary-500/20" />
-          <span className="absolute inset-2 animate-ping rounded-full bg-primary-500/15 [animation-delay:300ms]" />
-          <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-900/30">
-            <RefreshCw className="h-7 w-7 animate-spin text-primary-500 [animation-duration:2s]" aria-hidden="true" />
+          <span className="absolute inset-0 animate-ping rounded-full bg-foreground/15" />
+          <span className="absolute inset-2 animate-ping rounded-full bg-foreground/10 [animation-delay:300ms]" />
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+            <RefreshCw className="h-7 w-7 animate-spin text-foreground [animation-duration:2s]" aria-hidden="true" />
           </div>
         </div>
       )}
@@ -337,7 +337,7 @@ function ExtractionPending({
           <button
             onClick={onForceReextract}
             disabled={forceReextractPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:pointer-events-none disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-surface transition-colors hover:opacity-85 disabled:pointer-events-none disabled:opacity-60"
           >
             <RefreshCw
               className={`h-4 w-4 ${forceReextractPending ? "animate-spin" : ""}`}
@@ -383,7 +383,7 @@ function ExtractionErrorBanner({
           <button
             onClick={onReextract}
             disabled={reextractPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-700 disabled:pointer-events-none disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
+            className="inline-flex items-center gap-2 rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-surface transition-colors hover:opacity-85 disabled:pointer-events-none disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground"
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${reextractPending ? "animate-spin" : ""}`}
@@ -507,7 +507,7 @@ function ReviewForm({
   });
 
   const inputCls =
-    "w-full rounded-lg bg-surface ring-1 ring-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary-500 transition-shadow";
+    "w-full rounded-lg bg-surface ring-1 ring-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-foreground transition-shadow";
 
   const importeBase = Number(form.importe_adjudicacion) || 0;
   const importeUte =
@@ -694,7 +694,7 @@ function ReviewForm({
                   checked={form.contratista_principal === value}
                   onChange={() => setForm((p) => ({ ...p, contratista_principal: value }))}
                   disabled={mutation.isPending}
-                  className="mt-0.5 accent-primary-500"
+                  className="mt-0.5"
                 />
                 <span>
                   <span className="block text-sm font-medium text-foreground">{label}</span>
@@ -712,7 +712,7 @@ function ReviewForm({
                 checked={form.es_ute}
                 onChange={(e) => setForm((p) => ({ ...p, es_ute: e.target.checked, porcentaje_ute: "" }))}
                 disabled={mutation.isPending}
-                className="accent-primary-500"
+                className=""
               />
               <span className="text-sm font-medium text-foreground">Obra ejecutada en UTE</span>
             </label>
@@ -729,7 +729,7 @@ function ReviewForm({
                     value={form.porcentaje_ute}
                     onChange={(e) => setForm((p) => ({ ...p, porcentaje_ute: e.target.value }))}
                     disabled={mutation.isPending}
-                    className="w-20 rounded-lg bg-surface ring-1 ring-border px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-20 rounded-lg bg-surface ring-1 ring-border px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground"
                   />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
@@ -1117,7 +1117,7 @@ export function CertificadoRevision({ id }: { id: string }) {
                 href={`/api/v1/solvencia/certificados/${cert.id}/pdf`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-primary-500 transition-colors hover:text-primary-700"
+                className="inline-flex items-center gap-1.5 text-sm text-foreground/70 transition-colors hover:text-foreground"
               >
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                 Abrir PDF original

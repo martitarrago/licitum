@@ -4,23 +4,23 @@
 
 @layer base {
   :root {
-    /* Light mode — cálido, base blanca con tinte sutil beige */
-    --surface:          0 0% 100%;      /* #FFFFFF */
-    --surface-raised:  30 25% 98%;      /* ~#FBFAF8 — tarjetas elevadas */
-    --border:          30 10% 89%;      /* ~#E5E2DD */
-    --muted:           30 20% 96%;      /* ~#F6F3EF — fondos secundarios */
-    --muted-foreground: 30 8% 42%;      /* ~#736B63 — texto secundario */
-    --foreground:      30 15% 12%;      /* ~#231E18 — texto principal */
+    /* Light mode — blanco puro, grises neutros (base marca negra) */
+    --surface:           0 0% 100%;     /* #FFFFFF */
+    --surface-raised:    0 0% 98%;      /* #FAFAFA */
+    --border:            0 0% 90%;      /* #E5E5E5 */
+    --muted:             0 0% 96%;      /* #F5F5F5 */
+    --muted-foreground:  0 0% 44%;      /* #707070 */
+    --foreground:        0 0% 9%;       /* #171717 */
   }
 
   .dark {
-    /* Dark mode — mantiene la calidez: warm grays, no navy frío */
-    --surface:          30 8% 8%;       /* ~#181513 */
-    --surface-raised:  30 7% 12%;       /* ~#221F1C */
-    --border:          30 6% 20%;       /* ~#363330 */
-    --muted:           30 6% 14%;       /* ~#282623 */
-    --muted-foreground: 30 5% 64%;      /* ~#A8A29C */
-    --foreground:      30 10% 95%;      /* ~#F2EFEC */
+    /* Dark mode — negro profundo, grises puros */
+    --surface:           0 0% 4%;       /* #0A0A0A */
+    --surface-raised:    0 0% 7%;       /* #121212 */
+    --border:            0 0% 15%;      /* #262626 */
+    --muted:             0 0% 10%;      /* #1A1A1A */
+    --muted-foreground:  0 0% 60%;      /* #999999 */
+    --foreground:        0 0% 95%;      /* #F2F2F2 */
   }
 
   html {

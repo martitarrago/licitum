@@ -13,10 +13,10 @@ AI:       Claude API claude-sonnet-4-20250514 — structured outputs siempre
 Deploy:   Railway
 
 ## Design system (DECISIONES CERRADAS — no cambiar sin confirmación)
-Feeling:        Cálido y cercano     — como Notion, Basecamp
-Color primario: #1F4E79
-Color acento: #F59E0B
-Dark mode:      sí
+Feeling:        Editorial y limpio   — B&N con acento naranja
+Color primario: #18181B (negro zinc — botones, mark, activos)
+Color acento:   #F59E0B (naranja — solo logo dot y franja activa sidebar, ≤1 aparición por pantalla)
+Dark mode:      sí — fondo #0A0A0A (negro profundo, grises zinc puros)
 Tipografía:     [se definirá en fase de diseño]
 Componente ref: /frontend/src/components/ui/LicitacionCard.tsx (cuando exista)
 

@@ -8,7 +8,7 @@ No inventar estilos nuevos — extender los existentes.
 
 ## 1. Feeling y principios
 
-- **Feeling:** cálido y cercano — referentes Notion, Basecamp.
+- **Feeling:** editorial y limpio — B&N con acento naranja. Marca = negro.
 - **Usuario:** jefe de obra o administrativo, 40–55 años, PYME 5–50 empleados
   de construcción (contexto catalán). Lenguaje `es-ES`.
 - **Densidad útil sin agobio.** Dashboards con mucha información,
@@ -24,24 +24,26 @@ No inventar estilos nuevos — extender los existentes.
 Todo el color vive en `frontend/tailwind.config.ts`. Nunca hardcodear hex
 en componentes — usar siempre los tokens.
 
-### 2.1 Primary — azul Licitum
+### 2.1 Primary — tinta negra (zinc)
 
-Marca. `#1F4E79` como base.
+Marca. `#18181B` como base (zinc-900). Botones, activos, marca.
 
 | Token | Hex | Uso |
 |---|---|---|
-| `primary-50` | `#F0F5FA` | Fondos muy tintados |
-| `primary-100` | `#D6E3EF` | Fondos sutiles, hover cards |
-| `primary-200` | `#AECADF` | Estados secundarios |
-| `primary-300` | `#7AAFC9` | — |
-| `primary-400` | `#4B7FA0` | — |
-| `primary-500` | `#1F4E79` | **Base** — botones, enlaces, acentos |
-| `primary-700` | `#163858` | Hover, texto sobre fondo claro |
-| `primary-900` | `#0A1F33` | Texto denso, acentos oscuros |
+| `primary-50` | `#FAFAFA` | Fondos muy claros |
+| `primary-100` | `#F4F4F5` | Fondos sutiles |
+| `primary-200` | `#E4E4E7` | Estados secundarios |
+| `primary-300` | `#D4D4D8` | Bordes suaves |
+| `primary-400` | `#A1A1AA` | Texto deshabilitado |
+| `primary-500` | `#18181B` | **Base** — botones, iconos activos |
+| `primary-700` | `#09090B` | Hover de botones |
+| `primary-900` | `#09090B` | Negro profundo |
 
-### 2.2 Accent — ámbar
+**Regla de botones:** `bg-foreground text-surface` (invierte automáticamente en dark mode — negro en light, blanco en dark).
 
-Acento secundario. Se usa con parsimonia — nunca como color dominante.
+### 2.2 Accent — ámbar naranja
+
+Acento de marca. **Máximo 1 aparición por pantalla** — logo dot y franja activa de sidebar únicamente. Nunca en botones ni como color dominante.
 
 | Token | Hex | Uso |
 |---|---|---|
@@ -51,12 +53,12 @@ Acento secundario. Se usa con parsimonia — nunca como color dominante.
 | `accent-700` | `#B45309` | Hover del accent |
 | `accent-900` | `#78350F` | Texto sobre fondo accent claro |
 
-### 2.3 Neutrales — warm grays
+### 2.3 Neutrales — zinc (grises puros)
 
-**Siempre warm, nunca fríos.** Base `stone` de Tailwind (tinte beige).
-No usar `slate`, `gray` ni `zinc` en ningún componente nuevo.
+Base `zinc` de Tailwind — grises puros sin tinte (casa con la marca negra).
+No usar `stone`, `slate` ni grises cálidos en componentes nuevos.
 
-`neutral-50` `#FAFAF9` → `neutral-950` `#0C0A09` (escala completa 50–950).
+`neutral-50` `#FAFAFA` → `neutral-950` `#09090B` (escala completa 50–950).
 
 ### 2.4 Semáforo de solvencia — FIJOS, DECISIÓN CERRADA
 
@@ -80,12 +82,14 @@ superficies y textos; nunca `neutral-*` directamente en componentes.
 
 | Token | Light | Dark | Uso |
 |---|---|---|---|
-| `surface` | `#FFFFFF` | `~#181513` | Fondo de página |
-| `surface-raised` | `~#FBFAF8` | `~#221F1C` | Cards, modales, dropdowns |
-| `border` | `~#E5E2DD` | `~#363330` | Bordes y rings |
-| `muted` | `~#F6F3EF` | `~#282623` | Fondos secundarios, chips |
-| `muted-foreground` | `~#736B63` | `~#A8A29C` | Texto secundario, labels |
-| `foreground` | `~#231E18` | `~#F2EFEC` | Texto principal |
+| `surface` | `#FFFFFF` | `#0A0A0A` | Fondo de página |
+| `surface-raised` | `#FAFAFA` | `#121212` | Cards, modales, dropdowns |
+| `border` | `#E5E5E5` | `#262626` | Bordes y rings |
+| `muted` | `#F5F5F5` | `#1A1A1A` | Fondos secundarios, chips |
+| `muted-foreground` | `#707070` | `#999999` | Texto secundario, labels |
+| `foreground` | `#171717` | `#F2F2F2` | Texto principal |
+
+**Patrón de botón primario:** `bg-foreground text-surface` — invierte solo en light/dark automáticamente.
 
 ### 2.6 Uso de alpha con los tokens del semáforo
 
@@ -377,7 +381,9 @@ toque el módulo de extracción.
 
 ### ❌ Don't
 - Hex hardcoded fuera de `tailwind.config.ts`.
-- Colores fríos (`slate`, `zinc`, `gray`, `blue-*` de Tailwind default).
+- Colores cálidos (`stone`, warm grays) — la base es zinc puro.
+- Azul o cualquier color de marca ajeno al sistema (solo negro + naranja acento).
+- Naranja en más de un elemento por pantalla.
 - Texto del badge en color del semáforo — siempre `text-muted-foreground`.
 - Iconos de otros packs (Heroicons, React-Icons, Font Awesome…).
 - `transition-all`.

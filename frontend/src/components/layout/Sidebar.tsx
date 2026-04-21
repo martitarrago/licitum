@@ -8,7 +8,7 @@ import { MODULE_GROUPS, type Module, type SubModule } from "./modules";
 function LogoMark() {
   return (
     <span
-      className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-primary-500 text-white shadow-sm ring-1 ring-primary-700/20"
+      className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-foreground text-surface shadow-sm ring-1 ring-foreground/20"
       aria-hidden="true"
     >
       <svg
@@ -122,7 +122,7 @@ function NavItem({
         className={[
           "group/nav relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150",
           isParentActive
-            ? "bg-primary-500/[0.07] font-semibold text-foreground ring-1 ring-inset ring-primary-500/10"
+            ? "bg-foreground/[0.07] font-semibold text-foreground ring-1 ring-inset ring-foreground/10"
             : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
         ].join(" ")}
       >
@@ -136,7 +136,7 @@ function NavItem({
           className={[
             "h-4 w-4 shrink-0 transition-colors",
             isParentActive
-              ? "text-primary-500"
+              ? "text-foreground"
               : "text-muted-foreground group-hover/nav:text-foreground",
           ].join(" ")}
           aria-hidden="true"

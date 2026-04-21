@@ -169,9 +169,9 @@ export default function CertificadosPage() {
           onClick={() => setModalOpen(true)}
           className="
             inline-flex items-center gap-2 rounded-lg
-            bg-primary-500 px-4 py-2 text-sm font-medium text-white
-            transition-colors hover:bg-primary-700
-            focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500
+            bg-foreground px-4 py-2 text-sm font-medium text-surface
+            transition-colors hover:opacity-85
+            focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground
           "
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
@@ -180,7 +180,7 @@ export default function CertificadosPage() {
       </div>
 
       {/* Explicación */}
-      <div className="mb-8 rounded-xl bg-primary-50 px-5 py-4 ring-1 ring-primary-100 dark:bg-primary-900/10 dark:ring-primary-800/30">
+      <div className="mb-8 rounded-xl bg-muted px-5 py-4 ring-1 ring-border">
         <p className="text-sm text-foreground">
           <span className="font-semibold">¿Qué son los certificados de obra?</span>{" "}
           Son los documentos que acreditan las obras que ha realizado tu empresa: actas de recepción,
@@ -207,8 +207,8 @@ export default function CertificadosPage() {
                 rounded-full px-3 py-1 text-xs font-semibold transition-colors
                 ${
                   filtro === f.value
-                    ? "bg-primary-500 text-white"
-                    : "bg-muted text-muted-foreground hover:bg-primary-50 hover:text-primary-700 dark:hover:bg-primary-900/20"
+                    ? "bg-foreground text-surface"
+                    : "bg-muted text-muted-foreground hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800"
                 }
               `}
             >
@@ -226,7 +226,7 @@ export default function CertificadosPage() {
             className="
               rounded-lg bg-surface ring-1 ring-border
               px-3 py-1 text-sm text-foreground
-              focus:outline-none focus:ring-2 focus:ring-primary-500
+              focus:outline-none focus:ring-2 focus:ring-foreground
               transition-shadow
             "
             aria-label="Ordenar certificados"
@@ -293,8 +293,8 @@ export default function CertificadosPage() {
               onClick={() => setModalOpen(true)}
               className="
                 inline-flex items-center gap-2 rounded-lg
-                bg-primary-500 px-4 py-2 text-sm font-medium text-white
-                transition-colors hover:bg-primary-700
+                bg-foreground px-4 py-2 text-sm font-medium text-surface
+                transition-colors hover:opacity-85
               "
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
