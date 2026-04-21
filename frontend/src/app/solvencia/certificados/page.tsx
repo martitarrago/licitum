@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, ArrowUpDown, CheckCircle2, ChevronDown, Clock, FileText, Plus, XCircle } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Clock, FileText, Plus, XCircle } from "lucide-react";
 import {
   certificadosApi,
   type CertificadoObraListItem,
@@ -96,6 +96,7 @@ function RowSkeleton() {
 export default function CertificadosPage() {
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [orden, setOrden] = useState<Orden>("recientes");
+  const [ordenDir, setOrdenDir] = useState<"asc" | "desc">("desc");
   const [modalOpen, setModalOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -133,26 +134,30 @@ export default function CertificadosPage() {
     });
 
     // Ordenar
+    const dir = ordenDir === "desc" ? -1 : 1;
     items = [...items].sort((a, b) => {
-      if (orden === "recientes") return 0; // ya viene ordenado por created_at desc del backend
+      if (orden === "recientes") {
+        // El backend devuelve created_at desc; asc = invertir
+        return ordenDir === "asc" ? 1 : -1;
+      }
       if (orden === "fecha_obra") {
         const da = a.fecha_fin ? new Date(a.fecha_fin).getTime() : 0;
         const db = b.fecha_fin ? new Date(b.fecha_fin).getTime() : 0;
-        return db - da;
+        return (db - da) * dir;
       }
       if (orden === "grupo") {
         const ga = `${a.clasificacion_grupo ?? ""}${a.clasificacion_subgrupo ?? ""}`;
         const gb = `${b.clasificacion_grupo ?? ""}${b.clasificacion_subgrupo ?? ""}`;
-        return ga.localeCompare(gb);
+        return ga.localeCompare(gb) * dir;
       }
       if (orden === "importe") {
-        return Number(b.importe_adjudicacion ?? 0) - Number(a.importe_adjudicacion ?? 0);
+        return (Number(b.importe_adjudicacion ?? 0) - Number(a.importe_adjudicacion ?? 0)) * dir;
       }
       return 0;
     });
 
     return items;
-  }, [certificados, filtro, orden]);
+  }, [certificados, filtro, orden, ordenDir]);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -271,24 +276,48 @@ export default function CertificadosPage() {
         </div>
 
         {/* Ordenar */}
-        <div className="flex items-center gap-1.5" role="group" aria-label="Ordenar certificados">
-          <ArrowUpDown className="h-3 w-3 text-muted-foreground mr-1 shrink-0" aria-hidden="true" />
-          {ORDENES.map((o) => (
-            <button
-              key={o.value}
-              onClick={() => setOrden(o.value)}
-              className={`
-                rounded-full px-3 py-1 text-xs font-semibold transition-colors
-                ${
-                  orden === o.value
-                    ? "bg-foreground text-surface"
-                    : "bg-muted text-muted-foreground hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800"
-                }
-              `}
+        <div className="flex items-center gap-1.5" aria-label="Ordenar certificados">
+          <div className="relative">
+            <select
+              value={orden}
+              onChange={(e) => setOrden(e.target.value as Orden)}
+              className="
+                appearance-none cursor-pointer
+                rounded-full bg-muted pl-3 pr-7 py-1
+                text-xs font-semibold text-muted-foreground
+                ring-1 ring-border
+                hover:bg-neutral-200 dark:hover:bg-neutral-800
+                focus:outline-none focus:ring-foreground
+                transition-colors
+              "
             >
-              {o.label}
-            </button>
-          ))}
+              {ORDENES.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <ChevronDown
+              className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground"
+              aria-hidden="true"
+            />
+          </div>
+          <button
+            onClick={() => setOrdenDir((d) => (d === "desc" ? "asc" : "desc"))}
+            title={ordenDir === "desc" ? "Mayor a menor — pulsa para invertir" : "Menor a mayor — pulsa para invertir"}
+            className="
+              inline-flex items-center justify-center
+              rounded-full bg-muted p-1.5
+              ring-1 ring-border
+              text-muted-foreground
+              hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800
+              transition-colors focus:outline-none focus:ring-foreground
+            "
+          >
+            {ordenDir === "desc"
+              ? <ArrowDown className="h-3 w-3" aria-hidden="true" />
+              : <ArrowUp className="h-3 w-3" aria-hidden="true" />
+            }
+            <span className="sr-only">{ordenDir === "desc" ? "Orden descendente" : "Orden ascendente"}</span>
+          </button>
         </div>
       </div>
 
