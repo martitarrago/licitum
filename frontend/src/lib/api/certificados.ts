@@ -176,6 +176,13 @@ export const certificadosApi = {
       (res) => { if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`); }
     ),
 
+  eliminarBatch: (ids: string[]) =>
+    fetch(`${API_BASE}/api/v1/solvencia/certificados/batch`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    }).then((res) => { if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`); }),
+
   resumenSolvencia: (empresa_id: string) =>
     apiFetch<ResumenSolvencia>(
       `/api/v1/solvencia/certificados/resumen-solvencia?empresa_id=${empresa_id}`

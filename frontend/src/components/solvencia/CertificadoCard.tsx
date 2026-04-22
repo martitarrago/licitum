@@ -67,11 +67,15 @@ export function CertificadoCard({
   caducado = false,
   porCaducar = false,
   posibleDuplicado = false,
+  selected = false,
+  onToggleSelect,
 }: {
   cert: CertificadoObraListItem;
   caducado?: boolean;
   porCaducar?: boolean;
   posibleDuplicado?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   const estilo = estadoStyles[cert.estado];
   const StatusIcon = estilo.Icon;
@@ -91,13 +95,27 @@ export function CertificadoCard({
       className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground rounded-xl"
     >
       <article
-        className="
+        className={`
           relative flex overflow-hidden
           rounded-xl bg-surface-raised
-          ring-1 ring-border
           shadow-sm transition-shadow group-hover:shadow-md
-        "
+          ${selected ? "ring-2 ring-foreground" : "ring-1 ring-border"}
+        `}
       >
+        {onToggleSelect && (
+          <div
+            className="flex-shrink-0 flex items-center pl-4 pr-1"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleSelect(cert.id); }}
+          >
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={() => {}}
+              className="h-4 w-4 cursor-pointer accent-foreground"
+              aria-label={selected ? "Deseleccionar" : "Seleccionar"}
+            />
+          </div>
+        )}
         <div className="flex flex-1 items-center gap-4 px-5 py-3 min-w-0">
           {/* Título + organismo — crece */}
           <div className="flex-1 min-w-0">

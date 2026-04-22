@@ -13,6 +13,9 @@ import {
   Clock,
   ExternalLink,
   FileText,
+  Maximize2,
+  Minus,
+  Plus,
   RefreshCw,
   Pencil,
   Trash2,
@@ -186,25 +189,91 @@ const PDF_LOADING = (
 function PdfViewer({ url }: { url: string }) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
-  const [width, setWidth] = useState<number | null>(null);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+  const [zoom, setZoom] = useState(1.0);
   const [failed, setFailed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const measure = () => setWidth(el.clientWidth);
+    const measure = () => setContainerWidth(el.clientWidth);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  const pagePadding = 24; // p-3 izq+dcha
-  const renderWidth = width ? Math.max(width - pagePadding, 280) : null;
+  const pagePadding = 24;
+  const fitWidth = containerWidth ? Math.max(containerWidth - pagePadding, 280) : null;
+  const renderWidth = fitWidth !== null ? Math.round(fitWidth * zoom) : null;
+
+  const btnCls = "rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40";
 
   return (
     <div className="flex h-[60vh] w-full flex-col overflow-hidden rounded-xl bg-muted ring-1 ring-border lg:h-[calc(100vh-10rem)]">
+      {/* Toolbar */}
+      <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface-raised px-3 py-1.5">
+        {/* Zoom controls */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setZoom((z) => Math.max(0.5, parseFloat((z - 0.25).toFixed(2))))}
+            disabled={zoom <= 0.5}
+            className={btnCls}
+            aria-label="Reducir zoom"
+            title="Reducir zoom"
+          >
+            <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+          <span className="w-11 text-center text-xs tabular-nums text-muted-foreground select-none">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            onClick={() => setZoom((z) => Math.min(3, parseFloat((z + 0.25).toFixed(2))))}
+            disabled={zoom >= 3}
+            className={btnCls}
+            aria-label="Ampliar zoom"
+            title="Ampliar zoom"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+          <button
+            onClick={() => setZoom(1)}
+            disabled={zoom === 1}
+            className={btnCls}
+            aria-label="Ajustar al ancho"
+            title="Ajustar al ancho (100%)"
+          >
+            <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Paginación */}
+        {numPages && numPages > 1 && !failed && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+              disabled={pageNumber === 1}
+              className={btnCls}
+              aria-label="Página anterior"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <span className="text-xs tabular-nums text-muted-foreground select-none">
+              {pageNumber} / {numPages}
+            </span>
+            <button
+              onClick={() => setPageNumber((p) => Math.min(numPages, p + 1))}
+              disabled={pageNumber === numPages}
+              className={btnCls}
+              aria-label="Página siguiente"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+      </div>
+
       <div ref={containerRef} className="flex-1 w-full overflow-auto p-3">
         {failed ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
@@ -239,37 +308,13 @@ function PdfViewer({ url }: { url: string }) {
                 pageNumber={pageNumber}
                 width={renderWidth}
                 renderAnnotationLayer={false}
-                renderTextLayer={false}
+                renderTextLayer={true}
                 className="mx-auto shadow-sm"
               />
             )}
           </Document>
         )}
       </div>
-
-      {numPages && numPages > 1 && !failed && (
-        <div className="flex shrink-0 items-center justify-center gap-4 border-t border-border bg-surface-raised px-4 py-2">
-          <button
-            onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
-            disabled={pageNumber === 1}
-            className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            aria-label="Página anterior"
-          >
-            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          </button>
-          <span className="text-xs tabular-nums text-muted-foreground">
-            Página {pageNumber} de {numPages}
-          </span>
-          <button
-            onClick={() => setPageNumber((p) => Math.min(numPages, p + 1))}
-            disabled={pageNumber === numPages}
-            className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            aria-label="Página siguiente"
-          >
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -389,6 +434,13 @@ function ConfirmValidarModal({
 
 // ─── ExtractionPending ────────────────────────────────────────────────────────
 
+const EXTRACTION_STEPS = [
+  { label: "Organismo contratante", msg: "Detectando organismo contratante…" },
+  { label: "Importe", msg: "Extrayendo importe de adjudicación…" },
+  { label: "Fechas", msg: "Identificando fechas de la obra…" },
+  { label: "Clasificación", msg: "Clasificando tipo de obra…" },
+];
+
 function ExtractionPending({
   onRefresh,
   timeout,
@@ -400,6 +452,17 @@ function ExtractionPending({
   onForceReextract: () => void;
   forceReextractPending: boolean;
 }) {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (timeout) return;
+    const interval = setInterval(
+      () => setStep((s) => (s + 1) % EXTRACTION_STEPS.length),
+      1800,
+    );
+    return () => clearInterval(interval);
+  }, [timeout]);
+
   return (
     <div className="flex flex-col items-center gap-8 rounded-xl bg-surface-raised p-12 text-center ring-1 ring-border">
       {/* Spinner o warning */}
@@ -409,7 +472,6 @@ function ExtractionPending({
         </div>
       ) : (
         <div className="relative flex h-16 w-16 items-center justify-center">
-          {/* Anillos pulsantes */}
           <span className="absolute inset-0 animate-ping rounded-full bg-foreground/15" />
           <span className="absolute inset-2 animate-ping rounded-full bg-foreground/10 [animation-delay:300ms]" />
           <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -425,21 +487,32 @@ function ExtractionPending({
         <p className="max-w-sm text-sm text-muted-foreground">
           {timeout
             ? "Lleva más de 2 minutos. Es posible que el proceso haya fallado. Puedes forzar un reintento."
-            : "Estamos leyendo el documento para identificar importes, fechas, organismo y clasificación. Suele tardar entre 30 y 60 segundos."}
+            : EXTRACTION_STEPS[step].msg}
         </p>
       </div>
 
-      {/* Skeleton del formulario — para hacer la espera más amena */}
+      {/* Skeleton animado — campo activo se ilumina progresivamente */}
       {!timeout && (
         <div className="w-full max-w-sm space-y-3 text-left">
-          {[["Organismo contratante", "w-3/4"], ["Importe", "w-1/2"], ["Fechas", "w-2/3"], ["Clasificación", "w-2/5"]].map(
-            ([label, w]) => (
-              <div key={label}>
-                <div className="mb-1.5 h-2.5 w-24 rounded bg-muted animate-pulse" />
-                <div className={`h-9 rounded-lg bg-muted animate-pulse ${w}`} />
-              </div>
-            ),
-          )}
+          {EXTRACTION_STEPS.map(({ label }, i) => (
+            <div key={label}>
+              <div
+                className="mb-1.5 h-2.5 rounded animate-pulse"
+                style={{
+                  width: "6rem",
+                  backgroundColor: i === step ? "hsl(var(--foreground) / 0.2)" : undefined,
+                }}
+                aria-hidden="true"
+              />
+              <div
+                className={`h-9 rounded-lg transition-colors duration-500 animate-pulse ${
+                  i === step ? "bg-foreground/15" : "bg-muted"
+                }`}
+                style={{ width: ["75%", "50%", "66%", "40%"][i] }}
+                aria-hidden="true"
+              />
+            </div>
+          ))}
         </div>
       )}
 

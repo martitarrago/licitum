@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Clock, FileText, Plus, XCircle } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Clock, FileText, Plus, Trash2, XCircle } from "lucide-react";
 import {
   certificadosApi,
   type CertificadoObraListItem,
@@ -26,12 +26,13 @@ const FILTROS: { value: Filtro; label: string }[] = [
 
 type Orden = "estado" | "recientes" | "fecha_obra" | "grupo" | "importe";
 
-const ESTADO_ORDEN: Record<string, number> = {
-  pendiente_revision: 0,
-  procesando: 1,
-  validado: 2,
-  rechazado: 3,
-};
+function estadoSortKey(c: CertificadoObraListItem): number {
+  if (c.estado === "validado") return 0;
+  if (c.estado === "pendiente_revision" && c.extraction_error) return 1;
+  if (c.estado === "pendiente_revision") return 2;
+  if (c.estado === "procesando") return 3;
+  return 4; // rechazado
+}
 
 const ORDENES: { value: Orden; label: string }[] = [
   { value: "estado", label: "Estado" },
@@ -146,7 +147,31 @@ export default function CertificadosPage() {
   const ordenRef = useRef<HTMLDivElement>(null);
   const [confirmarDuplicados, setConfirmarDuplicados] = useState(false);
   const [eliminandoDuplicados, setEliminandoDuplicados] = useState(false);
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+  const [confirmEliminarSeleccion, setConfirmEliminarSeleccion] = useState(false);
+  const [eliminandoSeleccion, setEliminandoSeleccion] = useState(false);
   const queryClient = useQueryClient();
+
+  function toggleSeleccion(id: string) {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleEliminarSeleccion() {
+    setEliminandoSeleccion(true);
+    try {
+      await certificadosApi.eliminarBatch(Array.from(seleccionados));
+      await queryClient.invalidateQueries({ queryKey: ["certificados"] });
+      setSeleccionados(new Set());
+      setConfirmEliminarSeleccion(false);
+    } finally {
+      setEliminandoSeleccion(false);
+    }
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -229,10 +254,9 @@ export default function CertificadosPage() {
     const dir = ordenDir === "desc" ? -1 : 1;
     items = [...items].sort((a, b) => {
       if (orden === "estado") {
-        const ea = ESTADO_ORDEN[a.estado] ?? 9;
-        const eb = ESTADO_ORDEN[b.estado] ?? 9;
+        const ea = estadoSortKey(a);
+        const eb = estadoSortKey(b);
         if (ea !== eb) return (ea - eb) * dir;
-        // Secundario: fecha_fin desc (más reciente primero)
         const da = a.fecha_fin ? new Date(a.fecha_fin).getTime() : 0;
         const db = b.fecha_fin ? new Date(b.fecha_fin).getTime() : 0;
         return db - da;
@@ -538,6 +562,8 @@ export default function CertificadosPage() {
               caducado={esCaducado(cert)}
               porCaducar={esPorCaducar(cert)}
               posibleDuplicado={duplicados.has(cert.id)}
+              selected={seleccionados.has(cert.id)}
+              onToggleSelect={toggleSeleccion}
             />
           ))}
         </div>
@@ -548,6 +574,29 @@ export default function CertificadosPage() {
         <p className="mt-4 text-xs text-muted-foreground text-right">
           {lista.length} de {certificados.length} certificados
         </p>
+      )}
+
+      {/* Barra flotante de selección múltiple */}
+      {seleccionados.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2 flex items-center gap-3 rounded-xl bg-foreground px-5 py-3 shadow-xl">
+          <span className="text-sm font-medium text-surface">
+            {seleccionados.size} {seleccionados.size === 1 ? "seleccionado" : "seleccionados"}
+          </span>
+          <div className="h-4 w-px bg-surface/25" />
+          <button
+            onClick={() => setSeleccionados(new Set())}
+            className="text-sm text-surface/60 transition-colors hover:text-surface"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => setConfirmEliminarSeleccion(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-85"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            Eliminar
+          </button>
+        </div>
       )}
 
       {/* Modal subida */}
@@ -603,6 +652,47 @@ export default function CertificadosPage() {
                 className="rounded-lg px-4 py-2 text-sm font-medium bg-danger text-white hover:opacity-85 transition-opacity disabled:opacity-50"
               >
                 {eliminandoDuplicados ? "Eliminando…" : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal confirmar eliminación masiva */}
+      {confirmEliminarSeleccion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-surface-raised ring-1 ring-border shadow-xl p-6">
+            <h2 className="text-base font-semibold text-foreground mb-1">
+              Eliminar {seleccionados.size} certificado{seleccionados.size !== 1 ? "s" : ""}
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Se eliminarán permanentemente los siguientes certificados:
+            </p>
+            <div className="max-h-52 overflow-y-auto space-y-1 mb-4 rounded-xl bg-muted p-3">
+              {Array.from(seleccionados).map((id) => {
+                const cert = certificados?.find((c) => c.id === id);
+                return (
+                  <div key={id} className="flex items-center gap-2 text-sm">
+                    <XCircle className="h-3.5 w-3.5 flex-shrink-0 text-danger" aria-hidden="true" />
+                    <span className="truncate text-foreground">{cert?.titulo ?? "Sin título"}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground mb-5">Esta acción no se puede deshacer.</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmEliminarSeleccion(false)}
+                disabled={eliminandoSeleccion}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground bg-muted hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEliminarSeleccion}
+                disabled={eliminandoSeleccion}
+                className="rounded-lg px-4 py-2 text-sm font-medium bg-danger text-white hover:opacity-85 transition-opacity disabled:opacity-50"
+              >
+                {eliminandoSeleccion ? "Eliminando…" : "Eliminar"}
               </button>
             </div>
           </div>

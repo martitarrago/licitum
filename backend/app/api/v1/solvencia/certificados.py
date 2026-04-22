@@ -291,6 +291,34 @@ async def actualizar_certificado(
     return cert
 
 
+class BatchDeleteBody(BaseModel):
+    ids: list[UUID]
+
+
+@router.delete(
+    "/batch",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Soft delete de múltiples certificados",
+)
+async def eliminar_batch(
+    body: BatchDeleteBody,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    now = datetime.now(timezone.utc)
+    stmt = (
+        select(CertificadoObra)
+        .where(
+            CertificadoObra.id.in_(body.ids),
+            CertificadoObra.deleted_at.is_(None),
+        )
+    )
+    result = await db.execute(stmt)
+    certs = result.scalars().all()
+    for cert in certs:
+        cert.deleted_at = now
+    await db.commit()
+
+
 @router.delete(
     "/{certificado_id}",
     status_code=status.HTTP_204_NO_CONTENT,
