@@ -20,7 +20,7 @@ from app.models.certificado_obra import CertificadoObra
 logger = logging.getLogger(__name__)
 
 NATIVE_TEXT_MIN_CHARS = 100
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+CLAUDE_MODEL = "claude-sonnet-4-6"
 CLAUDE_MAX_TOKENS = 2048
 PDF_DOWNLOAD_TIMEOUT_SECONDS = 60
 
