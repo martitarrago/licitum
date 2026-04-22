@@ -20,10 +20,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
 
     allowed_origins: str = "http://localhost:3000"
+    # Regex para dominios de preview (ej: "https://licitum-.*\\.vercel\\.app")
+    cors_origin_regex: str | None = None
 
     @property
     def cors_origins(self) -> list[str]:
-        return [o.strip() for o in self.allowed_origins.split(",")]
+        return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
 
 
 settings = Settings()

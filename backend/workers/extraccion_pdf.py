@@ -8,6 +8,7 @@ from uuid import UUID
 import httpx
 import pdfplumber
 from anthropic import AsyncAnthropic
+from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import select
 
 from app.config import settings
@@ -167,6 +168,27 @@ EXTRACTION_TOOL: dict = {
         "required": ["tipo_documento", "cpv_codes", "confianza_extraccion", "contratista_principal"],
     },
 }
+
+class ClaudeOutput(BaseModel):
+    """Schema de validación del output de Claude. extra='ignore' tolera campos inesperados."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    tipo_documento: str
+    razon_invalidez: str | None = None
+    importe_adjudicacion: float | None = None
+    fecha_inicio: str | None = None
+    fecha_fin: str | None = None
+    titulo: str | None = None
+    organismo: str | None = None
+    cpv_codes: list[str] = []
+    clasificacion_grupo: str | None = None
+    clasificacion_subgrupo: str | None = None
+    numero_expediente: str | None = None
+    porcentaje_ute: float | None = None
+    contratista_principal: bool = True
+    confianza_extraccion: float = 0.5
+
 
 SYSTEM_PROMPT = """Eres un experto extractor de datos de documentos de obra pública española. \
 Procesas certificados de obra, actas de recepción, certificados finales de obra, \
@@ -412,7 +434,18 @@ async def _extraer_con_claude(texto: str) -> dict:
 
     for block in respuesta.content:
         if block.type == "tool_use" and block.name == "guardar_datos_certificado":
-            return dict(block.input)
+            raw = dict(block.input)
+            try:
+                validated = ClaudeOutput.model_validate(raw)
+                return validated.model_dump()
+            except ValidationError as exc:
+                logger.warning(
+                    "Output de Claude no pasó validación Pydantic (%s); "
+                    "guardando datos en bruto: %s",
+                    exc.error_count(),
+                    exc,
+                )
+                return raw
 
     raise RuntimeError(
         "Claude no devolvió un bloque tool_use con los datos estructurados"

@@ -8,12 +8,14 @@ from app.config import settings
 def create_app() -> FastAPI:
     app = FastAPI(title="Licitum API", version="0.1.0", debug=settings.debug)
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    cors_kwargs: dict = {
+        "allow_origins": settings.cors_origins,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
+    if settings.cors_origin_regex:
+        cors_kwargs["allow_origin_regex"] = settings.cors_origin_regex
+    app.add_middleware(CORSMiddleware, **cors_kwargs)
 
     app.include_router(api_router)
 
