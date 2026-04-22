@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, FileText, HelpCircle, Plus, RefreshCcw, Trash2, XCircle } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, FileText, HelpCircle, ListChecks, Plus, RefreshCcw, Trash2, XCircle } from "lucide-react";
 import {
   certificadosApi,
   type CertificadoObraListItem,
@@ -443,14 +443,7 @@ export default function CertificadosPage() {
           <button
             onClick={() => setOrdenDir((d) => (d === "desc" ? "asc" : "desc"))}
             title={ordenDir === "desc" ? "Orden descendente — pulsa para invertir" : "Orden ascendente — pulsa para invertir"}
-            className="
-              inline-flex items-center gap-1 cursor-pointer
-              rounded-lg bg-muted pl-2 pr-2.5 py-1
-              text-xs font-semibold text-muted-foreground
-              ring-1 ring-border
-              hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800
-              transition-colors focus:outline-none
-            "
+            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
           >
             {ordenDir === "desc"
               ? <ArrowDown className="h-3 w-3" aria-hidden="true" />
@@ -462,18 +455,17 @@ export default function CertificadosPage() {
           {/* Modo selección */}
           <button
             onClick={() => modoSeleccion ? salirModoSeleccion() : setModoSeleccion(true)}
+            title={modoSeleccion ? "Salir del modo selección" : "Seleccionar certificados"}
             className={`
-              inline-flex items-center gap-1.5 cursor-pointer
-              rounded-lg px-2.5 py-1
-              text-xs font-semibold
-              ring-1 ring-border transition-colors focus:outline-none
+              rounded-lg p-1.5 transition-colors focus:outline-none
               ${modoSeleccion
                 ? "bg-foreground text-surface"
-                : "bg-muted text-muted-foreground hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }
             `}
           >
-            {modoSeleccion ? "Cancelar" : "Seleccionar"}
+            <ListChecks className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">{modoSeleccion ? "Cancelar selección" : "Seleccionar"}</span>
           </button>
         </div>
       </div>
