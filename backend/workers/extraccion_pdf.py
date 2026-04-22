@@ -314,7 +314,7 @@ async def _ejecutar(certificado_id: UUID) -> None:
 
         error_msg: str | None = None
         try:
-            pdf_bytes = await _descargar_pdf(cert.pdf_url)
+            pdf_bytes = _descargar_pdf(cert.pdf_url)
             texto = _extraer_texto(pdf_bytes)
             datos = await _extraer_con_claude(texto)
             if not datos:
@@ -362,9 +362,13 @@ async def _ejecutar(certificado_id: UUID) -> None:
     await engine.dispose()
 
 
-async def _descargar_pdf(url: str) -> bytes:
-    async with httpx.AsyncClient(timeout=PDF_DOWNLOAD_TIMEOUT_SECONDS) as client:
-        resp = await client.get(url)
+def _descargar_pdf(url: str) -> bytes:
+    # Sync httpx: con Celery --pool=solo el event loop se destruye al final
+    # de cada tarea; AsyncClient deja tasks de cleanup pendientes que fallan
+    # con "Event loop is closed". La descarga es I/O bloqueante única, no
+    # aporta async.
+    with httpx.Client(timeout=PDF_DOWNLOAD_TIMEOUT_SECONDS) as client:
+        resp = client.get(url)
         resp.raise_for_status()
         return resp.content
 
