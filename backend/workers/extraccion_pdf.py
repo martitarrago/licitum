@@ -10,11 +10,12 @@ import pdfplumber
 from anthropic import AsyncAnthropic
 from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.core.celery_app import celery_app
 from app.core.enums import EstadoCertificado
-from app.db.session import AsyncSessionLocal
 from app.models.certificado_obra import CertificadoObra
 
 logger = logging.getLogger(__name__)
@@ -289,7 +290,15 @@ def extraer_certificado(self, certificado_id: str) -> None:
 
 
 async def _ejecutar(certificado_id: UUID) -> None:
-    async with AsyncSessionLocal() as session:
+    # NullPool: sin reutilización de conexiones entre llamadas a asyncio.run().
+    # Cada tarea Celery crea su propio event loop; el pool del engine global
+    # queda atado al loop anterior (ya cerrado) y provoca hang. NullPool evita
+    # este problema creando conexiones frescas ligadas al loop activo.
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
+    )
+    async with session_factory() as session:
         cert = await session.scalar(
             select(CertificadoObra).where(CertificadoObra.id == certificado_id)
         )
@@ -349,6 +358,8 @@ async def _ejecutar(certificado_id: UUID) -> None:
             cert.estado = EstadoCertificado.pendiente_revision
             cert.extraction_error = error_msg
             await session.commit()
+
+    await engine.dispose()
 
 
 async def _descargar_pdf(url: str) -> bytes:

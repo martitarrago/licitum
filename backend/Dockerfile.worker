@@ -15,4 +15,4 @@ COPY . .
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "-m", "celery", "-A", "app.core.celery_app", "worker", "-l", "info", "-c", "2"]
+CMD ["python", "-m", "celery", "-A", "app.core.celery_app", "worker", "-l", "info", "--pool=solo"]
