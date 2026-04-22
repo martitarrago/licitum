@@ -32,6 +32,7 @@ import {
   certificadosApi,
 } from "@/lib/api/certificados";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { DatePicker } from "@/components/ui/DatePicker";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -807,11 +808,12 @@ function ReviewForm({
             fieldKey="fecha_inicio"
             confianzaCampos={confianzaCampos}
           >
-            <input
-              type="date"
-              className={inputCls}
-              {...field("fecha_inicio")}
+            <DatePicker
+              value={form.fecha_inicio}
+              onChange={(v) => setForm((prev) => ({ ...prev, fecha_inicio: v }))}
               disabled={mutation.isPending}
+              placeholder="Seleccionar fecha…"
+              aria-label="Fecha de inicio"
             />
           </FieldWithConfidence>
 
@@ -820,11 +822,12 @@ function ReviewForm({
             fieldKey="fecha_fin"
             confianzaCampos={confianzaCampos}
           >
-            <input
-              type="date"
-              className={inputCls}
-              {...field("fecha_fin")}
+            <DatePicker
+              value={form.fecha_fin}
+              onChange={(v) => setForm((prev) => ({ ...prev, fecha_fin: v }))}
               disabled={mutation.isPending}
+              placeholder="Seleccionar fecha…"
+              aria-label="Fecha de fin / recepción"
             />
           </FieldWithConfidence>
 

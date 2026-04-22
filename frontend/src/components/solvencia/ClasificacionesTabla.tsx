@@ -8,6 +8,8 @@ import {
   Power,
   X,
 } from "lucide-react";
+import { CustomSelect } from "@/components/ui/CustomSelect";
+import { DatePicker } from "@/components/ui/DatePicker";
 import {
   clasificacionesApi,
   type ClasificacionCreate,
@@ -114,10 +116,6 @@ function validateForm(f: RowForm): string | null {
 
 // ─── Shared cell/input styles ─────────────────────────────────────────────────
 
-const selectCls =
-  "rounded-lg bg-surface ring-1 ring-border px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground transition-shadow w-full";
-const inputCls =
-  "rounded-lg bg-surface ring-1 ring-border px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground transition-shadow w-full tabular-nums";
 const tdCls = "px-4 py-3 text-sm text-foreground";
 const thCls =
   "px-4 py-3 text-left text-[10px] tracking-wide text-muted-foreground/40";
@@ -154,71 +152,59 @@ function EditRow({
       {/* Fila de inputs */}
       <tr className={`bg-muted/60 ${animate ? "animate-fade-in" : ""}`}>
         <td className="px-4 py-2">
-          <select
+          <CustomSelect
+            options={CATALOGO_JCCPE.map((g) => ({
+              value: g.codigo,
+              label: `${g.codigo} — ${g.nombre}`,
+            }))}
             value={form.grupo}
-            onChange={(e) => set("grupo", e.target.value)}
-            className={selectCls}
+            onChange={(v) => set("grupo", v)}
+            placeholder="Grupo…"
             disabled={saving}
             aria-label="Grupo"
-          >
-            <option value="">Grupo…</option>
-            {CATALOGO_JCCPE.map((g) => (
-              <option key={g.codigo} value={g.codigo}>
-                {g.codigo} — {g.nombre}
-              </option>
-            ))}
-          </select>
+          />
         </td>
         <td className="px-4 py-2">
-          <select
+          <CustomSelect
+            options={subgrupos.map((s) => ({
+              value: s.codigo,
+              label: `${form.grupo}${s.codigo} — ${s.nombre}`,
+            }))}
             value={form.subgrupo}
-            onChange={(e) => set("subgrupo", e.target.value)}
-            className={selectCls}
+            onChange={(v) => set("subgrupo", v)}
+            placeholder="Subgrupo…"
             disabled={saving || !form.grupo}
             aria-label="Subgrupo"
-          >
-            <option value="">Subgrupo…</option>
-            {subgrupos.map((s) => (
-              <option key={s.codigo} value={s.codigo}>
-                {form.grupo}
-                {s.codigo} — {s.nombre}
-              </option>
-            ))}
-          </select>
+          />
         </td>
         <td className="px-4 py-2">
-          <select
+          <CustomSelect
+            options={CATEGORIAS_ROLECE.map((c) => ({
+              value: c.value,
+              label: c.label,
+            }))}
             value={form.categoria}
-            onChange={(e) => set("categoria", e.target.value)}
-            className={selectCls}
+            onChange={(v) => set("categoria", v)}
+            placeholder="Cat.…"
             disabled={saving}
             aria-label="Categoría"
-          >
-            <option value="">Cat.…</option>
-            {CATEGORIAS_ROLECE.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+          />
         </td>
         <td className="px-4 py-2">
-          <input
-            type="date"
+          <DatePicker
             value={form.fecha_obtencion}
-            onChange={(e) => set("fecha_obtencion", e.target.value)}
-            className={inputCls}
+            onChange={(v) => set("fecha_obtencion", v)}
             disabled={saving}
+            placeholder="Obtenida…"
             aria-label="Fecha obtención"
           />
         </td>
         <td className="px-4 py-2">
-          <input
-            type="date"
+          <DatePicker
             value={form.fecha_caducidad}
-            onChange={(e) => set("fecha_caducidad", e.target.value)}
-            className={inputCls}
+            onChange={(v) => set("fecha_caducidad", v)}
             disabled={saving}
+            placeholder="Caduca…"
             aria-label="Fecha caducidad"
           />
         </td>
