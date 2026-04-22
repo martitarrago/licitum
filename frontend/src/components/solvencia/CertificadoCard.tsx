@@ -145,7 +145,6 @@ export function CertificadoCard({
             ) : (
               <span className="text-xs text-muted-foreground">—</span>
             )}
-            <div className="text-[11px] text-muted-foreground">Período</div>
           </div>
 
           {/* Importe */}
@@ -153,7 +152,6 @@ export function CertificadoCard({
             <div className="text-sm font-semibold tabular-nums text-foreground">
               {importe > 0 ? importeFormatter.format(importe) : "—"}
             </div>
-            <div className="text-[11px] text-muted-foreground">Importe</div>
           </div>
 
           {/* Grupo ROLECE + UTE badge */}
