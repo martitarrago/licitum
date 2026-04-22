@@ -393,11 +393,6 @@ export default function CertificadosPage() {
 
         {/* Ordenar + contador */}
         <div className="flex items-center gap-3" aria-label="Ordenar certificados">
-          {!isLoading && !isError && certificados && certificados.length > 0 && (
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {lista.length} de {certificados.length}
-            </span>
-          )}
           {/* Dropdown custom */}
           <div className="relative" ref={ordenRef}>
             <button
@@ -579,6 +574,13 @@ export default function CertificadosPage() {
             />
           ))}
         </div>
+      )}
+
+      {/* Contador */}
+      {!isLoading && !isError && certificados && certificados.length > 0 && (
+        <p className="mt-3 text-xs tabular-nums text-muted-foreground text-right">
+          {lista.length} de {certificados.length}
+        </p>
       )}
 
       {/* Barra flotante de selección múltiple */}
