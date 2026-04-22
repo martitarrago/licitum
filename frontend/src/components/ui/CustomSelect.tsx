@@ -39,14 +39,13 @@ export function CustomSelect({
     if (disabled) return;
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const panelH = Math.min(options.length * 36 + 8, 300);
+    const panelH = options.length * 36 + 8;
     const spaceBelow = window.innerHeight - rect.bottom;
     const showBelow = spaceBelow >= panelH || spaceBelow >= window.innerHeight / 2;
-    const minW = Math.max(rect.width, 220);
     setPanelStyle(
       showBelow
-        ? { top: rect.bottom + 4, left: rect.left, minWidth: minW }
-        : { bottom: window.innerHeight - rect.top + 4, left: rect.left, minWidth: minW },
+        ? { top: rect.bottom + 4, left: rect.left, width: rect.width }
+        : { bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width },
     );
     setOpen(true);
   }
@@ -100,18 +99,19 @@ export function CustomSelect({
           <div
             ref={panelRef}
             style={{ position: "fixed", zIndex: 9999, ...panelStyle }}
-            className="max-h-[300px] overflow-y-auto rounded-xl bg-surface-raised ring-1 ring-border shadow-lg py-1"
+            className="rounded-xl bg-surface-raised ring-1 ring-border shadow-lg py-1"
           >
             {options.map((o) => (
               <button
                 key={o.value}
                 type="button"
+                title={o.label}
                 onClick={() => {
                   onChange(o.value);
                   setOpen(false);
                 }}
                 className={`
-                  w-full text-left px-3 py-2 text-sm transition-colors
+                  w-full text-left px-3 py-2 text-sm transition-colors truncate
                   ${o.value === value
                     ? "bg-foreground text-surface font-medium"
                     : "text-foreground hover:bg-muted"
