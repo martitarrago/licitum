@@ -202,7 +202,7 @@ export function CertificadoCard({
               </span>
             )}
             {porCaducar && !caducado && (
-              <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+              <span className="text-[10px] font-medium text-warning">
                 Caduca pronto
               </span>
             )}

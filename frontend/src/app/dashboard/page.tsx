@@ -1,12 +1,18 @@
-import { LayoutDashboard } from "lucide-react";
-import { ModulePlaceholder } from "@/components/layout/ModulePlaceholder";
+"use client";
+
+import { SolvenciaResumen } from "@/components/solvencia/SolvenciaResumen";
 
 export default function DashboardPage() {
   return (
-    <ModulePlaceholder
-      titulo="Dashboard"
-      descripcion="Vista general del estado de tu empresa: solvencia disponible, licitaciones en curso, avales y tasa de éxito."
-      icon={LayoutDashboard}
-    />
+    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Estado general de tu empresa
+        </p>
+      </div>
+
+      <SolvenciaResumen />
+    </main>
   );
 }

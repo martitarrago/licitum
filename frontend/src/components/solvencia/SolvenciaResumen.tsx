@@ -45,6 +45,7 @@ export function SolvenciaResumen() {
       <div className="mb-6 flex flex-col sm:flex-row gap-3">
         <TileSkeleton />
         <TileSkeleton />
+        <TileSkeleton />
       </div>
     );
   }
@@ -89,6 +90,26 @@ export function SolvenciaResumen() {
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground">
             últimos 5 años
+          </p>
+        </div>
+
+        <div className="flex-1 rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm px-5 py-4">
+          <div className="flex items-center gap-1.5">
+            <p className="text-[11px] font-medium text-muted-foreground">
+              Año pico
+            </p>
+            <span
+              title="Importe ejecutado en el mejor año del quinquenio (LCSP art. 88.1.a). Muchos pliegos usan esta cifra en lugar de la media."
+              className="text-muted-foreground/70 hover:text-muted-foreground cursor-help"
+            >
+              <Info className="h-3 w-3" />
+            </span>
+          </div>
+          <p className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+            {eur.format(Number(data.anualidad_pico))}
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {data.anio_pico ?? "—"}
           </p>
         </div>
 

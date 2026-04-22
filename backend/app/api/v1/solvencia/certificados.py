@@ -181,6 +181,8 @@ class ResumenGrupo(BaseModel):
 class ResumenSolvencia(BaseModel):
     por_grupo: list[ResumenGrupo]
     anualidad_media: Decimal
+    anualidad_pico: Decimal
+    anio_pico: int | None
     total_obras: int
     periodo_inicio: date
     periodo_fin: date
@@ -219,6 +221,7 @@ async def resumen_solvencia(
 
     por_grupo: dict[str, Decimal] = {}
     conteos: dict[str, int] = {}
+    por_anio: dict[int, Decimal] = {}
     total_importe = Decimal(0)
 
     for c in certs_validos:
@@ -231,10 +234,19 @@ async def resumen_solvencia(
         grupo = c.clasificacion_grupo or "Sin clasificar"
         por_grupo[grupo] = por_grupo.get(grupo, Decimal(0)) + importe
         conteos[grupo] = conteos.get(grupo, 0) + 1
+        if c.fecha_fin is not None:
+            anio = c.fecha_fin.year
+            por_anio[anio] = por_anio.get(anio, Decimal(0)) + importe
 
     grupos_ordenados = sorted(por_grupo.items(), key=lambda x: x[1], reverse=True)
     num_years = Decimal(5)
     anualidad_media = (total_importe / num_years).quantize(Decimal("0.01")) if total_importe else Decimal(0)
+
+    anio_pico: int | None = None
+    anualidad_pico = Decimal(0)
+    if por_anio:
+        anio_pico = max(por_anio, key=lambda a: por_anio[a])
+        anualidad_pico = por_anio[anio_pico].quantize(Decimal("0.01"))
 
     return ResumenSolvencia(
         por_grupo=[
@@ -242,6 +254,8 @@ async def resumen_solvencia(
             for g, v in grupos_ordenados
         ],
         anualidad_media=anualidad_media,
+        anualidad_pico=anualidad_pico,
+        anio_pico=anio_pico,
         total_obras=len(certs_validos),
         periodo_inicio=periodo_inicio,
         periodo_fin=periodo_fin,

@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, Clock, FileText, Plus, Trash2, XCircle } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, FileText, HelpCircle, Plus, RefreshCcw, Trash2, XCircle } from "lucide-react";
 import {
   certificadosApi,
   type CertificadoObraListItem,
 } from "@/lib/api/certificados";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 import { CertificadoCard } from "@/components/solvencia/CertificadoCard";
-import { SolvenciaResumen } from "@/components/solvencia/SolvenciaResumen";
 import { UploadModal } from "@/components/solvencia/UploadModal";
 
 // ─── Tipos de filtro ──────────────────────────────────────────────────────────
@@ -183,7 +182,7 @@ export default function CertificadosPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const { data: certificados, isLoading, isError } = useQuery({
+  const { data: certificados, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["certificados"],
     queryFn: () =>
       certificadosApi.list({ empresa_id: EMPRESA_DEMO_ID }),
@@ -288,13 +287,19 @@ export default function CertificadosPage() {
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="flex items-center gap-1">
           <h1 className="text-2xl font-semibold text-foreground">
             Certificados de obra
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Expediente técnico digital de tu empresa
-          </p>
+          <button
+            onClick={() => setInfoOpen((v) => !v)}
+            aria-expanded={infoOpen}
+            aria-label="¿Qué documentos acreditan solvencia?"
+            title="¿Qué documentos sirven?"
+            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <HelpCircle className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
         <button
           onClick={() => setModalOpen(true)}
@@ -310,59 +315,40 @@ export default function CertificadosPage() {
         </button>
       </div>
 
-      {/* Explicación colapsable */}
-      <div className="mb-6">
-        <button
-          onClick={() => setInfoOpen((v) => !v)}
-          aria-expanded={infoOpen}
-          className="flex w-full items-center justify-between rounded-xl bg-muted px-5 py-3.5 ring-1 ring-border text-left transition-colors hover:bg-neutral-200 dark:hover:bg-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground"
-        >
-          <span className="text-sm font-semibold text-foreground">
-            ¿Qué documentos acreditan solvencia de obra?
-          </span>
-          <ChevronDown
-            className={`h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform duration-200 ${infoOpen ? "rotate-180" : ""}`}
-            aria-hidden="true"
-          />
-        </button>
-
-        {infoOpen && (
-          <div className="mt-1 rounded-xl ring-1 ring-border bg-surface-raised px-5 py-5 text-sm space-y-4">
-            <div>
-              <p className="mb-2 text-xs font-semibold text-foreground">
-                Documentos válidos
-              </p>
-              <ul className="space-y-1.5 text-muted-foreground">
-                <li><span className="font-medium text-foreground">Acta de recepción de obra</span> — el organismo acepta la obra terminada. Incluye fecha, conformidad e importe. Es el más valorado.</li>
-                <li><span className="font-medium text-foreground">Certificado de buena ejecución</span> — emitido por el organismo contratante confirmando ejecución correcta, en plazo y por el importe acordado.</li>
-                <li><span className="font-medium text-foreground">Certificado de obra ejecutada</span> — emitido a petición de la empresa por el organismo contratante. Equivalente al anterior.</li>
-                <li><span className="font-medium text-foreground">Clasificación ROLECE</span> — para obras de más de 500.000 € sustituye a todos los anteriores. Si tienes clasificación activa, la JCCPE ya verificó tu solvencia.</li>
-              </ul>
-            </div>
-            <div className="border-t border-border pt-4">
-              <p className="mb-2 text-xs font-semibold text-foreground">
-                Documentos no válidos
-              </p>
-              <ul className="space-y-1.5 text-muted-foreground">
-                <li><span className="font-medium text-foreground">Contratos de adjudicación</span> — acreditan que te adjudicaron la obra, no que la terminaste.</li>
-                <li><span className="font-medium text-foreground">Certificaciones parciales</span> — las certificaciones mensuales durante la ejecución no cuentan. Solo la recepción final.</li>
-                <li><span className="font-medium text-foreground">Subcontratación</span> — si ejecutaste como subcontratista, el organismo no reconoce esa obra. Solo cuenta el contratista principal.</li>
-                <li><span className="font-medium text-foreground">Obras de más de 5 años</span> — la LCSP (art. 88) limita el período a los últimos 5 años.</li>
-                <li><span className="font-medium text-foreground">Certificados de asistencia técnica</span> — acreditan al técnico o ingeniero que dirigió la obra, no a la constructora que la ejecutó.</li>
-              </ul>
-            </div>
+      {/* Panel explicativo — solo cuando el usuario pulsa ? */}
+      {infoOpen && (
+        <div className="mb-6 rounded-xl ring-1 ring-border bg-surface-raised px-5 py-5 text-sm space-y-4">
+          <div>
+            <p className="mb-2 text-xs font-semibold text-foreground">
+              Documentos válidos
+            </p>
+            <ul className="space-y-1.5 text-muted-foreground">
+              <li><span className="font-medium text-foreground">Acta de recepción de obra</span> — el organismo acepta la obra terminada. Incluye fecha, conformidad e importe. Es el más valorado.</li>
+              <li><span className="font-medium text-foreground">Certificado de buena ejecución</span> — emitido por el organismo contratante confirmando ejecución correcta, en plazo y por el importe acordado.</li>
+              <li><span className="font-medium text-foreground">Certificado de obra ejecutada</span> — emitido a petición de la empresa por el organismo contratante. Equivalente al anterior.</li>
+              <li><span className="font-medium text-foreground">Clasificación ROLECE</span> — para obras de más de 500.000 € sustituye a todos los anteriores. Si tienes clasificación activa, la JCCPE ya verificó tu solvencia.</li>
+            </ul>
           </div>
-        )}
-      </div>
-
-      {/* Panel de solvencia */}
-      <SolvenciaResumen />
+          <div className="border-t border-border pt-4">
+            <p className="mb-2 text-xs font-semibold text-foreground">
+              Documentos no válidos
+            </p>
+            <ul className="space-y-1.5 text-muted-foreground">
+              <li><span className="font-medium text-foreground">Contratos de adjudicación</span> — acreditan que te adjudicaron la obra, no que la terminaste.</li>
+              <li><span className="font-medium text-foreground">Certificaciones parciales</span> — las certificaciones mensuales durante la ejecución no cuentan. Solo la recepción final.</li>
+              <li><span className="font-medium text-foreground">Subcontratación</span> — si ejecutaste como subcontratista, el organismo no reconoce esa obra. Solo cuenta el contratista principal.</li>
+              <li><span className="font-medium text-foreground">Obras de más de 5 años</span> — la LCSP (art. 88) limita el período a los últimos 5 años.</li>
+              <li><span className="font-medium text-foreground">Certificados de asistencia técnica</span> — acreditan al técnico o ingeniero que dirigió la obra, no a la constructora que la ejecutó.</li>
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Banner duplicados */}
       {duplicados.size > 0 && (
-        <div className="mb-4 flex items-center justify-between gap-4 rounded-xl bg-warning/10 px-4 py-3 ring-1 ring-warning/25">
-          <div className="flex items-center gap-2 text-sm text-warning">
-            <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+        <div className="mb-4 flex items-center justify-between gap-4 rounded-xl bg-muted px-4 py-3 ring-1 ring-border">
+          <div className="flex items-center gap-2 text-sm text-foreground">
+            <AlertCircle className="h-4 w-4 flex-shrink-0 text-warning" aria-hidden="true" />
             <span>
               Se detectaron <span className="font-semibold">{eliminables.length} certificado{eliminables.length !== 1 ? "s" : ""} duplicado{eliminables.length !== 1 ? "s" : ""}</span>.
               Se conservará el que tenga más campos completos.
@@ -370,32 +356,12 @@ export default function CertificadosPage() {
           </div>
           <button
             onClick={() => setConfirmarDuplicados(true)}
-            className="flex-shrink-0 rounded-lg bg-warning px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-85"
+            className="flex-shrink-0 rounded-lg bg-foreground px-3 py-1.5 text-xs font-semibold text-surface transition-opacity hover:opacity-85"
           >
-            Eliminar duplicados
+            Revisar y eliminar
           </button>
         </div>
       )}
-
-      {/* Leyenda de estados */}
-      <div className="mb-3 hidden lg:flex items-center gap-4 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1.5">
-          <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden="true" />
-          Válido
-        </span>
-        <span className="flex items-center gap-1.5">
-          <AlertCircle className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
-          Pendiente revisión
-        </span>
-        <span className="flex items-center gap-1.5">
-          <XCircle className="h-3.5 w-3.5 text-danger" aria-hidden="true" />
-          Rechazado
-        </span>
-        <span className="flex items-center gap-1.5">
-          <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-          Caducado
-        </span>
-      </div>
 
       {/* Filtros + ordenación */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -419,15 +385,20 @@ export default function CertificadosPage() {
           ))}
         </div>
 
-        {/* Ordenar */}
-        <div className="flex items-center gap-1.5" aria-label="Ordenar certificados">
+        {/* Ordenar + contador */}
+        <div className="flex items-center gap-3" aria-label="Ordenar certificados">
+          {!isLoading && !isError && certificados && certificados.length > 0 && (
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {lista.length} de {certificados.length}
+            </span>
+          )}
           {/* Dropdown custom */}
           <div className="relative" ref={ordenRef}>
             <button
               onClick={() => setOrdenOpen((v) => !v)}
               className="
                 inline-flex items-center gap-1.5 cursor-pointer
-                rounded-full bg-muted pl-3 pr-2.5 py-1
+                rounded-lg bg-muted pl-3 pr-2.5 py-1
                 text-xs font-semibold text-muted-foreground
                 ring-1 ring-border
                 hover:bg-neutral-200 dark:hover:bg-neutral-800
@@ -470,12 +441,12 @@ export default function CertificadosPage() {
           {/* Dirección */}
           <button
             onClick={() => setOrdenDir((d) => (d === "desc" ? "asc" : "desc"))}
-            title={ordenDir === "desc" ? "Mayor a menor — pulsa para invertir" : "Menor a mayor — pulsa para invertir"}
+            title={ordenDir === "desc" ? "Orden descendente — pulsa para invertir" : "Orden ascendente — pulsa para invertir"}
             className="
-              inline-flex items-center justify-center
-              rounded-full bg-muted p-1.5
+              inline-flex items-center gap-1 cursor-pointer
+              rounded-lg bg-muted pl-2 pr-2.5 py-1
+              text-xs font-semibold text-muted-foreground
               ring-1 ring-border
-              text-muted-foreground
               hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800
               transition-colors focus:outline-none
             "
@@ -484,21 +455,10 @@ export default function CertificadosPage() {
               ? <ArrowDown className="h-3 w-3" aria-hidden="true" />
               : <ArrowUp className="h-3 w-3" aria-hidden="true" />
             }
-            <span className="sr-only">{ordenDir === "desc" ? "Orden descendente" : "Orden ascendente"}</span>
+            {ordenDir === "desc" ? "Desc" : "Asc"}
           </button>
         </div>
       </div>
-
-      {/* Cabecera de columnas (sólo desktop) */}
-      {!isLoading && !isError && lista.length > 0 && (
-        <div className="mb-1 hidden lg:flex items-center gap-4 px-5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          <div className="flex-1">Certificado</div>
-          <div className="w-36 text-right">Período</div>
-          <div className="w-28 text-right">Importe</div>
-          <div className="w-24 text-center">Grupo</div>
-          <div className="w-16 text-center">Estado</div>
-        </div>
-      )}
 
       {/* Estados de carga */}
       {isLoading && (
@@ -510,13 +470,28 @@ export default function CertificadosPage() {
       )}
 
       {isError && (
-        <div className="flex flex-col items-center gap-3 py-20 text-center">
-          <p className="text-sm text-danger">
-            No se pudo cargar la lista de certificados.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Comprueba que el backend está en marcha.
-          </p>
+        <div className="flex flex-col items-center gap-4 py-20 text-center">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-danger">
+              No se pudo cargar la lista de certificados.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Comprueba que el backend está en marcha.
+            </p>
+          </div>
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="
+              inline-flex items-center gap-2 rounded-lg
+              bg-muted px-4 py-2 text-sm font-medium text-foreground ring-1 ring-border
+              transition-colors hover:bg-neutral-200 dark:hover:bg-neutral-800
+              disabled:opacity-60
+            "
+          >
+            <RefreshCcw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden="true" />
+            {isFetching ? "Reintentando…" : "Reintentar"}
+          </button>
         </div>
       )}
 
@@ -554,7 +529,10 @@ export default function CertificadosPage() {
       )}
 
       {!isLoading && !isError && lista.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div
+          key={`${filtro}-${orden}-${ordenDir}`}
+          className="flex flex-col gap-2 animate-fade-in"
+        >
           {lista.map((cert) => (
             <CertificadoCard
               key={cert.id}
@@ -567,13 +545,6 @@ export default function CertificadosPage() {
             />
           ))}
         </div>
-      )}
-
-      {/* Contador */}
-      {!isLoading && !isError && certificados && certificados.length > 0 && (
-        <p className="mt-4 text-xs text-muted-foreground text-right">
-          {lista.length} de {certificados.length} certificados
-        </p>
       )}
 
       {/* Barra flotante de selección múltiple */}
@@ -620,7 +591,7 @@ export default function CertificadosPage() {
                     <XCircle className="h-3.5 w-3.5 text-danger mt-0.5 flex-shrink-0" aria-hidden="true" />
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-foreground truncate">{eliminar.titulo ?? "Sin título"}</p>
-                      <p className="text-[11px] text-muted-foreground">{fmtFecha(eliminar.fecha_fin)} · {fmtImporte(eliminar.importe_adjudicacion)}</p>
+                      <p className="text-xs text-muted-foreground">{fmtFecha(eliminar.fecha_fin)} · {fmtImporte(eliminar.importe_adjudicacion)}</p>
                     </div>
                     <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide text-danger">Eliminar</span>
                   </div>
@@ -628,7 +599,7 @@ export default function CertificadosPage() {
                     <CheckCircle2 className="h-3.5 w-3.5 text-success mt-0.5 flex-shrink-0" aria-hidden="true" />
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-foreground truncate">{conservar.titulo ?? "Sin título"}</p>
-                      <p className="text-[11px] text-muted-foreground">{fmtFecha(conservar.fecha_fin)} · {fmtImporte(conservar.importe_adjudicacion)}</p>
+                      <p className="text-xs text-muted-foreground">{fmtFecha(conservar.fecha_fin)} · {fmtImporte(conservar.importe_adjudicacion)}</p>
                     </div>
                     <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide text-success">Conservar</span>
                   </div>

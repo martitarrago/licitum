@@ -53,6 +53,8 @@ export interface ResumenGrupo {
 export interface ResumenSolvencia {
   por_grupo: ResumenGrupo[];
   anualidad_media: string;
+  anualidad_pico: string;
+  anio_pico: number | null;
   total_obras: number;
   periodo_inicio: string;
   periodo_fin: string;
