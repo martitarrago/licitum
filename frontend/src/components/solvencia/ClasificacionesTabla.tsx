@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { forwardRef, useImperativeHandle, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -65,10 +65,10 @@ const estadoConfig: Record<
 };
 
 function EstadoBadge({ estado }: { estado: EstadoClasificacion }) {
-  const { label, badge } = estadoConfig[estado];
+  const { label, badge, iconColor } = estadoConfig[estado];
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold text-muted-foreground ring-1 ring-inset ${badge}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${badge} ${iconColor}`}
       role="status"
     >
       {label}
@@ -120,7 +120,7 @@ const inputCls =
   "rounded-lg bg-surface ring-1 ring-border px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-foreground transition-shadow w-full tabular-nums";
 const tdCls = "px-4 py-3 text-sm text-foreground";
 const thCls =
-  "px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground";
+  "px-4 py-3 text-left text-[10px] tracking-wide text-muted-foreground/40";
 
 // ─── Edit row ─────────────────────────────────────────────────────────────────
 
@@ -131,6 +131,7 @@ function EditRow({
   onCancel,
   saving,
   error,
+  animate,
 }: {
   form: RowForm;
   onChange: (f: RowForm) => void;
@@ -138,6 +139,7 @@ function EditRow({
   onCancel: () => void;
   saving: boolean;
   error: string | null;
+  animate?: boolean;
 }) {
   const subgrupos = getSubgrupos(form.grupo);
 
@@ -150,7 +152,7 @@ function EditRow({
   return (
     <>
       {/* Fila de inputs */}
-      <tr className="bg-muted/60">
+      <tr className={`bg-muted/60 ${animate ? "animate-fade-in" : ""}`}>
         <td className="px-4 py-2">
           <select
             value={form.grupo}
@@ -235,7 +237,7 @@ function EditRow({
             <button
               onClick={onCancel}
               disabled={saving}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
+              className="rounded-lg bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
               aria-label="Cancelar"
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -261,11 +263,14 @@ function EditRow({
 
 const QUERY_KEY = ["clasificaciones", EMPRESA_DEMO_ID] as const;
 
-export function ClasificacionesTabla({
-  clasificaciones,
-}: {
-  clasificaciones: ClasificacionRolece[];
-}) {
+export interface ClasificacionesTablaHandle {
+  startNew: () => void;
+}
+
+export const ClasificacionesTabla = forwardRef<
+  ClasificacionesTablaHandle,
+  { clasificaciones: ClasificacionRolece[] }
+>(function ClasificacionesTablaInner({ clasificaciones }, ref) {
   const qc = useQueryClient();
 
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
@@ -312,6 +317,8 @@ export function ClasificacionesTabla({
     setForm(emptyForm);
     setFormError(null);
   }
+
+  useImperativeHandle(ref, () => ({ startNew }));
 
   function handleSave() {
     const err = validateForm(form);
@@ -439,11 +446,11 @@ export function ClasificacionesTabla({
                     <button
                       onClick={() => handleToggleActiva(c)}
                       disabled={editingId !== null || isToggling}
-                      className={`rounded-md p-1.5 transition-colors disabled:pointer-events-none disabled:opacity-40 ${c.activa ? "text-muted-foreground hover:bg-warning/10 hover:text-warning" : "text-success hover:bg-success/10"}`}
+                      className={`rounded-md p-1.5 transition-colors disabled:pointer-events-none disabled:opacity-40 ${c.activa ? "text-muted-foreground hover:bg-muted hover:text-foreground" : "text-success hover:bg-success/10"}`}
                       title={c.activa ? "Desactivar" : "Reactivar"}
                       aria-label={c.activa ? `Desactivar ${c.grupo}${c.subgrupo}` : `Reactivar ${c.grupo}${c.subgrupo}`}
                     >
-                      <Power className="h-3.5 w-3.5" aria-hidden="true" />
+                      <Power className={`h-3.5 w-3.5 ${isToggling ? "animate-pulse" : ""}`} aria-hidden="true" />
                     </button>
                   </div>
                 </td>
@@ -460,6 +467,7 @@ export function ClasificacionesTabla({
               onCancel={cancelEdit}
               saving={isSaving}
               error={formError}
+              animate
             />
           )}
 
@@ -477,17 +485,6 @@ export function ClasificacionesTabla({
         </tbody>
       </table>
 
-      {/* Botón añadir — fuera de la tabla para no romper el markup */}
-      {editingId === null && (
-        <div className="border-t border-border px-4 py-3">
-          <button
-            onClick={startNew}
-            className="text-sm font-medium text-foreground transition-colors hover:text-foreground/70"
-          >
-            + Añadir clasificación
-          </button>
-        </div>
-      )}
     </div>
   );
-}
+});
