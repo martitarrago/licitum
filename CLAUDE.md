@@ -9,7 +9,7 @@ Usuario: jefe de obra o administrativo, 40-55 años, PYME 5-50 empleados.
 Frontend: Next.js 14 App Router + TypeScript + Tailwind CSS + React Query
 Backend:  FastAPI (Python 3.11+) + PostgreSQL + pgvector + Redis + Celery
 Storage:  Cloudflare R2 (PDFs) + PostgreSQL (datos)
-AI:       Claude API claude-sonnet-4-20250514 — structured outputs siempre
+AI:       Claude API claude-sonnet-4-6 — structured outputs siempre
 Deploy:   Railway
 
 ## Design system (DECISIONES CERRADAS — no cambiar sin confirmación)
@@ -81,33 +81,69 @@ El sistema propone. El usuario confirma. Sin bypass posible.
 
 ## Estado del proyecto — M3 Gestor de Solvencia
 
-### Backend — COMPLETO Y FUNCIONANDO
-- Modelos SQLAlchemy: empresas, certificados_obra, clasificaciones_rolece
-- Migraciones Alembic: 0001_initial_m3, 0002_add_procesando_estado
-- 8 endpoints bajo /api/v1/solvencia/certificados (POST, GET, GET/{id}, PATCH, DELETE, validar, rechazar, reextraer)
-- 4 endpoints bajo /api/v1/solvencia/clasificaciones (POST, GET, PATCH/{id}, DELETE/{id})
-- Worker Celery (workers/extraccion_pdf.py): pdfplumber nativo + OCR fallback + Claude tool_use
-- Empresa demo sembrada: id=00000000-0000-0000-0000-000000000001
-- FIX CRÍTICO aplicado: EstadoCertificadoType (TypeDecorator con impl=PGEnum) en certificado_obra.py
-  — solucionó el error asyncpg "invalid input value for enum estado_certificado"
-  — asyncpg no castea VARCHAR→enum implícitamente; el TypeDecorator fuerza el tipo correcto
+### Backend — COMPLETO Y EN PRODUCCIÓN (Railway)
 
-### Frontend M3 — COMPLETO (probado flujo de subida OK)
-- /solvencia/certificados — lista con filtros, polling, UploadModal con progress bar XHR
-- /solvencia/certificados/[id]/revisar — two-column PDF viewer + ReviewForm + ConfirmModal
-- /solvencia/clasificaciones — tabla editable inline con catálogo JCCPE completo
-- src/lib/jccpe.ts — 11 grupos, 68 subgrupos, 6 categorías ROLECE con rangos de anualidad
-- src/lib/api/certificados.ts + clasificaciones.ts
-- Proxy Next.js → backend configurado en next.config.mjs
-- Sidebar con todos los módulos (M1–M8, activo solo M3) en src/components/layout/
-- SolvenciaResumen panel: 2 KPI tiles (anualidad media + obras) + desglose ROLECE
-- PdfViewer con react-pdf (client-side, evita fallback nativo del browser Edge/Chrome
-  cuando está configurado para descargar PDFs). Worker en /public/pdf.worker.min.mjs
-- Backend endpoint /pdf hace StreamingResponse (no RedirectResponse) → same-origin,
-  elimina problemas de cross-origin iframe
-- Detección de duplicados con banner + modal de confirmación antes de eliminar
+**Modelos y BBDD**
+- SQLAlchemy: `empresas`, `certificados_obra`, `clasificaciones_rolece`
+- Migraciones Alembic: `0001_initial_m3`, `0002_add_procesando_estado`
+- Empresa demo sembrada: `id=00000000-0000-0000-0000-000000000001`
+
+**Endpoints**
+- 8 bajo `/api/v1/solvencia/certificados`: POST, GET, GET/{id}, PATCH, DELETE, /validar, /rechazar, /reextraer
+- 4 bajo `/api/v1/solvencia/clasificaciones`: POST, GET, PATCH/{id}, DELETE/{id}
+
+**Worker Celery — `workers/extraccion_pdf.py`**
+- Flujo: descarga PDF de R2 → pdfplumber nativo → OCR fallback (Tesseract+poppler) → Claude `tool_use`
+- Modelo: `claude-sonnet-4-6`, temperatura 0, prompt cacheado (`cache_control: ephemeral`)
+- Clasifica el documento ANTES de extraer (8 tipos: `cert_buena_ejecucion`, `acta_recepcion`, `cert_rolece` válidos; 5 inválidos)
+- Valida output con `ClaudeOutput(BaseModel)` — campos extra ignorados con `extra='ignore'`
+- Confianza extraída como campo explícito (0.0–1.0); tipo e invalidez guardados en el modelo
+
+**Fixes críticos en el worker (imprescindible no revertir):**
+1. `NullPool` en el engine SQLAlchemy: cada tarea Celery crea su propio event loop con `asyncio.run()`. El pool global queda atado al loop anterior (cerrado) y hace hang. `NullPool` crea conexiones frescas por tarea.
+2. `_descargar_pdf` usa `httpx.Client` **síncrono**: `AsyncClient` deja cleanup tasks de `anyio` que fallan con "Event loop is closed" al cerrar el loop. La descarga es I/O único, no necesita async.
+3. `--pool=solo` en Celery: evita fork/spawn de subprocesos en Windows; necesario para que `asyncio.run()` funcione dentro de tareas.
+
+**Fixes críticos previos (imprescindible no revertir):**
+- `EstadoCertificadoType` (TypeDecorator con `impl=PGEnum`) en `certificado_obra.py`: asyncpg no castea VARCHAR→enum implícitamente. El TypeDecorator fuerza el tipo correcto.
+
+**Config (`app/config.py`) — fallback Redis:**
+```python
+@property
+def broker_url(self) -> str:
+    return self.celery_broker_url or self.redis_url or "redis://localhost:6379/0"
+```
+Railway inyecta `REDIS_URL`; el código acepta también `CELERY_BROKER_URL` por compatibilidad.
+
+**Deploy Railway**
+- Servicio API: `start.sh` con `SERVICE_TYPE` no definido → alembic upgrade + uvicorn
+- Servicio Worker: añadir variable `SERVICE_TYPE=worker` → celery `--pool=solo`
+- Variables de entorno necesarias en el worker: `ANTHROPIC_API_KEY`, `DATABASE_URL`, `REDIS_URL`, `R2_BUCKET_NAME`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT_URL`
+- Si el worker corre uvicorn en vez de celery: verificar que `SERVICE_TYPE=worker` esté en las variables del servicio worker (no del API)
+
+### Frontend M3 — COMPLETO
+
+**Páginas**
+- `/solvencia/certificados` — lista con filtros, polling cada 3s, UploadModal con progress bar XHR, sort dropdown con toggle asc/desc
+- `/solvencia/certificados/[id]/revisar` — two-column: PdfViewer (izquierda) + ReviewForm + ConfirmModal (derecha)
+- `/solvencia/clasificaciones` — tabla con edición inline (EditRow como fila colapsada colSpan=7 con grid 2 filas)
+
+**Componentes UI clave**
+- `src/components/ui/CustomSelect.tsx` — dropdown portal-based con `getBoundingClientRect()`, sin scroll, `width: rect.width`, detecta espacio arriba/abajo. Reemplaza `<select>` nativo en toda la app.
+- `src/components/ui/DatePicker.tsx` — calendario mensual portal-based, lunes primero, locale `es-ES`, icono `CalendarDays`, formato ISO `yyyy-mm-dd`.
+- `src/components/solvencia/ClasificacionesTabla.tsx` — EditRow usa `CustomSelect` para Grupo/Subgrupo/Categoría y `DatePicker` para fechas. Layout en grid colSpan=7 (no celdas separadas) para evitar scroll horizontal.
+- `src/components/solvencia/CertificadoRevision.tsx` — ReviewForm usa `DatePicker` para `fecha_inicio` y `fecha_fin`.
+
+**Infraestructura frontend**
+- `src/lib/jccpe.ts` — 11 grupos, 68 subgrupos, 6 categorías ROLECE con rangos de anualidad
+- `src/lib/api/certificados.ts` + `clasificaciones.ts`
+- Proxy Next.js → backend en `next.config.mjs`
+- Sidebar con todos los módulos M1–M8 en `src/components/layout/`
+- SolvenciaResumen: 2 KPI tiles (anualidad media + obras) + desglose ROLECE
+- PdfViewer con `react-pdf` (client-side); worker en `/public/pdf.worker.min.mjs`
+- Endpoint backend `/pdf` usa `StreamingResponse` (no `RedirectResponse`) → same-origin, sin problemas de cross-origin iframe
+- Detección de duplicados: banner + modal de confirmación; helpers `esDuplicadoPar`, `calcularEliminables`
 - Iconos-only para estados con leyenda + accordion "¿Qué son los certificados?"
-- Sort dropdown compacto con toggle asc/desc + default sort por estado + fecha_fin
 
 ### Cómo arrancar el stack local
 IMPORTANTE: usar el venv, NO py -3.11 directamente (no tiene uvicorn).
@@ -133,55 +169,47 @@ npm run dev
 
 Si el puerto 8001 está ocupado (TIME_WAIT de Windows): cambiar a 8002 en next.config.mjs y arrancar en ese puerto.
 
-### Próxima sesión — por hacer (2026-04-22)
+### Próxima sesión — por hacer
 
 #### 1. Visor PDF — mejorar vista
 - Toolbar con controles de zoom (+/- y fit-to-width)
 - Thumbnail sidebar opcional para documentos largos
-- Posiblemente usar renderTextLayer para permitir selección/copiar texto
-- Archivo: frontend/src/components/solvencia/CertificadoRevision.tsx (PdfViewer)
+- `renderTextLayer` para permitir selección/copiar texto
+- Archivo: `frontend/src/components/solvencia/CertificadoRevision.tsx` (PdfViewer)
 
 #### 2. Animación de carga durante extracción
-- Cuando el certificado está en estado "procesando", animar el skeleton del
-  formulario para que parezca que se van rellenando los campos en vivo (efecto
-  "typing" o reveal progresivo). Ahora mismo hay spinner + texto estático.
-- Archivo: ExtractionPending en CertificadoRevision.tsx (ya existe pero es estático)
+- Animar el skeleton del formulario cuando estado=procesando (efecto "typing" o reveal progresivo)
+- Archivo: `ExtractionPending` en `CertificadoRevision.tsx` (existe pero es estático)
 
 #### 3. Orden por estado — nueva prioridad
-Actualmente: pendiente_revision → procesando → validado → rechazado (ver ESTADO_ORDEN).
-Cambiar a: **validado → pendiente_revision → rechazado/error** (con "error" primero
-dentro de pendiente si cert.extraction_error !== null).
-- Archivo: frontend/src/app/solvencia/certificados/page.tsx (constante ESTADO_ORDEN)
+- Cambiar a: **validado → pendiente_revision → rechazado/error** (error primero dentro de pendiente si `extraction_error !== null`)
+- Archivo: `frontend/src/app/solvencia/certificados/page.tsx` (constante `ESTADO_ORDEN`)
 
 #### 4. Selección múltiple + eliminación masiva
-- Añadir checkbox en cada CertificadoCard
-- Barra de acciones flotante cuando hay ≥1 seleccionado: "N seleccionados · Eliminar"
-- Modal de confirmación mostrando lista de títulos a eliminar
-- Backend: endpoint DELETE /certificados/batch (body: { ids: UUID[] }) o llamadas
-  secuenciales al endpoint existente si es suficientemente rápido
-- Archivos:
-  - frontend: page.tsx + CertificadoCard.tsx (prop `selected`, `onToggleSelect`)
-  - backend: nuevo endpoint en certificados.py
+- Checkbox en cada `CertificadoCard`; barra flotante "N seleccionados · Eliminar"
+- Modal de confirmación con lista de títulos
+- Backend: `DELETE /certificados/batch` con `{ ids: UUID[] }`
+- Archivos: `page.tsx` + `CertificadoCard.tsx` (props `selected`, `onToggleSelect`) + `certificados.py`
 
 #### 5. Eliminar duplicados — mostrar cuáles ANTES de confirmar
-Actualmente el banner dice "hay N duplicados" y al confirmar los elimina.
-Cambiar: expandir el banner para mostrar la lista exacta de certificados que se
-van a eliminar (con título, fecha, importe) y cuál se mantiene. El usuario debe
-poder ver qué se pierde antes de decir sí.
-- Archivo: page.tsx (banner de duplicados + modal de confirmación)
-- Helpers existentes: esDuplicadoPar, calcularEliminables
+- Expandir el banner para listar exactamente qué se elimina (título, fecha, importe) y cuál se mantiene
+- Archivo: `page.tsx` — helpers existentes: `esDuplicadoPar`, `calcularEliminables`
 
-#### 6. Pendientes arrastrados
-- Deploy a Railway (backend) + Vercel (frontend) para probar con PDFs reales
-  - CORS: añadir dominio de Vercel a allow_origins en main.py
-  - Variables Railway: DATABASE_URL, R2_*, CELERY_*, ANTHROPIC_API_KEY
+#### 6. Importación masiva de certificados
+- Viabilidad: MEDIA-ALTA. Sin bloqueos técnicos graves.
+- Flujo propuesto: ZIP con múltiples PDFs → endpoint `POST /certificados/batch-upload` → crea un certificado por PDF → encola un task Celery por cada uno → el polling existente los recoge
+- La parte más costosa es el UX de revisión: con 20 PDFs simultáneos el usuario necesita una vista de "bandeja de revisión masiva" diferente al revisor individual actual.
+- Primero completar puntos 4 y 5 antes de abordar esto.
+
+#### 7. Pendientes arrastrados
 - CRUD de empresas: endpoints GET/POST/PATCH (sin frontend aún)
-- extracted_data: validar schema con Pydantic antes de guardar (actualmente JSONB libre)
-- Prueba con PDFs reales (requiere créditos Anthropic) — afinar prompt del worker
+- `extracted_data`: validar schema con Pydantic antes de guardar (actualmente JSONB libre)
+- CORS: añadir dominio de Vercel a `allow_origins` en `main.py` cuando haya deploy frontend
+- Autenticación: JWT o Supabase Auth (actualmente `EMPRESA_DEMO_ID` hardcodeado)
 
 ### Notas técnicas importantes
 - Sin autenticación — pendiente para fase posterior (JWT o Supabase Auth)
-- El EMPRESA_DEMO_ID (00000000-0000-0000-0000-000000000001) está hardcodeado en frontend
-  hasta que haya auth real
-- Tesseract OCR: C:\Program Files\Tesseract-OCR\tesseract.exe (ruta hardcodeada en worker)
-  Poppler debe estar en PATH para pdf2image
+- `EMPRESA_DEMO_ID` (`00000000-0000-0000-0000-000000000001`) hardcodeado en frontend hasta que haya auth real
+- Tesseract OCR: `C:\Program Files\Tesseract-OCR\tesseract.exe` (ruta hardcodeada en worker, solo Windows local; en Railway/Docker se instala con apt-get en `Dockerfile.worker`)
+- Poppler debe estar en PATH para `pdf2image` (OCR fallback); en Railway viene con `poppler-utils` del Dockerfile
+- El worker en Railway procesa PDFs correctamente: ~12s por certificado, confianza típica 0.85–0.92
