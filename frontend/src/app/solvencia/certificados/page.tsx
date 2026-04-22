@@ -146,9 +146,15 @@ export default function CertificadosPage() {
   const ordenRef = useRef<HTMLDivElement>(null);
   const [confirmarDuplicados, setConfirmarDuplicados] = useState(false);
   const [eliminandoDuplicados, setEliminandoDuplicados] = useState(false);
+  const [modoSeleccion, setModoSeleccion] = useState(false);
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
   const [confirmEliminarSeleccion, setConfirmEliminarSeleccion] = useState(false);
   const [eliminandoSeleccion, setEliminandoSeleccion] = useState(false);
+
+  function salirModoSeleccion() {
+    setModoSeleccion(false);
+    setSeleccionados(new Set());
+  }
   const queryClient = useQueryClient();
 
   function toggleSeleccion(id: string) {
@@ -165,7 +171,7 @@ export default function CertificadosPage() {
     try {
       await certificadosApi.eliminarBatch(Array.from(seleccionados));
       await queryClient.invalidateQueries({ queryKey: ["certificados"] });
-      setSeleccionados(new Set());
+      salirModoSeleccion();
       setConfirmEliminarSeleccion(false);
     } finally {
       setEliminandoSeleccion(false);
@@ -457,8 +463,36 @@ export default function CertificadosPage() {
             }
             {ordenDir === "desc" ? "Desc" : "Asc"}
           </button>
+
+          {/* Modo selección */}
+          <button
+            onClick={() => modoSeleccion ? salirModoSeleccion() : setModoSeleccion(true)}
+            className={`
+              inline-flex items-center gap-1.5 cursor-pointer
+              rounded-lg px-2.5 py-1
+              text-xs font-semibold
+              ring-1 ring-border transition-colors focus:outline-none
+              ${modoSeleccion
+                ? "bg-foreground text-surface"
+                : "bg-muted text-muted-foreground hover:bg-neutral-200 hover:text-foreground dark:hover:bg-neutral-800"
+              }
+            `}
+          >
+            {modoSeleccion ? "Cancelar" : "Seleccionar"}
+          </button>
         </div>
       </div>
+
+      {/* Cabecera de columnas — solo desktop, muy sutil */}
+      {!isLoading && !isError && lista.length > 0 && (
+        <div className={`mb-1 hidden lg:flex items-center gap-4 text-[10px] font-medium text-muted-foreground/40 tracking-wide ${modoSeleccion ? "pl-14 pr-5" : "px-5"}`}>
+          <div className="flex-1">Certificado</div>
+          <div className="w-36 text-right">Período</div>
+          <div className="w-28 text-right">Importe</div>
+          <div className="w-24 text-center">Grupo</div>
+          <div className="w-16 text-center">Estado</div>
+        </div>
+      )}
 
       {/* Estados de carga */}
       {isLoading && (
@@ -540,8 +574,8 @@ export default function CertificadosPage() {
               caducado={esCaducado(cert)}
               porCaducar={esPorCaducar(cert)}
               posibleDuplicado={duplicados.has(cert.id)}
-              selected={seleccionados.has(cert.id)}
-              onToggleSelect={toggleSeleccion}
+              selected={modoSeleccion && seleccionados.has(cert.id)}
+              onToggleSelect={modoSeleccion ? toggleSeleccion : undefined}
             />
           ))}
         </div>
@@ -555,7 +589,7 @@ export default function CertificadosPage() {
           </span>
           <div className="h-4 w-px bg-surface/25" />
           <button
-            onClick={() => setSeleccionados(new Set())}
+            onClick={salirModoSeleccion}
             className="text-sm text-surface/60 transition-colors hover:text-surface"
           >
             Cancelar
