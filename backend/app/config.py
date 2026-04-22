@@ -14,14 +14,24 @@ class Settings(BaseSettings):
     r2_bucket: str | None = None
     r2_public_url_base: str | None = None
 
-    celery_broker_url: str = "redis://localhost:6379/0"
-    celery_result_backend: str | None = "redis://localhost:6379/1"
+    # Railway inyecta REDIS_URL; CELERY_BROKER_URL tiene prioridad si está definido.
+    redis_url: str | None = None
+    celery_broker_url: str | None = None
+    celery_result_backend: str | None = None
 
     anthropic_api_key: str | None = None
 
     allowed_origins: str = "http://localhost:3000"
     # Regex para dominios de preview (ej: "https://licitum-.*\\.vercel\\.app")
     cors_origin_regex: str | None = None
+
+    @property
+    def broker_url(self) -> str:
+        return self.celery_broker_url or self.redis_url or "redis://localhost:6379/0"
+
+    @property
+    def result_backend(self) -> str:
+        return self.celery_result_backend or self.redis_url or "redis://localhost:6379/1"
 
     @property
     def cors_origins(self) -> list[str]:
