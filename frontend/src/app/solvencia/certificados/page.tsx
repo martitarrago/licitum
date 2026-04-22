@@ -85,6 +85,17 @@ function detectarDuplicados(certs: CertificadoObraListItem[]): Set<string> {
   return duplicados;
 }
 
+function fmtImporte(v: string | null) {
+  const n = Number(v);
+  if (!v || isNaN(n) || n === 0) return "—";
+  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+}
+
+function fmtFecha(v: string | null) {
+  if (!v) return "—";
+  return new Date(v).toLocaleDateString("es-ES", { year: "numeric", month: "short" });
+}
+
 function calcularEliminables(certs: CertificadoObraListItem[]): string[] {
   const toDelete = new Set<string>();
   for (let i = 0; i < certs.length; i++) {
@@ -172,6 +183,24 @@ export default function CertificadosPage() {
     () => (certificados ? calcularEliminables(certificados) : []),
     [certificados]
   );
+
+  const paresEliminables = useMemo(() => {
+    if (!certificados || eliminables.length === 0) return [];
+    const eliminablesSet = new Set(eliminables);
+    const pares: { eliminar: CertificadoObraListItem; conservar: CertificadoObraListItem }[] = [];
+    for (let i = 0; i < certificados.length; i++) {
+      for (let j = i + 1; j < certificados.length; j++) {
+        const a = certificados[i], b = certificados[j];
+        if (!esDuplicadoPar(a, b)) continue;
+        if (eliminablesSet.has(a.id) && !eliminablesSet.has(b.id)) {
+          pares.push({ eliminar: a, conservar: b });
+        } else if (eliminablesSet.has(b.id) && !eliminablesSet.has(a.id)) {
+          pares.push({ eliminar: b, conservar: a });
+        }
+      }
+    }
+    return pares;
+  }, [certificados, eliminables]);
 
   async function handleEliminarDuplicados() {
     setEliminandoDuplicados(true);
@@ -527,13 +556,39 @@ export default function CertificadosPage() {
       {/* Modal confirmar eliminación duplicados */}
       {confirmarDuplicados && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-surface-raised ring-1 ring-border shadow-xl p-6">
-            <h2 className="text-base font-semibold text-foreground mb-2">
+          <div className="w-full max-w-lg rounded-2xl bg-surface-raised ring-1 ring-border shadow-xl p-6">
+            <h2 className="text-base font-semibold text-foreground mb-1">
               Eliminar {eliminables.length} duplicado{eliminables.length !== 1 ? "s" : ""}
             </h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Se eliminarán los certificados con menos datos completos. Esta acción no se puede deshacer.
+            <p className="text-sm text-muted-foreground mb-4">
+              Revisa qué se va a eliminar y qué se conserva antes de confirmar.
             </p>
+
+            <div className="max-h-72 overflow-y-auto space-y-2 mb-4">
+              {paresEliminables.map(({ eliminar, conservar }) => (
+                <div key={eliminar.id} className="rounded-xl ring-1 ring-border bg-muted p-3 space-y-2 text-sm">
+                  <div className="flex items-start gap-2">
+                    <XCircle className="h-3.5 w-3.5 text-danger mt-0.5 flex-shrink-0" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground truncate">{eliminar.titulo ?? "Sin título"}</p>
+                      <p className="text-[11px] text-muted-foreground">{fmtFecha(eliminar.fecha_fin)} · {fmtImporte(eliminar.importe_adjudicacion)}</p>
+                    </div>
+                    <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide text-danger">Eliminar</span>
+                  </div>
+                  <div className="border-t border-border pt-2 flex items-start gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-success mt-0.5 flex-shrink-0" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground truncate">{conservar.titulo ?? "Sin título"}</p>
+                      <p className="text-[11px] text-muted-foreground">{fmtFecha(conservar.fecha_fin)} · {fmtImporte(conservar.importe_adjudicacion)}</p>
+                    </div>
+                    <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide text-success">Conservar</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-xs text-muted-foreground mb-5">Esta acción no se puede deshacer.</p>
+
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setConfirmarDuplicados(false)}
