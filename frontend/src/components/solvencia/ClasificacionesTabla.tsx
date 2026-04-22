@@ -148,100 +148,115 @@ function EditRow({
   };
 
   return (
-    <>
-      {/* Fila de inputs */}
-      <tr className={`bg-muted/60 ${animate ? "animate-fade-in" : ""}`}>
-        <td className="px-4 py-2">
-          <CustomSelect
-            options={CATALOGO_JCCPE.map((g) => ({
-              value: g.codigo,
-              label: `${g.codigo} — ${g.nombre}`,
-            }))}
-            value={form.grupo}
-            onChange={(v) => set("grupo", v)}
-            placeholder="Grupo…"
-            disabled={saving}
-            aria-label="Grupo"
-          />
-        </td>
-        <td className="px-4 py-2">
-          <CustomSelect
-            options={subgrupos.map((s) => ({
-              value: s.codigo,
-              label: `${form.grupo}${s.codigo} — ${s.nombre}`,
-            }))}
-            value={form.subgrupo}
-            onChange={(v) => set("subgrupo", v)}
-            placeholder="Subgrupo…"
-            disabled={saving || !form.grupo}
-            aria-label="Subgrupo"
-          />
-        </td>
-        <td className="px-4 py-2">
-          <CustomSelect
-            options={CATEGORIAS_ROLECE.map((c) => ({
-              value: c.value,
-              label: c.label,
-            }))}
-            value={form.categoria}
-            onChange={(v) => set("categoria", v)}
-            placeholder="Cat.…"
-            disabled={saving}
-            aria-label="Categoría"
-          />
-        </td>
-        <td className="px-4 py-2">
-          <DatePicker
-            value={form.fecha_obtencion}
-            onChange={(v) => set("fecha_obtencion", v)}
-            disabled={saving}
-            placeholder="Obtenida…"
-            aria-label="Fecha obtención"
-          />
-        </td>
-        <td className="px-4 py-2">
-          <DatePicker
-            value={form.fecha_caducidad}
-            onChange={(v) => set("fecha_caducidad", v)}
-            disabled={saving}
-            placeholder="Caduca…"
-            aria-label="Fecha caducidad"
-          />
-        </td>
-        <td className="px-4 py-2" />
-        <td className="px-4 py-2">
-          <div className="flex items-center gap-2">
+    <tr className={`bg-muted/60 ${animate ? "animate-fade-in" : ""}`}>
+      <td colSpan={7} className="px-4 py-3">
+        {/* Fila 1: Grupo · Subgrupo · Categoría */}
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <div>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Grupo
+            </p>
+            <CustomSelect
+              options={CATALOGO_JCCPE.map((g) => ({
+                value: g.codigo,
+                label: `${g.codigo} — ${g.nombre}`,
+              }))}
+              value={form.grupo}
+              onChange={(v) => set("grupo", v)}
+              placeholder="Grupo…"
+              disabled={saving}
+              aria-label="Grupo"
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Subgrupo
+            </p>
+            <CustomSelect
+              options={subgrupos.map((s) => ({
+                value: s.codigo,
+                label: `${form.grupo}${s.codigo} — ${s.nombre}`,
+              }))}
+              value={form.subgrupo}
+              onChange={(v) => set("subgrupo", v)}
+              placeholder="Subgrupo…"
+              disabled={saving || !form.grupo}
+              aria-label="Subgrupo"
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Categoría
+            </p>
+            <CustomSelect
+              options={CATEGORIAS_ROLECE.map((c) => ({
+                value: c.value,
+                label: c.label,
+              }))}
+              value={form.categoria}
+              onChange={(v) => set("categoria", v)}
+              placeholder="Categoría…"
+              disabled={saving}
+              aria-label="Categoría"
+            />
+          </div>
+        </div>
+
+        {/* Fila 2: Obtenida · Caduca · Acciones */}
+        <div className="grid grid-cols-3 gap-3 items-end">
+          <div>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Fecha obtenida
+            </p>
+            <DatePicker
+              value={form.fecha_obtencion}
+              onChange={(v) => set("fecha_obtencion", v)}
+              disabled={saving}
+              placeholder="Seleccionar…"
+              aria-label="Fecha obtención"
+            />
+          </div>
+          <div>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Fecha caducidad
+            </p>
+            <DatePicker
+              value={form.fecha_caducidad}
+              onChange={(v) => set("fecha_caducidad", v)}
+              disabled={saving}
+              placeholder="Seleccionar…"
+              aria-label="Fecha caducidad"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={onCancel}
+              disabled={saving}
+              className="rounded-lg bg-muted px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
+              aria-label="Cancelar"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
             <button
               onClick={onSave}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-surface transition-colors hover:opacity-85 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3 py-2 text-xs font-medium text-surface transition-colors hover:opacity-85 disabled:opacity-50"
               aria-label="Guardar"
             >
               <Check className="h-3.5 w-3.5" aria-hidden="true" />
               {saving ? "Guardando…" : "Guardar"}
             </button>
-            <button
-              onClick={onCancel}
-              disabled={saving}
-              className="rounded-lg bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
-              aria-label="Cancelar"
-            >
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
           </div>
-        </td>
-      </tr>
-      {/* Fila de error — ocupa el ancho completo */}
-      {error && (
-        <tr className="bg-muted/60">
-          <td colSpan={7} className="px-4 pb-3 pt-0">
-            <p className="rounded-lg bg-danger/10 px-3 py-1.5 text-xs text-danger ring-1 ring-danger/25">
-              {error}
-            </p>
-          </td>
-        </tr>
-      )}
-    </>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <p className="mt-3 rounded-lg bg-danger/10 px-3 py-1.5 text-xs text-danger ring-1 ring-danger/25">
+            {error}
+          </p>
+        )}
+      </td>
+    </tr>
   );
 }
 
