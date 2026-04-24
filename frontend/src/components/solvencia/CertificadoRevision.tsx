@@ -1357,10 +1357,12 @@ export function CertificadoRevision({ id }: { id: string }) {
           forceReextractPending={reextractMutation.isPending}
         />
       ) : (
-        <div className="grid gap-6 items-start lg:grid-cols-[minmax(0,1fr),440px]">
-          <div className="w-full lg:sticky lg:top-4">
-            <PdfViewer url={`/api/v1/solvencia/certificados/${cert.id}/pdf`} />
-          </div>
+        <div className={["grid gap-6 items-start", cert.pdf_url !== null ? "lg:grid-cols-[minmax(0,1fr),440px]" : "lg:grid-cols-[440px]"].join(" ")}>
+          {cert.pdf_url !== null && (
+            <div className="w-full lg:sticky lg:top-4">
+              <PdfViewer url={`/api/v1/solvencia/certificados/${cert.id}/pdf`} />
+            </div>
+          )}
 
           <div className="overflow-hidden rounded-xl bg-surface-raised ring-1 ring-border flex flex-col lg:sticky lg:top-4 lg:max-h-[calc(100vh-10rem)]">
             {cert.estado === "pendiente_revision" ? (

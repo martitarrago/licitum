@@ -44,7 +44,7 @@ class CertificadoObraListItem(BaseModel):
     clasificacion_subgrupo: str | None = None
     numero_expediente: str | None = None
     estado: EstadoCertificado
-    pdf_url: str
+    pdf_url: str | None = None
     extraction_error: str | None = None
     tipo_documento: str | None = None
     es_valido_solvencia: bool | None = None

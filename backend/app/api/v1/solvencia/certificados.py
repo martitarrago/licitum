@@ -142,6 +142,69 @@ async def crear_certificado(
     return certificado
 
 
+TIPOS_VALIDOS_SOLVENCIA = {"cert_buena_ejecucion", "acta_recepcion", "cert_rolece"}
+
+
+class CertificadoManualCreate(BaseModel):
+    empresa_id: UUID
+    tipo_documento: str
+    titulo: str | None = None
+    organismo: str | None = None
+    importe_adjudicacion: Decimal | None = None
+    fecha_inicio: date | None = None
+    fecha_fin: date | None = None
+    numero_expediente: str | None = None
+    cpv_codes: list[str] = []
+    clasificacion_grupo: str | None = None
+    clasificacion_subgrupo: str | None = None
+    porcentaje_ute: Decimal | None = None
+    contratista_principal: bool = True
+
+
+@router.post(
+    "/manual",
+    response_model=CertificadoObraRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crea certificado con datos introducidos manualmente (sin PDF)",
+)
+async def crear_certificado_manual(
+    data: CertificadoManualCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> CertificadoObra:
+    es_valido = data.tipo_documento in TIPOS_VALIDOS_SOLVENCIA
+    certificado = CertificadoObra(
+        empresa_id=data.empresa_id,
+        titulo=data.titulo,
+        organismo=data.organismo,
+        importe_adjudicacion=data.importe_adjudicacion,
+        fecha_inicio=data.fecha_inicio,
+        fecha_fin=data.fecha_fin,
+        cpv_codes=data.cpv_codes,
+        clasificacion_grupo=data.clasificacion_grupo,
+        clasificacion_subgrupo=data.clasificacion_subgrupo,
+        numero_expediente=data.numero_expediente,
+        porcentaje_ute=data.porcentaje_ute,
+        contratista_principal=data.contratista_principal,
+        pdf_url=None,
+        tipo_documento=data.tipo_documento,
+        es_valido_solvencia=es_valido,
+        razon_invalidez=None if es_valido else "Tipo de documento no válido para acreditar solvencia",
+        estado=EstadoCertificado.pendiente_revision,
+        extracted_data={},
+    )
+    db.add(certificado)
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Número de expediente duplicado o empresa_id inexistente",
+        ) from exc
+    await db.refresh(certificado)
+    return certificado
+
+
 @router.get(
     "",
     response_model=list[CertificadoObraListItem],

@@ -32,7 +32,7 @@ export interface CertificadoObraListItem {
   cpv_codes: string[];
   clasificacion_grupo: string | null;
   clasificacion_subgrupo: string | null;
-  pdf_url: string;
+  pdf_url: string | null;
   estado: EstadoCertificado;
   extraction_error: string | null;
   tipo_documento: string | null;
@@ -189,4 +189,24 @@ export const certificadosApi = {
     apiFetch<ResumenSolvencia>(
       `/api/v1/solvencia/certificados/resumen-solvencia?empresa_id=${empresa_id}`
     ),
+
+  createManual: (data: {
+    empresa_id: string;
+    tipo_documento: string;
+    titulo?: string;
+    organismo?: string;
+    importe_adjudicacion?: number;
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    numero_expediente?: string;
+    cpv_codes?: string[];
+    clasificacion_grupo?: string;
+    clasificacion_subgrupo?: string;
+    porcentaje_ute?: number;
+    contratista_principal?: boolean;
+  }) =>
+    apiFetch<CertificadoObraRead>("/api/v1/solvencia/certificados/manual", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };

@@ -66,7 +66,7 @@ class CertificadoObra(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base
         default=EstadoCertificado.pendiente_revision,
         server_default=EstadoCertificado.pendiente_revision.value,
     )
-    pdf_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    pdf_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     extracted_data: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
     )
