@@ -660,7 +660,7 @@ function ReviewForm({
       setForm((prev) => ({ ...prev, [key]: e.target.value })),
   });
 
-  const mutation = useMutation({
+  const mutation = useMutation<void | CertificadoObraRead, Error, "validar" | "rechazar">({
     mutationFn: (action: "validar" | "rechazar") => {
       if (action === "rechazar") {
         return certificadosApi.eliminar(cert.id);
