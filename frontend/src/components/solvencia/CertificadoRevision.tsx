@@ -661,8 +661,11 @@ function ReviewForm({
   });
 
   const mutation = useMutation({
-    mutationFn: (action: "validar" | "rechazar") =>
-      certificadosApi
+    mutationFn: (action: "validar" | "rechazar") => {
+      if (action === "rechazar") {
+        return certificadosApi.eliminar(cert.id);
+      }
+      return certificadosApi
         .patch(cert.id, {
           organismo: form.organismo || undefined,
           importe_adjudicacion: form.importe_adjudicacion || undefined,
@@ -682,16 +685,18 @@ function ReviewForm({
             ? Number(form.porcentaje_ute)
             : null,
         })
-        .then(() =>
-          action === "validar"
-            ? certificadosApi.validar(cert.id)
-            : certificadosApi.rechazar(cert.id),
-        ),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["certificado", cert.id] });
+        .then(() => certificadosApi.validar(cert.id));
+    },
+    onSuccess: (_data, action) => {
       qc.invalidateQueries({ queryKey: ["certificados"] });
       qc.invalidateQueries({ queryKey: ["resumen-solvencia"] });
-      setConfirmOpen(false);
+      if (action === "rechazar") {
+        qc.removeQueries({ queryKey: ["certificado", cert.id] });
+        router.push("/solvencia/certificados");
+      } else {
+        qc.invalidateQueries({ queryKey: ["certificado", cert.id] });
+        setConfirmOpen(false);
+      }
     },
     onError: (err: Error) => {
       setActionError(err.message);
@@ -955,7 +960,7 @@ function ReviewForm({
       {/* Acciones — sticky footer */}
       <div className="shrink-0 flex flex-wrap items-center justify-end gap-3 border-t border-border bg-surface-raised px-6 py-4">
         <p className="mr-auto text-xs text-muted-foreground">
-          Los cambios se guardan al validar o rechazar.
+          Rechazar elimina el certificado. Validar lo guarda.
         </p>
         <button
           onClick={() => {
