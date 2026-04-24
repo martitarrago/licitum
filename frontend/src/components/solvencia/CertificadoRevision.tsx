@@ -642,6 +642,7 @@ function ReviewForm({
   showConfianza?: boolean;
 }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const extracted = cert.extracted_data as Partial<ExtractedData>;
   const confianzaGlobal = extracted.confianza_extraccion ?? 0;
   const confianzaCampos = extracted.confianza_campos;
