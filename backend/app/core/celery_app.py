@@ -6,7 +6,7 @@ celery_app = Celery(
     "licitum",
     broker=settings.broker_url,
     backend=settings.result_backend,
-    include=["workers.extraccion_pdf", "workers.ingesta_placsp"],
+    include=["workers.extraccion_pdf", "workers.ingesta_pscp"],
 )
 
 celery_app.conf.update(

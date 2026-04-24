@@ -11,9 +11,9 @@ function LogoMark() {
     <Image
       src="/logo.png"
       alt="Licitum"
-      width={120}
-      height={32}
-      className="h-8 w-auto"
+      width={800}
+      height={200}
+      className="h-10 w-auto"
       priority
     />
   );
@@ -165,16 +165,8 @@ export function Sidebar() {
   return (
     <aside className="relative flex h-screen w-64 shrink-0 flex-col border-r border-border bg-surface-raised">
       {/* BRAND */}
-      <div className="flex items-center gap-3 px-5 pt-5 pb-4">
+      <div className="flex items-center px-5 pt-5 pb-4">
         <LogoMark />
-        <div className="min-w-0">
-          <div className="font-serif text-[19px] font-semibold leading-none tracking-[-0.01em] text-foreground">
-            Licitum
-          </div>
-          <div className="mt-1 font-mono text-[9px] font-medium uppercase tracking-[0.22em] text-muted-foreground/60">
-            Licitación · PYME
-          </div>
-        </div>
       </div>
 
       {/* Hair-thin divider with subtle gradient fade */}

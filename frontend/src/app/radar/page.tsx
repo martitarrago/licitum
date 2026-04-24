@@ -112,7 +112,7 @@ export default function RadarPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Radar IA</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Licitaciones PLACSP filtradas por semáforo de solvencia
+            Licitaciones de Catalunya filtradas por semáforo de solvencia
           </p>
         </div>
         <button
@@ -239,7 +239,7 @@ export default function RadarPage() {
                         rounded-md p-1.5 text-muted-foreground
                         transition-colors hover:bg-muted hover:text-foreground
                       "
-                      title="Ver en PLACSP"
+                      title="Ver publicación oficial"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
@@ -292,7 +292,7 @@ function EmptyState({ hasFilter }: { hasFilter: boolean }) {
         <p className="mt-1 text-sm text-muted-foreground">
           {hasFilter
             ? "Prueba a quitar los filtros."
-            : "Pulsa «Actualizar feed» para descargar las licitaciones de la PLACSP."}
+            : "Pulsa «Actualizar feed» para descargar las licitaciones públicas de Catalunya."}
         </p>
       </div>
     </div>

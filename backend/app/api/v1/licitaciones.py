@@ -65,11 +65,11 @@ async def get_licitacion(
 
 @router.post("/ingestar", response_model=IngestaTriggerResponse)
 async def trigger_ingesta() -> IngestaTriggerResponse:
-    """Lanza la tarea de ingestión del feed PLACSP en el worker Celery."""
-    from workers.ingesta_placsp import ingestar_feed
+    """Lanza la tarea de ingestión del dataset PSCP (Catalunya) en el worker Celery."""
+    from workers.ingesta_pscp import ingestar_feed
 
     task = ingestar_feed.delay()
     return IngestaTriggerResponse(
         task_id=task.id,
-        message="Tarea de ingestión lanzada. Puede tardar varios minutos.",
+        message="Tarea de ingestión lanzada. Puede tardar 1-2 minutos.",
     )
