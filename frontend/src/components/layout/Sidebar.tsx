@@ -3,27 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Building2 } from "lucide-react";
+import Image from "next/image";
 import { MODULE_GROUPS, type Module, type SubModule } from "./modules";
 
 function LogoMark() {
   return (
-    <span
-      className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-foreground text-surface shadow-sm ring-1 ring-foreground/20"
-      aria-hidden="true"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        className="h-4 w-4"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.25"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M7.5 5.5 V17 H17" />
-      </svg>
-      <span className="pointer-events-none absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-accent-500 ring-2 ring-surface-raised" />
-    </span>
+    <Image
+      src="/logo.png"
+      alt="Licitum"
+      width={120}
+      height={32}
+      className="h-8 w-auto"
+      priority
+    />
   );
 }
 
