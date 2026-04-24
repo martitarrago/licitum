@@ -13,7 +13,7 @@ function LogoMark() {
       alt="Licitum"
       width={5995}
       height={784}
-      className="h-auto w-full"
+      className="h-auto w-3/4"
       priority
     />
   );
