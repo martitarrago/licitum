@@ -33,10 +33,12 @@ logger = logging.getLogger(__name__)
 # Configuración
 # ---------------------------------------------------------------------------
 
-PLACSP_FEED_URL = (
-    "https://contrataciondelestado.es/sindicacion/sindicacion_1044/"
-    "licitacionesRecientesPerfilesContratanteIntegracionOC.atom"
-)
+# URLs a probar en orden — la PLACSP ha cambiado de dominio varias veces
+PLACSP_FEED_URLS = [
+    "https://contrataciondelestado.es/sindicacion/sindicacion_1044/licitacionesRecientesPerfilesContratanteIntegracionOC.atom",
+    "https://www.contrataciondelestado.es/sindicacion/sindicacion_1044/licitacionesRecientesPerfilesContratanteIntegracionOC.atom",
+    "https://contrataciondelestado.es/sindicacion/sindicacion_1044/licitacionesPerfilesContratantePerfilesContratante.atom",
+]
 FEED_TIMEOUT_SECONDS = 60
 EMPRESA_DEMO_ID = "00000000-0000-0000-0000-000000000001"
 
@@ -67,10 +69,11 @@ def ingestar_feed(self) -> dict[str, int]:
 
 
 async def _ejecutar_ingesta() -> dict[str, int]:
-    logger.info("Ingestión PLACSP: descargando feed %s", PLACSP_FEED_URL)
+    logger.info("Ingestión PLACSP: iniciando descarga de feed")
 
     try:
-        xml_bytes = _descargar_feed()
+        xml_bytes, feed_url = _descargar_feed()
+        logger.info("Ingestión PLACSP: feed descargado desde %s (%d bytes)", feed_url, len(xml_bytes))
     except Exception as exc:
         logger.error("No se pudo descargar el feed PLACSP: %s", exc)
         raise
@@ -106,11 +109,45 @@ async def _ejecutar_ingesta() -> dict[str, int]:
 # ---------------------------------------------------------------------------
 
 
-def _descargar_feed() -> bytes:
+def _descargar_feed() -> tuple[bytes, str]:
+    """Intenta cada URL de la lista hasta obtener una respuesta XML válida."""
+    last_error: Exception | None = None
     with httpx.Client(timeout=FEED_TIMEOUT_SECONDS, follow_redirects=True) as client:
-        resp = client.get(PLACSP_FEED_URL)
-        resp.raise_for_status()
-        return resp.content
+        for url in PLACSP_FEED_URLS:
+            try:
+                resp = client.get(
+                    url,
+                    headers={"Accept": "application/atom+xml, application/xml, */*"},
+                )
+                resp.raise_for_status()
+                content_type = resp.headers.get("content-type", "")
+                snippet = resp.content[:300].decode("utf-8", errors="replace")
+                logger.info(
+                    "Feed %s → status=%s content-type=%s primeros_bytes=%r",
+                    url,
+                    resp.status_code,
+                    content_type,
+                    snippet,
+                )
+                # Rechazar respuestas HTML (página de error o redirect a portal web)
+                if "<!DOCTYPE" in snippet or "<html" in snippet.lower():
+                    logger.warning("URL %s devolvió HTML, no XML — saltando", url)
+                    continue
+                # Eliminar BOM UTF-8 si está presente
+                content = resp.content
+                if content.startswith(b"\xef\xbb\xbf"):
+                    content = content[3:]
+                return content, url
+            except httpx.HTTPStatusError as exc:
+                logger.warning("URL %s → HTTP %s", url, exc.response.status_code)
+                last_error = exc
+            except Exception as exc:
+                logger.warning("URL %s → error: %s", url, exc)
+                last_error = exc
+
+    raise RuntimeError(
+        f"Ninguna URL del feed PLACSP devolvió XML válido. Último error: {last_error}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +170,8 @@ def _parsear_feed(xml_bytes: bytes) -> list[dict[str, Any]]:
     try:
         root = ET.fromstring(xml_bytes)
     except ET.ParseError as exc:
-        logger.error("Error parseando XML del feed: %s", exc)
+        snippet = xml_bytes[:500].decode("utf-8", errors="replace")
+        logger.error("Error parseando XML del feed: %s — primeros 500 bytes: %r", exc, snippet)
         return []
 
     # Detectar namespace del feed raíz (ATOM estándar o sin namespace)
