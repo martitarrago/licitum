@@ -11,8 +11,8 @@ function LogoMark() {
     <Image
       src="/logo.png"
       alt="Licitum"
-      width={800}
-      height={200}
+      width={5995}
+      height={784}
       className="h-auto w-full"
       priority
     />
