@@ -84,7 +84,11 @@ export default function RadarPage() {
   const ingesta = useMutation({
     mutationFn: () => licitacionesApi.triggerIngesta(),
     onSuccess: () => {
-      setTimeout(() => refetch(), 3000);
+      // El worker tarda 10-30s (descarga + upsert bulk). Reintentamos
+      // refetch varias veces para capturar cuando los datos estén escritos.
+      [3000, 8000, 15000, 30000].forEach((delay) => {
+        setTimeout(() => refetch(), delay);
+      });
     },
   });
 
