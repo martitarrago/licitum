@@ -52,11 +52,11 @@ export const MODULE_GROUPS: ModuleGroup[] = [
     modules: [
       {
         id: "m2",
-        code: "M2",
+        code: "",
         label: "Radar IA",
         href: "/radar",
         icon: Radar,
-        available: false,
+        available: true,
       },
       {
         id: "m3",
