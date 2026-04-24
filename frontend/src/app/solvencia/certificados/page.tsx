@@ -33,14 +33,6 @@ function estadoSortKey(c: CertificadoObraListItem): number {
   return 4; // rechazado
 }
 
-const ORDENES: { value: Orden; label: string }[] = [
-  { value: "estado", label: "Estado" },
-  { value: "recientes", label: "Recientes" },
-  { value: "fecha_obra", label: "Fecha de obra" },
-  { value: "grupo", label: "Grupo ROLECE" },
-  { value: "importe", label: "Importe" },
-];
-
 // Período de referencia LCSP art. 88: los últimos 5 años
 const CINCO_ANIOS_MS = 5 * 365.25 * 24 * 60 * 60 * 1000;
 const SEIS_MESES_MS = 0.5 * 365.25 * 24 * 60 * 60 * 1000;
