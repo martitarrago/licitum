@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowDown, ArrowUp, CheckCircle2, ChevronDown, FileText, HelpCircle, ListChecks, Plus, RefreshCcw, Trash2, XCircle } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, FileText, HelpCircle, ListChecks, Plus, RefreshCcw, Trash2, XCircle } from "lucide-react";
 import {
   certificadosApi,
   type CertificadoObraListItem,
@@ -142,8 +142,6 @@ export default function CertificadosPage() {
   const [ordenDir, setOrdenDir] = useState<"asc" | "desc">("desc");
   const [modalOpen, setModalOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
-  const [ordenOpen, setOrdenOpen] = useState(false);
-  const ordenRef = useRef<HTMLDivElement>(null);
   const [confirmarDuplicados, setConfirmarDuplicados] = useState(false);
   const [eliminandoDuplicados, setEliminandoDuplicados] = useState(false);
   const [modoSeleccion, setModoSeleccion] = useState(false);
@@ -177,16 +175,6 @@ export default function CertificadosPage() {
       setEliminandoSeleccion(false);
     }
   }
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ordenRef.current && !ordenRef.current.contains(e.target as Node)) {
-        setOrdenOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const { data: certificados, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["certificados"],
@@ -391,93 +379,62 @@ export default function CertificadosPage() {
           ))}
         </div>
 
-        {/* Ordenar + contador */}
-        <div className="flex items-center gap-3" aria-label="Ordenar certificados">
-          {/* Dropdown custom */}
-          <div className="relative" ref={ordenRef}>
-            <button
-              onClick={() => setOrdenOpen((v) => !v)}
-              className="
-                inline-flex items-center gap-1.5 cursor-pointer
-                rounded-lg bg-muted pl-3 pr-2.5 py-1
-                text-xs font-semibold text-muted-foreground
-                ring-1 ring-border
-                hover:bg-neutral-200 dark:hover:bg-neutral-800
-                transition-colors focus:outline-none
-              "
-            >
-              {ORDENES.find((o) => o.value === orden)?.label}
-              <ChevronDown
-                className={`h-3 w-3 text-muted-foreground transition-transform duration-150 ${ordenOpen ? "rotate-180" : ""}`}
-                aria-hidden="true"
-              />
-            </button>
-
-            {ordenOpen && (
-              <div className="
-                absolute right-0 top-full mt-1 z-20
-                min-w-[140px] rounded-xl
-                bg-surface-raised ring-1 ring-border shadow-lg
-                overflow-hidden py-1
-              ">
-                {ORDENES.map((o) => (
-                  <button
-                    key={o.value}
-                    onClick={() => { setOrden(o.value); setOrdenOpen(false); }}
-                    className={`
-                      w-full text-left px-3 py-1.5 text-xs font-semibold transition-colors
-                      ${orden === o.value
-                        ? "bg-foreground text-surface"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                      }
-                    `}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Dirección */}
-          <button
-            onClick={() => setOrdenDir((d) => (d === "desc" ? "asc" : "desc"))}
-            title={ordenDir === "desc" ? "Orden descendente — pulsa para invertir" : "Orden ascendente — pulsa para invertir"}
-            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
-          >
-            {ordenDir === "desc"
-              ? <ArrowDown className="h-3 w-3" aria-hidden="true" />
-              : <ArrowUp className="h-3 w-3" aria-hidden="true" />
-            }
-            {ordenDir === "desc" ? "Desc" : "Asc"}
-          </button>
-
-          {/* Modo selección */}
-          <button
-            onClick={() => modoSeleccion ? salirModoSeleccion() : setModoSeleccion(true)}
-            title={modoSeleccion ? "Salir del modo selección" : "Seleccionar certificados"}
-            className={`
-              rounded-lg p-1.5 transition-colors focus:outline-none
-              ${modoSeleccion
-                ? "bg-foreground text-surface"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }
-            `}
-          >
-            <ListChecks className="h-4 w-4" aria-hidden="true" />
-            <span className="sr-only">{modoSeleccion ? "Cancelar selección" : "Seleccionar"}</span>
-          </button>
-        </div>
+        {/* Modo selección */}
+        <button
+          onClick={() => modoSeleccion ? salirModoSeleccion() : setModoSeleccion(true)}
+          className={[
+            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold transition-colors focus:outline-none ring-1",
+            modoSeleccion
+              ? "bg-foreground text-surface ring-foreground"
+              : "bg-muted text-muted-foreground ring-border hover:bg-neutral-200 dark:hover:bg-neutral-800 hover:text-foreground",
+          ].join(" ")}
+        >
+          <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
+          {modoSeleccion ? "Cancelar" : "Seleccionar"}
+        </button>
       </div>
 
-      {/* Cabecera de columnas — solo desktop, muy sutil */}
+      {/* Cabecera de columnas clicable */}
       {!isLoading && !isError && lista.length > 0 && (
-        <div className={`mb-1 hidden lg:flex items-center gap-4 text-[10px] font-medium text-muted-foreground/40 tracking-wide ${modoSeleccion ? "pl-14 pr-5" : "px-5"}`}>
-          <div className="flex-1">Certificado</div>
-          <div className="w-36 text-right">Período</div>
-          <div className="w-28 text-right">Importe</div>
-          <div className="w-24 text-center">Grupo</div>
-          <div className="w-16 text-center">Estado</div>
+        <div className={`mb-1 hidden lg:flex items-center gap-4 ${modoSeleccion ? "pl-14 pr-5" : "px-5"}`}>
+          {(
+            [
+              { col: "recientes" as Orden, label: "Certificado", cls: "flex-1 text-left" },
+              { col: "fecha_obra" as Orden, label: "Período", cls: "w-36 text-right justify-end" },
+              { col: "importe" as Orden, label: "Importe", cls: "w-28 text-right justify-end" },
+              { col: "grupo" as Orden, label: "Grupo", cls: "w-24 text-center justify-center" },
+              { col: "estado" as Orden, label: "Estado", cls: "w-16 text-center justify-center" },
+            ] as { col: Orden; label: string; cls: string }[]
+          ).map(({ col, label, cls }) => {
+            const active = orden === col;
+            return (
+              <button
+                key={col}
+                onClick={() => {
+                  if (active) {
+                    setOrdenDir((d) => (d === "desc" ? "asc" : "desc"));
+                  } else {
+                    setOrden(col);
+                    setOrdenDir("desc");
+                  }
+                }}
+                className={[
+                  "inline-flex items-center gap-1 text-xs font-semibold tracking-wide transition-colors focus:outline-none select-none",
+                  cls,
+                  active ? "text-foreground" : "text-muted-foreground/50 hover:text-muted-foreground",
+                ].join(" ")}
+              >
+                {label}
+                {active ? (
+                  ordenDir === "desc"
+                    ? <ArrowDown className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                    : <ArrowUp className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                ) : (
+                  <ArrowUpDown className="h-3 w-3 flex-shrink-0 opacity-40" aria-hidden="true" />
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
