@@ -38,7 +38,7 @@ export const MODULE_GROUPS: ModuleGroup[] = [
     modules: [
       {
         id: "m1",
-        code: "M1",
+        code: "",
         label: "Dashboard",
         href: "/dashboard",
         icon: LayoutDashboard,
