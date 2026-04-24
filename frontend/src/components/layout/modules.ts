@@ -42,7 +42,7 @@ export const MODULE_GROUPS: ModuleGroup[] = [
         label: "Dashboard",
         href: "/dashboard",
         icon: LayoutDashboard,
-        available: false,
+        available: true,
       },
     ],
   },
