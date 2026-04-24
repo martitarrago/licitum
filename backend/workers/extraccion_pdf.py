@@ -419,33 +419,33 @@ async def _extraer_con_claude(texto: str) -> dict:
             "Verifica que el PDF contenga texto legible."
         )
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-    respuesta = await client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=CLAUDE_MAX_TOKENS,
-        temperature=0,
-        system=[
-            {
-                "type": "text",
-                "text": SYSTEM_PROMPT,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        tools=[{**EXTRACTION_TOOL, "cache_control": {"type": "ephemeral"}}],
-        tool_choice={"type": "tool", "name": "guardar_datos_certificado"},
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    "A continuación el texto extraído del certificado de obra. "
-                    "Extrae los datos estructurados llamando a la herramienta.\n\n"
-                    "---INICIO DEL DOCUMENTO---\n"
-                    f"{texto}\n"
-                    "---FIN DEL DOCUMENTO---"
-                ),
-            }
-        ],
-    )
+    async with AsyncAnthropic(api_key=settings.anthropic_api_key) as client:
+        respuesta = await client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=CLAUDE_MAX_TOKENS,
+            temperature=0,
+            system=[
+                {
+                    "type": "text",
+                    "text": SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            tools=[{**EXTRACTION_TOOL, "cache_control": {"type": "ephemeral"}}],
+            tool_choice={"type": "tool", "name": "guardar_datos_certificado"},
+            messages=[
+                {
+                    "role": "user",
+                    "content": (
+                        "A continuación el texto extraído del certificado de obra. "
+                        "Extrae los datos estructurados llamando a la herramienta.\n\n"
+                        "---INICIO DEL DOCUMENTO---\n"
+                        f"{texto}\n"
+                        "---FIN DEL DOCUMENTO---"
+                    ),
+                }
+            ],
+        )
 
     for block in respuesta.content:
         if block.type == "tool_use" and block.name == "guardar_datos_certificado":
