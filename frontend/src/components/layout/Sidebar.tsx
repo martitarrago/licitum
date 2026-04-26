@@ -2,18 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2 } from "lucide-react";
+import { Building2, ChevronsLeft, ChevronsRight } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { MODULE_GROUPS, type Module, type SubModule } from "./modules";
 
-const RAIL_WIDTH = 64; // px — anchura del rail colapsado, reservada en el layout
-const EXPANDED_WIDTH = 256; // px — anchura cuando hovered
-const CLOSE_DELAY_MS = 280; // pequeño delay al salir para evitar parpadeo
+const RAIL_WIDTH = 64; // px — anchura cuando está plegado
+const EXPANDED_WIDTH = 256; // px — anchura cuando está abierto
 // Curva tipo iOS — acelera muy poco al inicio y frena con gracia al final.
-// Sensación claramente más "premium" que el ease-out estándar.
 const SMOOTH_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
 const TRANSITION_MS = 520;
+const STORAGE_KEY = "licitum-sidebar-collapsed";
 
 function LogoMark({ collapsed }: { collapsed: boolean }) {
   // Dos assets distintos: `logo-icon.png` (isotipo cuadrado) cuando el
@@ -106,10 +105,12 @@ function NavItem({
   module,
   pathname,
   collapsed,
+  onItemClick,
 }: {
   module: Module;
   pathname: string;
   collapsed: boolean;
+  onItemClick: () => void;
 }) {
   const Icon = module.icon;
   const isParentActive =
@@ -151,6 +152,7 @@ function NavItem({
       <Link
         href={hasChildren ? module.children![0].href : module.href}
         title={collapsed ? module.label : undefined}
+        onClick={onItemClick}
         className={[
           "group/nav relative flex items-center rounded-lg transition-all duration-150",
           collapsed ? "justify-center px-2 py-2" : "gap-3 px-3 py-2",
@@ -207,121 +209,141 @@ function NavItem({
 
 export function Sidebar() {
   const pathname = usePathname();
-  // Hover-driven: el sidebar arranca colapsado y se expande al pasar el ratón.
-  // Pequeño delay al salir para evitar parpadeo si el cursor pasa de largo.
-  const [hovered, setHovered] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Toggle explícito con persistencia. Por defecto expandido.
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    return () => {
-      if (closeTimer.current) clearTimeout(closeTimer.current);
-    };
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored === "1") setCollapsed(true);
   }, []);
 
-  function handleEnter() {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-    setHovered(true);
+  function expand() {
+    if (!collapsed) return;
+    setCollapsed(false);
+    window.localStorage.setItem(STORAGE_KEY, "0");
   }
 
-  function handleLeave() {
-    if (closeTimer.current) clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(() => setHovered(false), CLOSE_DELAY_MS);
+  function toggle() {
+    const next = !collapsed;
+    setCollapsed(next);
+    window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
   }
 
-  const collapsed = !hovered;
+  // Cuando está plegado, todo el sidebar es clickable y al pulsarlo se abre.
+  // Si el clic ocurrió sobre un Link interno (NavItem), el navegador navega
+  // a la nueva ruta tras propagar este handler — el sidebar quedará abierto
+  // en la nueva pantalla. Si el clic ocurrió sobre el toggle inferior, ese
+  // handler hace stopPropagation y gestiona él mismo el cambio de estado.
+  function handleAsideClick() {
+    if (collapsed) expand();
+  }
 
   return (
-    // El <aside> reserva siempre el ancho del rail (64px) en el layout flex,
-    // así el contenido principal NO se desplaza al expandir el sidebar.
-    // El panel interno (absolute) crece sobre el main al hacer hover.
     <aside
-      style={{ width: RAIL_WIDTH }}
-      className="relative h-screen shrink-0"
-      onMouseEnter={handleEnter}
-      onMouseLeave={handleLeave}
+      style={{
+        width: collapsed ? RAIL_WIDTH : EXPANDED_WIDTH,
+        transitionProperty: "width",
+        transitionDuration: `${TRANSITION_MS}ms`,
+        transitionTimingFunction: SMOOTH_EASING,
+      }}
+      onClick={collapsed ? handleAsideClick : undefined}
+      role={collapsed ? "button" : undefined}
+      aria-label={collapsed ? "Mostrar menú" : undefined}
+      className={[
+        "relative flex h-screen shrink-0 flex-col border-r border-border bg-surface-raised",
+        collapsed ? "cursor-pointer hover:bg-muted/30" : "",
+      ].join(" ")}
     >
+      {/* BRAND */}
       <div
-        style={{
-          width: hovered ? EXPANDED_WIDTH : RAIL_WIDTH,
-          transitionProperty: "width, box-shadow",
-          transitionDuration: `${TRANSITION_MS}ms`,
-          transitionTimingFunction: SMOOTH_EASING,
-        }}
         className={[
-          "absolute inset-y-0 left-0 flex flex-col",
-          "border-r border-border bg-surface-raised",
-          // Sombra suave solo cuando flota sobre el contenido
-          hovered ? "z-40 shadow-xl" : "z-10",
+          "flex items-center pt-5 pb-4",
+          collapsed ? "justify-center px-2" : "px-5",
         ].join(" ")}
       >
-        {/* BRAND */}
-        <div
-          className={[
-            "flex items-center pt-5 pb-4",
-            collapsed ? "justify-center px-2" : "px-5",
-          ].join(" ")}
-        >
-          <LogoMark collapsed={collapsed} />
-        </div>
+        <LogoMark collapsed={collapsed} />
+      </div>
 
-        {/* Hair-thin divider with subtle gradient fade */}
-        <div
-          aria-hidden="true"
-          className={[
-            "h-px bg-gradient-to-r from-transparent via-border to-transparent",
-            collapsed ? "mx-3" : "mx-5",
-          ].join(" ")}
-        />
+      {/* Hair-thin divider with subtle gradient fade */}
+      <div
+        aria-hidden="true"
+        className={[
+          "h-px bg-gradient-to-r from-transparent via-border to-transparent",
+          collapsed ? "mx-3" : "mx-5",
+        ].join(" ")}
+      />
 
-        {/* NAV */}
-        <nav
-          className={[
-            "flex-1 overflow-y-auto pt-4 pb-4",
-            collapsed ? "px-2" : "px-3",
-          ].join(" ")}
-          aria-label="Navegación principal"
-        >
-          {MODULE_GROUPS.map((group, idx) => (
-            <div
-              key={group.id}
-              className={idx < MODULE_GROUPS.length - 1 ? "mb-5" : ""}
-            >
-              {group.label && !collapsed && (
-                <div className="mb-1.5 flex items-center gap-2 px-3 pt-0.5">
-                  <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/55">
-                    {group.label}
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    className="h-px flex-1 bg-border/60"
-                  />
-                </div>
-              )}
-              {group.label && collapsed && (
-                <div
+      {/* NAV */}
+      <nav
+        className={[
+          "flex-1 overflow-y-auto pt-4 pb-4",
+          collapsed ? "px-2" : "px-3",
+        ].join(" ")}
+        aria-label="Navegación principal"
+      >
+        {MODULE_GROUPS.map((group, idx) => (
+          <div
+            key={group.id}
+            className={idx < MODULE_GROUPS.length - 1 ? "mb-5" : ""}
+          >
+            {group.label && !collapsed && (
+              <div className="mb-1.5 flex items-center gap-2 px-3 pt-0.5">
+                <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/55">
+                  {group.label}
+                </span>
+                <span
                   aria-hidden="true"
-                  className="mx-2 mb-1.5 mt-0.5 h-px bg-border/60"
+                  className="h-px flex-1 bg-border/60"
                 />
-              )}
-              <div className="space-y-0.5">
-                {group.modules.map((m) => (
-                  <NavItem
-                    key={m.id}
-                    module={m}
-                    pathname={pathname}
-                    collapsed={collapsed}
-                  />
-                ))}
               </div>
+            )}
+            {group.label && collapsed && (
+              <div
+                aria-hidden="true"
+                className="mx-2 mb-1.5 mt-0.5 h-px bg-border/60"
+              />
+            )}
+            <div className="space-y-0.5">
+              {group.modules.map((m) => (
+                <NavItem
+                  key={m.id}
+                  module={m}
+                  pathname={pathname}
+                  collapsed={collapsed}
+                  onItemClick={expand}
+                />
+              ))}
             </div>
-          ))}
-        </nav>
+          </div>
+        ))}
+      </nav>
 
-        {/* FOOTER — empresa demo */}
-        <div className={["border-t border-border", collapsed ? "px-2 py-2" : "px-3 py-3"].join(" ")}>
+      {/* FOOTER — toggle + empresa demo */}
+      <div
+        className="border-t border-border"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={collapsed ? "Mostrar menú" : "Esconder menú"}
+          title={collapsed ? "Mostrar menú" : "Esconder menú"}
+          className={[
+            "group/toggle flex w-full items-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
+            collapsed ? "justify-center px-2 py-2.5" : "gap-2 px-3 py-2",
+          ].join(" ")}
+        >
+          {collapsed ? (
+            <ChevronsRight className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />
+          ) : (
+            <>
+              <ChevronsLeft className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />
+              <span className="text-[12px] font-medium">Esconder menú</span>
+            </>
+          )}
+        </button>
+
+        <div className={collapsed ? "px-2 py-2" : "px-3 py-3"}>
           <button
             type="button"
             title={collapsed ? "Empresa Demo" : undefined}
