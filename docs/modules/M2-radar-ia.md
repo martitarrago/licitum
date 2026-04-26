@@ -15,151 +15,132 @@ Eso convierte un feed genérico en una **bandeja de entrada de oportunidades rea
 
 ---
 
-## Estado actual (2026-04-24)
+## Estado MVP — completado ✅
 
-✅ **Fase 1 completada** — MVP funcional:
+El M2 está cerrado para MVP. Cubre la promesa diferencial del producto: detectar oportunidades reales filtradas por solvencia legal y ordenadas por afinidad histórica.
+
+### Fase 1 — Ingestión y feed básico ✅
 - Fuente de datos: dataset `ybgg-dgi6` de la Generalitat vía API Socrata (`analisi.transparenciacatalunya.cat`), sin autenticación, actualización diaria, 54 campos por registro
 - Worker Celery `workers/ingesta_pscp.py`: descarga paginada (batches de 1000), dedup por `codi_expedient`, upsert bulk en batches de 500
-- ~1329 licitaciones únicas abiertas en Catalunya en cualquier momento, de las cuales ~300 son obras
-- Tabla `licitaciones` con 15+ columnas + JSONB `raw_data`
-- API `GET /api/v1/licitaciones` con filtros (semáforo, tipo_contrato, búsqueda, paginación)
-- Endpoint `POST /api/v1/licitaciones/ingestar` para trigger manual
-- Frontend `/radar` con tabs de semáforo, búsqueda, grid de cards, paginación y botón "Actualizar feed"
+- ~1.300 licitaciones únicas abiertas en cualquier momento, de las cuales ~270 son obras
+- Tabla `licitaciones` con columnas físicas + JSONB `raw_data`
+- API `GET /api/v1/licitaciones` con filtros y paginación
+- Frontend `/radar` con grid de cards, búsqueda y botón "Actualizar feed"
 
-❌ **Nota histórica:** arrancamos apuntando al feed ATOM de la PLACSP nacional (`contrataciondelestado.es/sindicacion/...`), pero esa infraestructura fue decomisionada en la migración de 2024 y los URLs antiguos devuelven una página HTML de redirect al portal. El pivote a Socrata (Catalunya) es estratégicamente mejor porque los primeros clientes son catalanes.
+### 1. Filtros avanzados ✅
+- 7 parámetros: `provincia[]`, `tipo_organismo[]`, `importe_min/max`, `plazo_min/max_dias`, `cpv_prefix`, `q`, `semaforo`
+- Estado serializado en URL (`useSearchParams` + `router.replace`) → enlaces compartibles, atrás funciona, recargar conserva estado
+- Componentes UI nuevos: `FilterPopover` (portal + auto-flip), `FilterPill` (3 estados), `CheckboxGroup`, `ActiveFilterChip`
+- Presets ROLECE para importe (cat 1–6), presets para plazo (hoy / 7d / 14d / 30d / >30d)
+- Corte de plazo en hora `Europe/Madrid` con `cutoff = hoy + N+1 días`
+- Chip único "Toda Cataluña" cuando las 4 provincias están seleccionadas
+- Backfill SQL en migración 0008 (provincias[] + tipo_organismo desde NUTS y nombre)
 
-⚠️ **Semáforo actual es provisional:** solo comprueba `tipo=obras AND importe <= max_solvencia`. Funciona como filtro grosero pero no aporta inteligencia real. Ver Fase 2.
+### 2. Semáforo real CPV ↔ ROLECE ✅
+- `app/core/cpv_rolece.py`: catálogo de 18 prefijos CPV de la familia 45 (cubre el 100% del dataset Socrata) → grupos ROLECE A–K
+- `app/services/solvencia_evaluator.py`: `SolvenciaEmpresa` snapshot inmutable + `evaluar_semaforo` con doble canal:
+  - **Canal 1 — clasificaciones ROLECE activas** (`activa=true AND fecha_caducidad >= today`)
+  - **Canal 2 — certificados validados** (fallback legal LCSP art. 88 para obras ≤500K€ y como complemento)
+- Razón en prosa con grupo, categoría e importe — el corazón pedagógico del producto:
+  - VERDE: *"Tu clasificación C6 (más de 5 M€) cubre esta obra de 578.246 € (exige cat 3, 360 000–840 000 €)."*
+  - ROJO: *"Esta obra exige grupo I (Instalaciones eléctricas) y tu solvencia acreditada está en grupo(s) C."*
+- Granularidad de **grupo** (A–K), no subgrupo. Suficiente para v1; refinable a futuro sin reescribir consumidores.
 
-⚠️ **Estética:** la página `/radar` usa el componente `LicitacionCard` existente pero la disposición del header, filtros y paginación es utilitaria. Se pulirá en la fase final de diseño junto al resto del producto.
+### 3. Categoría ROLECE por importe ✅ *(absorbida en el punto 2)*
+- `parsear_anualidad(importe, durada_text)` con regex catalán para `"N anys/mesos/dies"` y combinaciones (`"1 any 6 mesos"`, `"4 anys 0 mesos 0 dies"`)
+- Cap inferior 1 año para no inflar categorías en contratos cortos (un contrato de 100 K€ en 29 días NO debe exigir cat 6)
+- Categoría exigida según RD 1098/2001 art. 26 (cat 1: ≤150 K€ → cat 6: >5 M€)
+- Logging de proporción de fallback de duración (~9% del dataset real)
 
----
+### 4. Ingesta automática diaria ✅
+- Celery Beat embebido en el worker (`worker -B --schedule=/tmp/celerybeat-schedule`) → 1 servicio Railway, no 2
+- `crontab(hour=7, minute=0)` interpretado en `Europe/Madrid`
+- `expires=1800` evita apilar tareas si el worker estuvo caído al disparo
+- Las ingestas evalúan el semáforo in-place; el `recalcular_semaforos.py` separado se usa para forzar reevaluación tras cambios en M3
 
-## Fase 2 — Semáforo real (la "IA" del Radar IA)
-
-Hacer que el semáforo deje de ser un filtro binario y se convierta en la capa de inteligencia que diferencia a Licitum de un feed RSS.
-
-### 2.1 Cruce CPV ↔ clasificación ROLECE
-- M3 guarda las clasificaciones activas de la empresa (grupo C, G, I…)
-- Cada código CPV de una licitación se mapea a una o varias clasificaciones exigibles (tabla de mapeo CPV→ROLECE que hay que construir o heurística basada en los primeros dígitos del CPV)
-- Ejemplo: CPV `45233000` (carreteras) → exige grupo G
-- Si la empresa no tiene G → **rojo** (no **verde** como ahora)
-- Si tiene G pero no la categoría adecuada → **amarillo**
-
-**Trabajo concreto:**
-- Crear tabla `cpv_rolece_map` (o constante Python) con las correspondencias principales
-- Extender `_calcular_semaforo()` en `workers/ingesta_pscp.py`
-- Recalcular semáforo de todas las filas existentes en una migración de datos
-
-### 2.2 Categoría ROLECE por importe
-- La ROLECE divide las empresas en 6 categorías según el tamaño de obra que pueden ejecutar:
-  - Cat 1: ≤ 150.000€
-  - Cat 2: 150.000€ – 360.000€
-  - Cat 3: 360.000€ – 840.000€
-  - Cat 4: 840.000€ – 2.400.000€
-  - Cat 5: 2.400.000€ – 5.000.000€
-  - Cat 6: > 5.000.000€
-- Obra de 400.000€ → exige categoría 3 mínimo
-- Si la empresa solo tiene C2 (hasta 360K€) → **amarillo**, no verde aunque tenga el grupo correcto
-
-**Trabajo concreto:**
-- Añadir función `_categoria_rolece_requerida(importe: Decimal) -> int`
-- Cruzar con las categorías declaradas en M3 `clasificaciones_rolece.categoria`
-
-### 2.3 Factor geográfico
-- El dataset ya trae `lloc_execucio` (texto) y `codi_nuts` (código NUTS)
-- La empresa debe poder configurar su radio operativo (ej: "Barcelona + 100km", "Cataluña entera")
-- Una obra fuera del radio → **amarillo** automático aunque la clasificación encaje
-
-**Trabajo concreto:**
-- Añadir columnas `provincia_base` y `radio_km` a `empresas` (migración)
-- UI en página de empresa para configurarlo
-- Calcular distancia desde el centroide de la provincia (tabla de lat/lng por NUTS)
-
-### 2.4 Factor histórico
-- Si la empresa ya ejecutó obras para ese organismo (buscando en M3 `certificados_obra.organismo`) → bonus verde
-- Si tiene CPV similares ya certificados → bonus verde
-- Útil para diferenciar entre dos verdes: el que "puede" vs el que "probablemente gana"
-
-**Trabajo concreto:**
-- Query adicional al calcular semáforo: ¿ha trabajado antes con este `organismo`?
-- Campo nuevo en `licitaciones`: `score_afinidad` (0-1) que combine CPV match + organismo match
-- Frontend: ordenar por afinidad dentro de cada nivel de semáforo
-
-### Resultado esperado de la Fase 2
-El usuario deja de recibir 1.329 licitaciones y recibe **15-20 obras realmente ganables**, ordenadas por afinidad histórica. Ahí es donde Licitum empieza a justificar su precio frente a una búsqueda manual en el portal público.
+### 5. Factor histórico / afinidad ✅
+- Score `0.00–1.00` por licitación cruzando organismo + CPV con el histórico de M3
+- Pesos sin DIR3 (configuración actual): nombre organismo 0.7 + prefijo CPV 0.3
+- No cambia el semáforo, solo el orden: dentro de cada nivel, las de mayor afinidad suben primero
+- Migración 0009: columna `score_afinidad NUMERIC(3,2)` + índice `DESC NULLS LAST` para sort barato
+- Frontend: indicador sutil con icono `Sparkles` bajo el organismo:
+  - score ≥ 0.7 → *"Has trabajado antes con este organismo"*
+  - 0.3 ≤ score < 0.7 → *"Tipo de obra similar a tu histórico"*
 
 ---
 
-## Fase 3 — Acciones desde el Radar
+## Distribución del semáforo con la empresa demo (C2-6 activa)
 
-Cerrar el ciclo: pasar de "ver licitaciones" a "gestionarlas".
+| Estado | Antes | Ahora |
+|---|---|---|
+| Verde obras | 0 | 240 |
+| Amarillo obras | 271 | 0 |
+| Rojo obras | 0 | 31 |
+| Gris obras | 0 | 0 |
 
-### 3.1 Pipeline de licitaciones
-- Estados por licitación: `nueva / seguida / descartada / presentada / ganada / perdida`
-- Vista kanban → el usuario ve su embudo comercial
-- Métricas: tasa de éxito, baja media, tiempo medio hasta decisión
+Las 0 amarillas son coherentes: la demo tiene cat 6 (la máxima), nunca está "ajustada" — todo lo que tenga grupo correcto va directo a verde.
 
-**Trabajo concreto:**
-- Tabla `licitacion_empresa_estado` (multi-tenancy en el futuro)
+---
+
+## Pendiente post-MVP
+
+Todo lo que queda fuera del scope del MVP. No bloquea ventas; se retoma con feedback de usuarios reales o cuando los módulos dependientes estén montados.
+
+### Punto 6 — Detalle con análisis IA del pliego 🔲
+
+Página `/radar/[expediente]` con resumen IA del pliego oficial (3 bullets: qué piden, criterios de adjudicación, plazo crítico) + botones para saltar a otros módulos.
+
+**Por qué se aplaza:**
+- Sin M4 (BC3) ni M5 (Memorias) los botones *"preparar memoria"* y *"analizar presupuesto"* no llevan a ningún sitio — el ciclo no se cierra
+- Coste alto en LLM tokens si se analiza todo el feed automáticamente
+
+**Decisión de arquitectura ya tomada (cuando se construya):**
+- Cache GLOBAL por licitación (no por empresa) — el resumen del pliego es el mismo para cualquier usuario
+- Lazy on-demand: solo se ejecuta cuando UN usuario lo solicita explícitamente desde la UI
+- Tabla `licitacion_analisis_ia` con `licitacion_id` como PK (no `(licitacion_id, empresa_id)`)
+- Reusa la infraestructura de extracción IA del worker M3 (`pdfplumber` + Claude `tool_use`)
+
+### Punto 7 — Pipeline kanban 🔲
+
+Estados por licitación: `nueva / seguida / descartada / presentada / ganada / perdida`. Vista kanban con métricas de embudo comercial (tasa de éxito, baja media, tiempo medio hasta decisión).
+
+**Por qué se aplaza:**
+- Sin volumen real de licitaciones gestionadas, un kanban con 2 cards parece un juguete
+- Las métricas dependen de datos que aún no existen (M8 Histórico cierra el ciclo)
+- Requiere multi-tenancy real (sin auth todavía)
+
+**Trabajo futuro:**
+- Tabla `licitacion_empresa_estado(licitacion_id, empresa_id, estado, …)` (multi-tenancy)
 - Endpoints `PATCH /licitaciones/{id}/estado`
-- Vista `/radar/pipeline` con columnas drag-and-drop
+- Vista `/radar/pipeline` con drag-and-drop
 
-### 3.2 Detalle con análisis IA
-- Click en card → página de detalle completo
-- Usar `url_json_licitacio` del Socrata para traer los metadatos enriquecidos
-- Descarga automática de los pliegos desde el PSCP
-- Claude resume el pliego en 3 bullets: *qué piden, criterios de adjudicación, plazo crítico*
-- Botones de acción que saltan a otros módulos: "Preparar memoria" (→ M5), "Analizar presupuesto" (→ M4), "Generar DEUC" (→ M7)
+### Deuda técnica
 
-**Trabajo concreto:**
-- Página `/radar/[expediente]`
-- Endpoint que descarga los pliegos a R2 y los procesa con Claude (reutilizar parte del worker de M3)
-- Tabla `licitacion_analisis_ia` con el resumen en JSONB
+- **Capturar `organismo_id` (DIR3) en certificados de M3** → desbloquea el peso 0.5 de DIR3 en el cálculo de afinidad y rebalancea la fórmula a 0.5 / 0.3 / 0.2 (DIR3 / nombre / CPV)
+- **Auto-trigger de recálculo desde M3** → hoy es manual con el botón "Recalcular semáforos"; cuando se valida/rechaza un certificado o se edita una clasificación, el semáforo del Radar queda obsoleto hasta el siguiente trigger
+- **Notificaciones por email/push tras la ingesta diaria** (*"3 nuevas oportunidades verdes para ti"*) → depende de tener auth real (sin destinatario claro hoy)
+- **Persistencia de filtros favoritos** (`empresas.filtros_radar` JSONB) → dependía del punto 1 pero quedó fuera de scope; el URL state cubre el caso real hasta que haya auth y "perfiles" de usuario
+- **Refinar mapeo CPV→ROLECE a nivel de subgrupo** cuando aparezcan pliegos que exijan subgrupo específico (`C2`, `G4`, etc.); hoy operamos a nivel de grupo (A–K) y cubre el 95% de los casos
+- **Ajustar mensaje del semáforo cuando los grupos exigidos son TODOS** (CPV genérico 45000000) — actualmente la prosa dice solo *"Tu clasificación C6 cubre esta obra"* sin mencionar que el CPV genérico abarcaba todo (resuelto pero anotado por si aparece otro caso similar)
+- **Renombrar `licitaciones.url_placsp` → `url_publicacio`** (cosmético, el dato viene de PSCP no de PLACSP)
 
-### 3.3 Ingesta automática diaria
-- Celery Beat configurado para lanzar `ingesta_pscp` cada mañana a las 7:00
-- Detectar licitaciones nuevas desde la última ingesta
-- Si hay nuevas obras verdes → email o push notification: *"3 nuevas oportunidades verdes para ti"*
+### Geográfico (Fase 2.3 del plan original) 🔲
 
-**Trabajo concreto:**
-- Añadir `celery_beat` como servicio separado en Railway (o usar beat embed del worker)
-- Configurar `CELERY_BEAT_SCHEDULE` en `core/celery_app.py`
-- Sistema de notificaciones (Resend para email, o push si hay PWA)
+Configurar radio operativo por empresa (`provincia_base`, `radio_km` en `empresas`) y degradar el semáforo a amarillo si la obra cae fuera del radio.
 
-### 3.4 Filtros avanzados
-- Por provincia (Barcelona, Girona, Tarragona, Lleida)
-- Slider de rango de importe
-- Slider de días hasta deadline
-- Por tipo de organismo (ayuntamientos / consells / Generalitat / universidades)
-- Por código CPV
+**Por qué se aplaza:** los filtros del punto 1 ya permiten al usuario filtrar manualmente por provincia. La automatización con radio + tabla de centroides NUTS3 es nice-to-have, no MVP.
 
-**Trabajo concreto:**
-- Extender el endpoint `GET /licitaciones` con los parámetros
-- UI de barra de filtros colapsable en el radar
-- Guardar los filtros favoritos del usuario en `empresas.filtros_radar` (JSONB)
+### Expansión a toda España 🔲
+
+Hoy el feed solo cubre Cataluña (dataset Socrata Generalitat). Si los primeros clientes operan en otras comunidades:
+- Investigar nuevos endpoints de la PLACSP nacional (los antiguos quedaron decomisionados en 2024)
+- O añadir una segunda fuente en `workers/ingesta_placsp.py`
 
 ---
-
-## Priorización recomendada
-
-No hacer Fase 2 y Fase 3 en secuencia estricta. Sugerencia por valor aportado:
-
-1. **Filtros avanzados** (2h) — el usuario saca valor hoy mismo, sin tocar el semáforo
-2. **Semáforo real: CPV ↔ clasificación** (medio día) — el corazón del producto
-3. **Ingesta automática diaria** (1h) — que funcione solo, sin botón manual
-4. **Categoría ROLECE por importe** (medio día) — afina el semáforo
-5. **Factor histórico / afinidad** (medio día) — ordena dentro del verde
-6. **Detalle con análisis IA** (1 día) — depende de M4/M5 avanzados
-7. **Pipeline kanban** (1 día) — valioso solo cuando haya volumen de licitaciones gestionadas
-
----
-
-## Dependencias
-- **M3 Solvencia** — clasificaciones activas + certificados validados (ya en producción)
-- Dataset `ybgg-dgi6` de la Generalitat de Catalunya (ya integrado)
-- M4 BC3 y M5 Memorias para el apartado 3.2 (pendientes)
 
 ## Notas técnicas
-- El modelo `Licitacion` ya tiene `raw_data` JSONB donde se guardan `lloc_execucio`, `nom_ambit`, `codi_nuts`, `numero_lot`, etc. No hace falta migración para explotar esos campos.
-- El campo `url_placsp` debería renombrarse a `url_publicacio` en una iteración futura (cosmético, no bloquea nada).
-- Si en algún momento queremos licitaciones de toda España y no solo Catalunya, habría que investigar los nuevos endpoints de la PLACSP nacional o añadir una segunda fuente en `workers/ingesta_placsp.py`.
+
+- El modelo `Licitacion` tiene `raw_data` JSONB donde se guardan `lloc_execucio`, `nom_ambit`, `codi_nuts`, `numero_lot`, `durada_contracte`, etc. Los filtros M2 promueven a columnas físicas (`provincias[]`, `tipo_organismo`, `score_afinidad`) los datos que aparecen en `WHERE` constantes — índices B-tree/GIN, mejor performance que JSONB
+- El campo `cpv_codes` admite el separador `||` (formato Socrata cuando un registro tiene múltiples valores) — el extractor de grupos splittea por `||` antes de mapear
+- La empresa demo (`00000000-0000-0000-0000-000000000001`) tiene `C2-6` activa y `0` certificados validados → todos los semáforos verdes vienen del canal 1 (clasificación). El canal 2 (certificados) está implementado pero solo se ejercita cuando hay certificados reales
+- En Railway: el servicio worker arranca con `celery worker -B` (Beat embebido). Si en el futuro hay >1 instancia de worker, mover Beat a un servicio propio para evitar disparos duplicados
