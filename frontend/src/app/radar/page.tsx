@@ -156,7 +156,8 @@ function RadarPageContent() {
             </button>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Licitaciones de obras públicas en Cataluña, filtradas según tu solvencia
+            Licitaciones de obras públicas en Catalunya, filtradas según tus
+            preferencias y tu compatibilidad
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -207,7 +208,7 @@ function RadarPageContent() {
               Qué ves en esta pantalla
             </p>
             <p className="text-muted-foreground">
-              Cada tarjeta es una licitación de obra pública abierta en Cataluña. La
+              Cada tarjeta es una licitación de obra pública abierta en Catalunya. La
               lista se actualiza automáticamente cada mañana a las 7:00; si quieres
               forzarla en cualquier momento, pulsa{" "}
               <span className="font-medium text-foreground">«Actualizar lista»</span>.
@@ -321,7 +322,7 @@ function RadarPageContent() {
 
       {/* Estados */}
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
           {Array.from({ length: 8 }).map((_, i) => (
             <CardSkeleton key={i} />
           ))}
@@ -351,7 +352,7 @@ function RadarPageContent() {
         <EmptyState hasFilters={activeCount > 0} onClear={clearFilters} />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
             {licitaciones.map((l) => {
               const p = parseLicitacion(l);
               return (
