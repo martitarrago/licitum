@@ -6,6 +6,7 @@ import {
   ExternalLink,
   Loader2,
   RefreshCcw,
+  RotateCw,
   Search,
   XCircle,
 } from "lucide-react";
@@ -34,6 +35,7 @@ function parseLicitacion(l: LicitacionRead) {
       | "rojo",
     cpvs: l.cpv_codes,
     url: l.url_placsp,
+    razon: l.semaforo_razon,
   };
 }
 
@@ -97,6 +99,11 @@ function RadarPageContent() {
       }),
     placeholderData: (prev) => prev,
     staleTime: 60_000,
+    // Cuando el usuario vuelve al tab tras cambios en M3 (certificados,
+    // clasificaciones), las queries son stale → refetch al recuperar foco.
+    // No basta para recalcular el semáforo (eso necesita el botón), pero sí
+    // para recoger cambios ya recalculados desde otra ventana.
+    refetchOnWindowFocus: true,
   });
 
   const ingesta = useMutation({
@@ -105,6 +112,14 @@ function RadarPageContent() {
       // El worker tarda 10-30s. Reintentos escalonados para capturar la
       // ventana en la que los datos quedan persistidos.
       [3000, 8000, 15000, 30000].forEach((d) => setTimeout(() => refetch(), d));
+    },
+  });
+
+  const recalcular = useMutation({
+    mutationFn: () => licitacionesApi.triggerRecalcularSemaforo(),
+    onSuccess: () => {
+      // Recálculo masivo en BD suele tardar 1-3s; refetch escalonado.
+      [2000, 5000, 10000].forEach((d) => setTimeout(() => refetch(), d));
     },
   });
 
@@ -127,26 +142,47 @@ function RadarPageContent() {
             Licitaciones de Cataluña filtradas por semáforo de solvencia
           </p>
         </div>
-        <button
-          onClick={() => ingesta.mutate()}
-          disabled={ingesta.isPending}
-          className="
-            inline-flex items-center gap-2 rounded-lg
-            bg-foreground px-4 py-2 text-sm font-medium text-surface
-            transition-opacity hover:opacity-85 disabled:opacity-50
-            focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground
-          "
-        >
-          {ingesta.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <RefreshCcw className="h-4 w-4" aria-hidden="true" />
-          )}
-          Actualizar feed
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => recalcular.mutate()}
+            disabled={recalcular.isPending}
+            title="Recalcula el semáforo de todas las licitaciones tras cambios en certificados o clasificaciones"
+            className="
+              inline-flex items-center gap-2 rounded-lg
+              bg-muted px-3 py-2 text-sm font-medium text-foreground
+              ring-1 ring-border transition-colors
+              hover:bg-neutral-200 dark:hover:bg-neutral-800
+              disabled:opacity-50
+            "
+          >
+            {recalcular.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <RotateCw className="h-4 w-4" aria-hidden="true" />
+            )}
+            Recalcular semáforos
+          </button>
+          <button
+            onClick={() => ingesta.mutate()}
+            disabled={ingesta.isPending}
+            className="
+              inline-flex items-center gap-2 rounded-lg
+              bg-foreground px-4 py-2 text-sm font-medium text-surface
+              transition-opacity hover:opacity-85 disabled:opacity-50
+              focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground
+            "
+          >
+            {ingesta.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <RefreshCcw className="h-4 w-4" aria-hidden="true" />
+            )}
+            Actualizar feed
+          </button>
+        </div>
       </div>
 
-      {/* Banners de ingesta */}
+      {/* Banners de acciones */}
       {ingesta.isSuccess && (
         <div className="mb-4 rounded-xl bg-success/10 px-4 py-2.5 text-sm text-success ring-1 ring-success/25">
           Ingestión lanzada — el feed se actualizará en unos minutos.
@@ -155,6 +191,16 @@ function RadarPageContent() {
       {ingesta.isError && (
         <div className="mb-4 rounded-xl bg-danger/10 px-4 py-2.5 text-sm text-danger ring-1 ring-danger/25">
           Error al lanzar la ingestión. ¿Está el worker de Celery activo?
+        </div>
+      )}
+      {recalcular.isSuccess && (
+        <div className="mb-4 rounded-xl bg-success/10 px-4 py-2.5 text-sm text-success ring-1 ring-success/25">
+          Recálculo de semáforos lanzado — los nuevos resultados aparecerán en unos segundos.
+        </div>
+      )}
+      {recalcular.isError && (
+        <div className="mb-4 rounded-xl bg-danger/10 px-4 py-2.5 text-sm text-danger ring-1 ring-danger/25">
+          Error al lanzar el recálculo. ¿Está el worker de Celery activo?
         </div>
       )}
 
@@ -243,6 +289,7 @@ function RadarPageContent() {
                     fechaLimite={p.fechaLimite}
                     semaforo={p.semaforo}
                     cpvs={p.cpvs}
+                    razon={p.razon}
                   />
                   {p.url && (
                     <a

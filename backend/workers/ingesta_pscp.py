@@ -28,16 +28,20 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.core.celery_app import celery_app
-from app.core.enums import EstadoCertificado
-from app.models.certificado_obra import CertificadoObra
 from app.models.licitacion import Licitacion
+from app.services.solvencia_evaluator import (
+    LicitacionInput,
+    SolvenciaEmpresa,
+    cargar_solvencia_empresa,
+    evaluar_semaforo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -131,8 +135,13 @@ async def _ejecutar_ingesta() -> dict[str, int]:
     )
     try:
         async with session_factory() as db:
-            max_solvencia = await _obtener_max_solvencia(db)
-            stats = await _upsert_licitaciones(db, uniq, max_solvencia)
+            solvencia = await cargar_solvencia_empresa(db, uuid.UUID(EMPRESA_DEMO_ID))
+            logger.info(
+                "Solvencia empresa demo: clasificaciones=%s, certificados=%s",
+                solvencia.max_categoria_por_grupo,
+                {g: float(v) for g, v in solvencia.max_solvencia_certificada_por_grupo.items()},
+            )
+            stats = await _upsert_licitaciones(db, uniq, solvencia)
     finally:
         await engine.dispose()
 
@@ -310,46 +319,10 @@ def _parsear_row(row: dict[str, Any]) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 
-async def _obtener_max_solvencia(db: AsyncSession) -> Decimal | None:
-    """Importe máximo de certificados válidos de la empresa demo."""
-    empresa_id = uuid.UUID(EMPRESA_DEMO_ID)
-    result = await db.execute(
-        select(func.max(CertificadoObra.importe_adjudicacion)).where(
-            CertificadoObra.empresa_id == empresa_id,
-            CertificadoObra.es_valido_solvencia.is_(True),
-            CertificadoObra.deleted_at.is_(None),
-        )
-    )
-    return result.scalar_one_or_none()
-
-
-def _calcular_semaforo(
-    tipo_contrato: str | None,
-    importe: Decimal | None,
-    max_solvencia: Decimal | None,
-) -> tuple[str, str]:
-    if tipo_contrato is None:
-        return "gris", "Tipo de contrato no clasificado"
-    if tipo_contrato not in ("obras", "concesion_obras"):
-        return "rojo", f"Tipo '{tipo_contrato}' fuera del alcance de obras"
-    if importe is None:
-        return "amarillo", "Obras sin importe publicado — revisar manualmente"
-    if max_solvencia is None:
-        return "amarillo", "Sin certificados de solvencia validados en M3"
-    if importe <= max_solvencia:
-        return "verde", (
-            f"Importe {importe:,.0f} € dentro del rango de solvencia "
-            f"acreditada ({max_solvencia:,.0f} €)"
-        )
-    return "amarillo", (
-        f"Importe {importe:,.0f} € supera la solvencia acreditada ({max_solvencia:,.0f} €)"
-    )
-
-
 async def _upsert_licitaciones(
     db: AsyncSession,
     entries: list[dict[str, Any]],
-    max_solvencia: Decimal | None,
+    solvencia: SolvenciaEmpresa,
 ) -> dict[str, int]:
     """Upsert en batches de 500 filas — 1 round-trip por batch en vez de N por fila.
 
@@ -368,16 +341,37 @@ async def _upsert_licitaciones(
         .all()
     )
 
-    # Calcula semáforo y enriquece cada entry
+    # Calcula semáforo (lógica completa CPV ↔ ROLECE) y enriquece cada entry.
+    fallbacks_durada = 0
+    obras_evaluadas = 0
+    distribucion: dict[str, int] = {}
     for entry in entries:
-        semaforo, razon = _calcular_semaforo(
-            entry.get("tipo_contrato"),
-            entry.get("importe_licitacion"),
-            max_solvencia,
+        lic_input = LicitacionInput(
+            tipo_contrato=entry.get("tipo_contrato"),
+            importe=entry.get("importe_licitacion"),
+            cpv_codes=entry.get("cpv_codes") or [],
+            durada_text=(entry.get("raw_data") or {}).get("durada_contracte"),
         )
-        entry["semaforo"] = semaforo
-        entry["semaforo_razon"] = razon
+        ev = evaluar_semaforo(lic_input, solvencia)
+        entry["semaforo"] = ev.semaforo
+        entry["semaforo_razon"] = ev.razon
         entry["ingestado_at"] = now
+        distribucion[ev.semaforo] = distribucion.get(ev.semaforo, 0) + 1
+        if lic_input.tipo_contrato in ("obras", "concesion_obras"):
+            obras_evaluadas += 1
+            if ev.fallback_durada:
+                fallbacks_durada += 1
+
+    if obras_evaluadas:
+        pct = 100 * fallbacks_durada / obras_evaluadas
+        logger.info(
+            "Semáforo obras: distribución=%s · fallback duración 1y aplicado en "
+            "%d/%d obras (%.1f%%)",
+            {k: distribucion.get(k, 0) for k in ("verde", "amarillo", "rojo", "gris")},
+            fallbacks_durada,
+            obras_evaluadas,
+            pct,
+        )
 
     # Upsert bulk por batches
     BATCH = 500

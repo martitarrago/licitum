@@ -135,4 +135,8 @@ export const licitacionesApi = {
   triggerIngesta(): Promise<IngestaTriggerResponse> {
     return apiFetch("/api/v1/licitaciones/ingestar", { method: "POST" });
   },
+
+  triggerRecalcularSemaforo(): Promise<IngestaTriggerResponse> {
+    return apiFetch("/api/v1/licitaciones/recalcular-semaforo", { method: "POST" });
+  },
 };

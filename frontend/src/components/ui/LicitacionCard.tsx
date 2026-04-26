@@ -17,6 +17,9 @@ interface LicitacionCardProps {
   fechaLimite: Date;
   semaforo: Semaforo;
   cpvs: string[];
+  /** Razón explicativa generada por el evaluator de solvencia. Se muestra
+   *  como tooltip nativo del badge y como texto pequeño bajo el badge. */
+  razon?: string | null;
 }
 
 interface SemaforoStyle {
@@ -86,6 +89,7 @@ export function LicitacionCard({
   fechaLimite,
   semaforo,
   cpvs,
+  razon,
 }: LicitacionCardProps) {
   const estilo = semaforoStyles[semaforo];
   const StatusIcon = estilo.Icon;
@@ -109,8 +113,8 @@ export function LicitacionCard({
       />
 
       <div className="flex flex-1 flex-col gap-4 p-5">
-        {/* Badge de semáforo — cue secundario con etiqueta */}
-        <div>
+        {/* Badge de semáforo + razón */}
+        <div className="space-y-1.5">
           <div
             className={`
               inline-flex items-center gap-1.5
@@ -120,6 +124,7 @@ export function LicitacionCard({
               ${estilo.badge}
             `}
             role="status"
+            title={razon ?? undefined}
           >
             <StatusIcon
               className={`h-3.5 w-3.5 ${estilo.iconColor}`}
@@ -127,6 +132,14 @@ export function LicitacionCard({
             />
             {estilo.label}
           </div>
+          {razon && (
+            <p
+              className="line-clamp-2 text-[11px] leading-snug text-muted-foreground"
+              title={razon}
+            >
+              {razon}
+            </p>
+          )}
         </div>
 
         {/* Título + organismo */}

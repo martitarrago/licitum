@@ -193,3 +193,21 @@ async def trigger_ingesta() -> IngestaTriggerResponse:
         task_id=task.id,
         message="Tarea de ingestión lanzada. Puede tardar 1-2 minutos.",
     )
+
+
+@router.post("/recalcular-semaforo", response_model=IngestaTriggerResponse)
+async def trigger_recalcular_semaforo() -> IngestaTriggerResponse:
+    """Lanza la tarea de recálculo del semáforo de todas las licitaciones.
+
+    Útil tras cambios en M3 (nuevos certificados validados, nuevas
+    clasificaciones ROLECE) para reflejarlos en el Radar sin esperar a la
+    próxima ingesta. Idempotente: solo escribe filas donde el resultado
+    cambia respecto al actual.
+    """
+    from workers.recalcular_semaforos import recalcular_todas
+
+    task = recalcular_todas.delay()
+    return IngestaTriggerResponse(
+        task_id=task.id,
+        message="Recálculo de semáforos lanzado. Suele tardar pocos segundos.",
+    )
