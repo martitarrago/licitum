@@ -37,20 +37,21 @@ const config: Config = {
           900: "#18181B",
           950: "#09090B",
         },
-        // Acento — ámbar (#F59E0B), 5 tonos
-          accent: {
-            50:  "#FFFBEB",
-            100: "#FEF3C7",
-            500: "#F59E0B",
-            700: "#B45309",
-            900: "#78350F",
-            DEFAULT: "#F59E0B",
-          },
+        // Acento — naranja del logo Licitum (#E85820), 5 tonos
+        accent: {
+          50:  "#FEF1E9",
+          100: "#FDDDC8",
+          500: "#E85820",
+          700: "#B43E0F",
+          900: "#5E2007",
+          DEFAULT: "#E85820",
+        },
 
-        // Semáforo de solvencia — colores fijos de producto
-        success: "#16A34A",
-        warning: "#EA580C",
-        danger:  "#DC2626",
+        // Semáforo de solvencia — tonos apagados (variante "Opción 2")
+        // que reducen saturación para no gritar en los badges.
+        success: "#65A375",
+        warning: "#D4A23E",
+        danger:  "#C45A5A",
 
         // Tokens semánticos (resuelven vía CSS vars, cambian en dark mode)
         surface: {

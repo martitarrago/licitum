@@ -11,7 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
-from app.schemas.licitacion import IngestaTriggerResponse, LicitacionListResponse, LicitacionRead
+from app.schemas.licitacion import (
+    IngestaTriggerResponse,
+    LicitacionDetail,
+    LicitacionListResponse,
+    LicitacionRead,
+)
 
 router = APIRouter()
 
@@ -176,17 +181,17 @@ async def list_licitaciones(
     )
 
 
-@router.get("/{expediente:path}", response_model=LicitacionRead)
+@router.get("/{expediente:path}", response_model=LicitacionDetail)
 async def get_licitacion(
     expediente: str,
     db: AsyncSession = Depends(get_db),
-) -> LicitacionRead:
+) -> LicitacionDetail:
     row = (
         await db.execute(select(Licitacion).where(Licitacion.expediente == expediente))
     ).scalar_one_or_none()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Licitación '{expediente}' no encontrada")
-    return LicitacionRead.model_validate(row)
+    return LicitacionDetail.model_validate(row)
 
 
 @router.post("/ingestar", response_model=IngestaTriggerResponse)

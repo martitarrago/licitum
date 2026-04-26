@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -31,6 +31,16 @@ class LicitacionRead(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class LicitacionDetail(LicitacionRead):
+    """Vista de detalle: añade campos que no se incluyen en la lista por
+    coste/tamaño (raw_data completo del registro fuente, importe con IVA,
+    organismo_id DIR3)."""
+
+    organismo_id: str | None
+    importe_presupuesto_base: Decimal | None
+    raw_data: dict[str, Any]
 
 
 class LicitacionListResponse(BaseModel):

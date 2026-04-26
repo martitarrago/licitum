@@ -64,6 +64,25 @@ export interface LicitacionRead {
   created_at: string;
 }
 
+export interface LicitacionDetail extends LicitacionRead {
+  organismo_id: string | null;
+  importe_presupuesto_base: string | null;
+  raw_data: {
+    fuente?: string;
+    tipus_contracte_cat?: string | null;
+    nom_ambit?: string | null;
+    nom_departament_ens?: string | null;
+    lloc_execucio?: string | null;
+    codi_nuts?: string | null;
+    durada_contracte?: string | null;
+    tipus_tramitacio?: string | null;
+    valor_estimat_contracte?: string | null;
+    numero_lot?: string | null;
+    descripcio_lot?: string | null;
+    [k: string]: unknown;
+  };
+}
+
 export interface LicitacionListResponse {
   items: LicitacionRead[];
   total: number;
@@ -131,6 +150,10 @@ export const licitacionesApi = {
   list(params: ListLicitacionesParams = {}): Promise<LicitacionListResponse> {
     const qs = buildQS(params);
     return apiFetch(`/api/v1/licitaciones${qs ? `?${qs}` : ""}`);
+  },
+
+  get(expediente: string): Promise<LicitacionDetail> {
+    return apiFetch(`/api/v1/licitaciones/${encodeURIComponent(expediente)}`);
   },
 
   triggerIngesta(): Promise<IngestaTriggerResponse> {

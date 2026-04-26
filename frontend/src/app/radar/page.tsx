@@ -1,9 +1,11 @@
 "use client";
 
-import { Suspense, useCallback } from "react";
+import { Suspense, useCallback, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   ExternalLink,
+  HelpCircle,
   Loader2,
   RefreshCcw,
   RotateCw,
@@ -80,6 +82,7 @@ export default function RadarPage() {
 function RadarPageContent() {
   const filtersState = useRadarFilters();
   const { filters, patchFilters, clearFilters, activeCount } = filtersState;
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["licitaciones", filters],
@@ -134,20 +137,33 @@ function RadarPageContent() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Radar IA</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-semibold text-foreground">
+              Radar de licitaciones
+            </h1>
+            <button
+              onClick={() => setInfoOpen((v) => !v)}
+              aria-expanded={infoOpen}
+              aria-label="Cómo funciona esta página"
+              title="Cómo funciona esta página"
+              className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <HelpCircle className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Licitaciones de Cataluña filtradas por semáforo de solvencia
+            Licitaciones de obras públicas en Cataluña, filtradas según tu solvencia
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => recalcular.mutate()}
             disabled={recalcular.isPending}
-            title="Recalcula el semáforo de todas las licitaciones tras cambios en certificados o clasificaciones"
+            title="Vuelve a calcular qué licitaciones puedes ganar tras subir certificados o clasificaciones nuevas"
             className="
               inline-flex items-center gap-2 rounded-lg
               bg-muted px-3 py-2 text-sm font-medium text-foreground
@@ -178,10 +194,67 @@ function RadarPageContent() {
             ) : (
               <RefreshCcw className="h-4 w-4" aria-hidden="true" />
             )}
-            Actualizar feed
+            Actualizar lista
           </button>
         </div>
       </div>
+
+      {/* Panel explicativo — solo cuando el usuario pulsa ? */}
+      {infoOpen && (
+        <div className="mb-6 space-y-4 rounded-xl bg-surface-raised px-5 py-5 text-sm ring-1 ring-border">
+          <div>
+            <p className="mb-2 text-xs font-semibold text-foreground">
+              Qué ves en esta pantalla
+            </p>
+            <p className="text-muted-foreground">
+              Cada tarjeta es una licitación de obra pública abierta en Cataluña. La
+              lista se actualiza automáticamente cada mañana a las 7:00; si quieres
+              forzarla en cualquier momento, pulsa{" "}
+              <span className="font-medium text-foreground">«Actualizar lista»</span>.
+            </p>
+          </div>
+          <div className="border-t border-border pt-4">
+            <p className="mb-2 text-xs font-semibold text-foreground">
+              Qué significa el color del semáforo
+            </p>
+            <ul className="space-y-1.5 text-muted-foreground">
+              <li>
+                <span className="font-medium text-success">Verde</span> — tu empresa
+                cumple con la clasificación o solvencia que la obra exige. Puedes
+                presentarte sin problema.
+              </li>
+              <li>
+                <span className="font-medium text-warning">Amarillo</span> — tienes
+                la clasificación correcta pero la categoría se queda corta para el
+                importe de esta obra.
+              </li>
+              <li>
+                <span className="font-medium text-danger">Rojo</span> — la obra
+                exige un grupo (edificación, viales, eléctricas…) que tu empresa no
+                tiene acreditado.
+              </li>
+            </ul>
+            <p className="mt-2 text-muted-foreground">
+              El cálculo cruza la información del{" "}
+              <span className="font-medium text-foreground">Radar</span> (CPV e importe
+              de la obra) con tus datos del módulo{" "}
+              <span className="font-medium text-foreground">Solvencia</span>
+              (clasificaciones ROLECE y certificados de obra).
+            </p>
+          </div>
+          <div className="border-t border-border pt-4">
+            <p className="mb-2 text-xs font-semibold text-foreground">
+              Cómo afinar la búsqueda
+            </p>
+            <p className="text-muted-foreground">
+              Los filtros de la barra superior funcionan combinados: provincia, tipo
+              de organismo, importe, plazo y código CPV. Si tienes obras certificadas
+              con un ayuntamiento concreto, sus licitaciones suben arriba con la
+              etiqueta <span className="font-medium text-foreground">«Has trabajado antes con este organismo»</span>.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Banners de acciones */}
       {ingesta.isSuccess && (
@@ -248,8 +321,8 @@ function RadarPageContent() {
 
       {/* Estados */}
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
             <CardSkeleton key={i} />
           ))}
         </div>
@@ -278,32 +351,40 @@ function RadarPageContent() {
         <EmptyState hasFilters={activeCount > 0} onClear={clearFilters} />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {licitaciones.map((l) => {
               const p = parseLicitacion(l);
               return (
-                <div key={l.id} className="relative">
-                  <LicitacionCard
-                    titulo={p.titulo}
-                    organismo={p.organismo}
-                    importe={p.importe}
-                    fechaLimite={p.fechaLimite}
-                    semaforo={p.semaforo}
-                    cpvs={p.cpvs}
-                    razon={p.razon}
-                    afinidad={p.afinidad}
-                  />
+                <div key={l.id} className="group/card relative">
+                  <Link
+                    href={`/radar/${encodeURIComponent(l.expediente)}`}
+                    className="block rounded-xl outline-none transition-all
+                      focus-visible:ring-2 focus-visible:ring-foreground/30
+                      group-hover/card:-translate-y-0.5"
+                  >
+                    <LicitacionCard
+                      titulo={p.titulo}
+                      organismo={p.organismo}
+                      importe={p.importe}
+                      fechaLimite={p.fechaLimite}
+                      semaforo={p.semaforo}
+                      cpvs={p.cpvs}
+                      razon={p.razon}
+                      afinidad={p.afinidad}
+                    />
+                  </Link>
                   {p.url && (
                     <a
                       href={p.url}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
                       className="
                         absolute right-3 top-3 z-10 rounded-md p-1.5
                         text-muted-foreground transition-colors
                         hover:bg-muted hover:text-foreground
                       "
-                      title="Ver publicación oficial"
+                      title="Ver publicación oficial en PSCP (abre en otra pestaña)"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
