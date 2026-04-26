@@ -9,24 +9,25 @@ import { MODULE_GROUPS, type Module, type SubModule } from "./modules";
 
 const RAIL_WIDTH = 64; // px — anchura del rail colapsado, reservada en el layout
 const EXPANDED_WIDTH = 256; // px — anchura cuando hovered
-const CLOSE_DELAY_MS = 150; // pequeño delay al salir para evitar parpadeo
+const CLOSE_DELAY_MS = 200; // pequeño delay al salir para evitar parpadeo
+// Curva tipo iOS — acelera muy poco al inicio y frena con gracia al final.
+// Sensación claramente más "premium" que el ease-out estándar.
+const SMOOTH_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
+const TRANSITION_MS = 320;
 
 function LogoMark({ collapsed }: { collapsed: boolean }) {
-  // Cuando el sidebar está colapsado, mostramos solo la "M" del logo
-  // (la pieza icónica de la izquierda) recortando con object-position +
-  // overflow-hidden. Evita necesitar un asset SVG separado.
+  // Dos assets distintos: `logo-icon.png` (isotipo cuadrado) cuando el
+  // sidebar está colapsado, `logo.png` (isotipo + wordmark) cuando expandido.
   if (collapsed) {
     return (
-      <div className="flex h-7 w-7 items-center justify-center overflow-hidden">
-        <Image
-          src="/logo.png"
-          alt="Licitum"
-          width={5995}
-          height={784}
-          className="h-7 w-auto max-w-none object-contain object-left"
-          priority
-        />
-      </div>
+      <Image
+        src="/logo-icon.png"
+        alt="Licitum"
+        width={512}
+        height={512}
+        className="h-7 w-7"
+        priority
+      />
     );
   }
   return (
@@ -243,11 +244,15 @@ export function Sidebar() {
       onMouseLeave={handleLeave}
     >
       <div
-        style={{ width: hovered ? EXPANDED_WIDTH : RAIL_WIDTH }}
+        style={{
+          width: hovered ? EXPANDED_WIDTH : RAIL_WIDTH,
+          transitionProperty: "width, box-shadow",
+          transitionDuration: `${TRANSITION_MS}ms`,
+          transitionTimingFunction: SMOOTH_EASING,
+        }}
         className={[
           "absolute inset-y-0 left-0 flex flex-col",
           "border-r border-border bg-surface-raised",
-          "transition-[width] duration-200 ease-out",
           // Sombra suave solo cuando flota sobre el contenido
           hovered ? "z-40 shadow-xl" : "z-10",
         ].join(" ")}
