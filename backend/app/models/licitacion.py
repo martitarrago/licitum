@@ -54,6 +54,10 @@ class Licitacion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     tipo_organismo: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
+    # Afinidad histórica calculada por `calcular_afinidad` cruzando con M3.
+    # Rango 0.00–1.00. NULL si no se ha calculado todavía.
+    score_afinidad: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), nullable=True)
+
     url_placsp: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
     # gris=sin calcular, verde=apto, amarillo=marginal, rojo=fuera de alcance

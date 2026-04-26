@@ -351,10 +351,13 @@ async def _upsert_licitaciones(
             importe=entry.get("importe_licitacion"),
             cpv_codes=entry.get("cpv_codes") or [],
             durada_text=(entry.get("raw_data") or {}).get("durada_contracte"),
+            organismo=entry.get("organismo"),
+            organismo_id=entry.get("organismo_id"),
         )
         ev = evaluar_semaforo(lic_input, solvencia)
         entry["semaforo"] = ev.semaforo
         entry["semaforo_razon"] = ev.razon
+        entry["score_afinidad"] = ev.afinidad
         entry["ingestado_at"] = now
         distribucion[ev.semaforo] = distribucion.get(ev.semaforo, 0) + 1
         if lic_input.tipo_contrato in ("obras", "concesion_obras"):
@@ -391,6 +394,7 @@ async def _upsert_licitaciones(
         "tipo_organismo",
         "semaforo",
         "semaforo_razon",
+        "score_afinidad",
         "raw_data",
         "ingestado_at",
     ]

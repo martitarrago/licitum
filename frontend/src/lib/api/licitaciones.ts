@@ -60,6 +60,7 @@ export interface LicitacionRead {
   semaforo_razon: string | null;
   provincias: Provincia[];
   tipo_organismo: TipoOrganismo | null;
+  score_afinidad: string | null;
   created_at: string;
 }
 

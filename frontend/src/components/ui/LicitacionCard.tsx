@@ -3,6 +3,7 @@ import {
   Building2,
   Calendar,
   CheckCircle2,
+  Sparkles,
   Tag,
   XCircle,
   type LucideIcon,
@@ -20,6 +21,15 @@ interface LicitacionCardProps {
   /** Razón explicativa generada por el evaluator de solvencia. Se muestra
    *  como tooltip nativo del badge y como texto pequeño bajo el badge. */
   razon?: string | null;
+  /** Afinidad histórica 0-1. >=0.7 implica match de organismo (ya has
+   *  trabajado allí); 0.3-0.7 implica match de CPV. <0.3 no se muestra. */
+  afinidad?: number | null;
+}
+
+function afinidadInfo(score: number | null | undefined): string | null {
+  if (score == null || score < 0.3) return null;
+  if (score >= 0.7) return "Has trabajado antes con este organismo";
+  return "Tipo de obra similar a tu histórico";
 }
 
 interface SemaforoStyle {
@@ -90,12 +100,14 @@ export function LicitacionCard({
   semaforo,
   cpvs,
   razon,
+  afinidad,
 }: LicitacionCardProps) {
   const estilo = semaforoStyles[semaforo];
   const StatusIcon = estilo.Icon;
   const dias = diasHasta(fechaLimite);
   const urgente = dias >= 0 && dias <= 7;
   const cerrada = dias < 0;
+  const afinidadTexto = afinidadInfo(afinidad ?? null);
 
   return (
     <article
@@ -142,7 +154,7 @@ export function LicitacionCard({
           )}
         </div>
 
-        {/* Título + organismo */}
+        {/* Título + organismo + afinidad histórica (si aplica) */}
         <div className="space-y-1.5">
           <h3 className="line-clamp-2 text-base font-semibold leading-snug text-foreground">
             {titulo}
@@ -151,6 +163,15 @@ export function LicitacionCard({
             <Building2 className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
             <span className="truncate">{organismo}</span>
           </div>
+          {afinidadTexto && (
+            <div
+              className="flex items-center gap-1.5 text-[11px] font-medium text-foreground"
+              title={`Afinidad histórica: ${afinidad?.toFixed(2)}`}
+            >
+              <Sparkles className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+              <span className="truncate">{afinidadTexto}</span>
+            </div>
+          )}
         </div>
 
         {/* Datos clave — importe + fecha */}

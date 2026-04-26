@@ -27,6 +27,7 @@ class LicitacionRead(BaseModel):
     semaforo_razon: str | None
     provincias: list[str]
     tipo_organismo: str | None
+    score_afinidad: Decimal | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -154,7 +154,13 @@ async def list_licitaciones(
             Licitacion.titulo.ilike(pattern) | Licitacion.organismo.ilike(pattern)
         )
 
-    stmt = stmt.order_by(Licitacion.fecha_publicacion.desc().nulls_last())
+    # Orden por defecto: afinidad histórica DESC primero, fecha_publicacion DESC
+    # como desempate. Cuando la empresa no tiene historial, todos los scores
+    # son 0 → el orden colapsa a la fecha (comportamiento previo).
+    stmt = stmt.order_by(
+        Licitacion.score_afinidad.desc().nulls_last(),
+        Licitacion.fecha_publicacion.desc().nulls_last(),
+    )
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total: int = (await db.execute(count_stmt)).scalar_one()

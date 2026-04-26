@@ -18,6 +18,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select, update
@@ -97,6 +98,8 @@ async def _recalcular_en_db(
             importe=r.importe_licitacion,
             cpv_codes=r.cpv_codes or [],
             durada_text=(r.raw_data or {}).get("durada_contracte"),
+            organismo=r.organismo,
+            organismo_id=r.organismo_id,
         )
         ev = evaluar_semaforo(lic, solvencia)
         distribucion[ev.semaforo] = distribucion.get(ev.semaforo, 0) + 1
@@ -106,7 +109,14 @@ async def _recalcular_en_db(
             if ev.fallback_durada:
                 fallbacks += 1
 
-        if r.semaforo == ev.semaforo and (r.semaforo_razon or "") == ev.razon:
+        # Idempotencia: trato None y 0.00 como equivalentes (registros antiguos
+        # tienen score_afinidad=NULL hasta el primer recálculo).
+        score_actual = r.score_afinidad if r.score_afinidad is not None else Decimal("0.00")
+        if (
+            r.semaforo == ev.semaforo
+            and (r.semaforo_razon or "") == ev.razon
+            and score_actual == ev.afinidad
+        ):
             sin_cambios += 1
             continue
 
@@ -115,6 +125,7 @@ async def _recalcular_en_db(
                 "id": r.id,
                 "semaforo": ev.semaforo,
                 "semaforo_razon": ev.razon,
+                "score_afinidad": ev.afinidad,
                 "ingestado_at": now,
             }
         )

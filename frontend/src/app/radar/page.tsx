@@ -36,6 +36,7 @@ function parseLicitacion(l: LicitacionRead) {
     cpvs: l.cpv_codes,
     url: l.url_placsp,
     razon: l.semaforo_razon,
+    afinidad: l.score_afinidad ? parseFloat(l.score_afinidad) : null,
   };
 }
 
@@ -290,6 +291,7 @@ function RadarPageContent() {
                     semaforo={p.semaforo}
                     cpvs={p.cpvs}
                     razon={p.razon}
+                    afinidad={p.afinidad}
                   />
                   {p.url && (
                     <a

@@ -22,7 +22,9 @@ licitaciones sin más round-trips a BD.
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
+import unicodedata
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
@@ -50,6 +52,21 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+def _normalizar_organismo(s: str | None) -> str | None:
+    """Normaliza un nombre de organismo para matching robusto.
+
+    Lowercase + sin acentos + trim + colapsa espacios múltiples. Permite que
+    "Ajuntament de Barcelona" y "ajuntament de  barcelona" matcheen igual,
+    y que la "ó" o la "à" no rompan la comparación entre M3 y M2 (los datos
+    pueden venir en castellano vs catalán).
+    """
+    if not s:
+        return None
+    nfd = unicodedata.normalize("NFD", s)
+    sin_acentos = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+    return " ".join(sin_acentos.lower().split())
+
+
 @dataclass(frozen=True)
 class SolvenciaEmpresa:
     """Estado de solvencia de una empresa, listo para evaluar N licitaciones.
@@ -64,6 +81,12 @@ class SolvenciaEmpresa:
     max_categoria_por_grupo: dict[str, int] = field(default_factory=dict)
     # grupo → max importe certificado (Decimal €), via es_valido_solvencia=true
     max_solvencia_certificada_por_grupo: dict[str, Decimal] = field(default_factory=dict)
+    # Organismos donde la empresa ya ha trabajado (vía certificados validados).
+    # `nombre_historico` viene normalizado por `_normalizar_organismo`.
+    organismos_id_historicos: set[str] = field(default_factory=set)
+    organismos_nombre_historicos: set[str] = field(default_factory=set)
+    # Prefijos CPV (4 dígitos) presentes en el histórico de obras certificadas.
+    cpv_prefijos_historicos: set[str] = field(default_factory=set)
 
     @property
     def grupos_con_clasificacion(self) -> set[str]:
@@ -77,6 +100,14 @@ class SolvenciaEmpresa:
     def vacia(self) -> bool:
         return not self.max_categoria_por_grupo and not self.max_solvencia_certificada_por_grupo
 
+    @property
+    def tiene_historial(self) -> bool:
+        return bool(
+            self.organismos_id_historicos
+            or self.organismos_nombre_historicos
+            or self.cpv_prefijos_historicos
+        )
+
 
 async def cargar_solvencia_empresa(
     db: AsyncSession,
@@ -89,6 +120,8 @@ async def cargar_solvencia_empresa(
       - Certificados:    es_valido_solvencia=True AND deleted_at IS NULL.
 
     Para cada grupo, se queda con el MEJOR valor (max categoría / max importe).
+    Además recolecta organismos + prefijos CPV de los certificados válidos para
+    el cálculo de afinidad histórica.
     """
     today = date.today()
 
@@ -113,30 +146,48 @@ async def cargar_solvencia_empresa(
         if grupo and cat_int > max_cat.get(grupo, 0):
             max_cat[grupo] = cat_int
 
-    # ── Certificados: max(importe) por grupo ────────────────────────────
+    # ── Certificados: max(importe) por grupo + historial organismo/CPV ───
     res_certs = await db.execute(
         select(
             CertificadoObra.clasificacion_grupo,
-            func.max(CertificadoObra.importe_adjudicacion),
-        )
-        .where(
+            CertificadoObra.importe_adjudicacion,
+            CertificadoObra.organismo,
+            CertificadoObra.cpv_codes,
+        ).where(
             CertificadoObra.empresa_id == empresa_id,
             CertificadoObra.es_valido_solvencia.is_(True),
             CertificadoObra.deleted_at.is_(None),
-            CertificadoObra.clasificacion_grupo.is_not(None),
-            CertificadoObra.importe_adjudicacion.is_not(None),
         )
-        .group_by(CertificadoObra.clasificacion_grupo)
     )
     max_solv: dict[str, Decimal] = {}
-    for grupo, importe in res_certs.all():
+    organismos_nombre: set[str] = set()
+    cpv_prefijos: set[str] = set()
+    for grupo, importe, organismo, cpvs in res_certs.all():
         if grupo and importe is not None:
-            max_solv[grupo] = importe
+            actual = max_solv.get(grupo)
+            if actual is None or importe > actual:
+                max_solv[grupo] = importe
+        normalizado = _normalizar_organismo(organismo)
+        if normalizado:
+            organismos_nombre.add(normalizado)
+        for cpv in cpvs or []:
+            if not cpv:
+                continue
+            for c in cpv.split("||"):
+                prefix = c.replace("-", "").strip()[:4]
+                if prefix:
+                    cpv_prefijos.add(prefix)
 
     return SolvenciaEmpresa(
         empresa_id=empresa_id,
         max_categoria_por_grupo=max_cat,
         max_solvencia_certificada_por_grupo=max_solv,
+        organismos_nombre_historicos=organismos_nombre,
+        cpv_prefijos_historicos=cpv_prefijos,
+        # `organismos_id_historicos` queda vacío por ahora: M3 todavía no
+        # captura DIR3 en certificados. Cuando M3 lo extraiga, este set se
+        # llenará y el peso del cálculo de afinidad se rebalanceará.
+        organismos_id_historicos=set(),
     )
 
 
@@ -147,12 +198,14 @@ async def cargar_solvencia_empresa(
 
 @dataclass(frozen=True)
 class LicitacionInput:
-    """Datos mínimos de una licitación para evaluar el semáforo."""
+    """Datos mínimos de una licitación para evaluar el semáforo + afinidad."""
 
     tipo_contrato: str | None
     importe: Decimal | None
     cpv_codes: list[str]
     durada_text: str | None  # raw_data->>'durada_contracte'
+    organismo: str | None = None  # nombre, usado para match histórico
+    organismo_id: str | None = None  # DIR3, usado cuando M3 lo capture
 
 
 @dataclass(frozen=True)
@@ -162,11 +215,83 @@ class EvaluacionSemaforo:
     `fallback_durada` indica que `parsear_anualidad` cayó en el fallback de
     1 año porque `durada_text` no era parseable. Se propaga al worker para
     contar la proporción y reportarla en logs.
+
+    `afinidad` (0.00–1.00) ordena las licitaciones dentro de cada nivel de
+    semáforo: cuanto mayor, más probabilidad de que la empresa "ya juegue
+    en esa liga" (mismo organismo, CPV similar al histórico).
     """
 
     semaforo: str  # "verde" | "amarillo" | "rojo" | "gris"
     razon: str
     fallback_durada: bool = False
+    afinidad: Decimal = Decimal("0.00")
+
+
+# ---------------------------------------------------------------------------
+# Afinidad histórica
+# ---------------------------------------------------------------------------
+
+# Pesos del score (suman 1.0). Si M3 capturase DIR3, se redistribuye:
+#   nombre 0.3 / DIR3 0.5 / CPV 0.2.  Mientras tanto, sin DIR3:
+#   nombre 0.7 / CPV 0.3.
+_PESO_ORGANISMO_ID = Decimal("0.5")
+_PESO_ORGANISMO_NOMBRE_SOLO = Decimal("0.7")
+_PESO_ORGANISMO_NOMBRE_CON_ID = Decimal("0.3")
+_PESO_CPV_SOLO = Decimal("0.3")
+_PESO_CPV_CON_ID = Decimal("0.2")
+
+
+def calcular_afinidad(
+    licitacion: LicitacionInput,
+    solvencia: SolvenciaEmpresa,
+) -> Decimal:
+    """Score de afinidad histórica 0.00–1.00.
+
+    - Match `organismo_id` (DIR3): peso 0.5 (cuando M3 lo capture)
+    - Match nombre normalizado: peso 0.7 si no hay DIR3 disponible, 0.3 si sí
+    - Match prefijo CPV (4 dígitos): peso 0.3 (sin DIR3) o 0.2 (con DIR3)
+
+    Si la empresa no tiene historial → 0.00.
+    El score se cuantiza a 2 decimales (Numeric(3,2) en BD).
+    """
+    if not solvencia.tiene_historial:
+        return Decimal("0.00")
+
+    tiene_dir3_data = bool(solvencia.organismos_id_historicos)
+    score = Decimal("0")
+
+    # Organismo: DIR3 toma prioridad si hay datos; si no, nombre.
+    if tiene_dir3_data and licitacion.organismo_id and (
+        licitacion.organismo_id in solvencia.organismos_id_historicos
+    ):
+        score += _PESO_ORGANISMO_ID
+    else:
+        nombre_norm = _normalizar_organismo(licitacion.organismo)
+        if nombre_norm and nombre_norm in solvencia.organismos_nombre_historicos:
+            score += (
+                _PESO_ORGANISMO_NOMBRE_CON_ID
+                if tiene_dir3_data
+                else _PESO_ORGANISMO_NOMBRE_SOLO
+            )
+
+    # CPV: prefijo de 4 dígitos en el histórico.
+    if solvencia.cpv_prefijos_historicos:
+        peso_cpv = _PESO_CPV_CON_ID if tiene_dir3_data else _PESO_CPV_SOLO
+        for cpv in licitacion.cpv_codes or []:
+            if not cpv:
+                continue
+            for c in cpv.split("||"):
+                prefix = c.replace("-", "").strip()[:4]
+                if prefix and prefix in solvencia.cpv_prefijos_historicos:
+                    score += peso_cpv
+                    break  # un solo bonus CPV, no acumular por multi-CPV
+            else:
+                continue
+            break
+
+    if score > Decimal("1"):
+        score = Decimal("1")
+    return score.quantize(Decimal("0.01"))
 
 
 def _fmt_eur(v: Decimal | None) -> str:
@@ -192,7 +317,18 @@ def evaluar_semaforo(
     licitacion: LicitacionInput,
     solvencia: SolvenciaEmpresa,
 ) -> EvaluacionSemaforo:
-    """Calcula semáforo + razón en prosa según las reglas del módulo."""
+    """Calcula semáforo + razón en prosa + score de afinidad."""
+    base = _evaluar_semaforo_core(licitacion, solvencia)
+    afinidad = calcular_afinidad(licitacion, solvencia)
+    return dataclasses.replace(base, afinidad=afinidad)
+
+
+def _evaluar_semaforo_core(
+    licitacion: LicitacionInput,
+    solvencia: SolvenciaEmpresa,
+) -> EvaluacionSemaforo:
+    """Implementación de las reglas del semáforo. La afinidad la añade
+    `evaluar_semaforo` por encima — aquí no se toca."""
     tc = licitacion.tipo_contrato
 
     # Regla 1 — solo obras.
