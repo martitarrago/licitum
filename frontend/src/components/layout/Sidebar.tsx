@@ -9,11 +9,11 @@ import { MODULE_GROUPS, type Module, type SubModule } from "./modules";
 
 const RAIL_WIDTH = 64; // px — anchura del rail colapsado, reservada en el layout
 const EXPANDED_WIDTH = 256; // px — anchura cuando hovered
-const CLOSE_DELAY_MS = 200; // pequeño delay al salir para evitar parpadeo
+const CLOSE_DELAY_MS = 280; // pequeño delay al salir para evitar parpadeo
 // Curva tipo iOS — acelera muy poco al inicio y frena con gracia al final.
 // Sensación claramente más "premium" que el ease-out estándar.
 const SMOOTH_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
-const TRANSITION_MS = 320;
+const TRANSITION_MS = 520;
 
 function LogoMark({ collapsed }: { collapsed: boolean }) {
   // Dos assets distintos: `logo-icon.png` (isotipo cuadrado) cuando el
@@ -25,7 +25,7 @@ function LogoMark({ collapsed }: { collapsed: boolean }) {
         alt="Licitum"
         width={512}
         height={512}
-        className="h-7 w-7"
+        className="h-10 w-10"
         priority
       />
     );
