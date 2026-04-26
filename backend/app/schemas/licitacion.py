@@ -25,6 +25,8 @@ class LicitacionRead(BaseModel):
     url_placsp: str | None
     semaforo: SemaforoType
     semaforo_razon: str | None
+    provincias: list[str]
+    tipo_organismo: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

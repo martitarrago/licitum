@@ -46,6 +46,14 @@ class Licitacion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     tipo_procedimiento: Mapped[str | None] = mapped_column(String(64), nullable=True)
     clasificacion_requerida: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
+    # Filtros M2 derivados (poblados por el worker desde raw_data y organismo).
+    # Mantener en sync con `_extraer_provincias` y `_extraer_tipo_organismo`
+    # del worker y con el backfill SQL de la migración 0008.
+    provincias: Mapped[list[str]] = mapped_column(
+        ARRAY(String(32)), nullable=False, default=list, server_default="{}"
+    )
+    tipo_organismo: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     url_placsp: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
     # gris=sin calcular, verde=apto, amarillo=marginal, rojo=fuera de alcance

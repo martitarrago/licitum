@@ -64,6 +64,17 @@ TIPO_CONTRATO_MAP_CAT: dict[str, str] = {
     "Concessió de serveis especials (annex IV)": "concesion_servicios_especiales",
 }
 
+# Mapeo NUTS3 (Cataluña) → provincia interna. ES51 (Cataluña entera) se
+# expande a las 4 provincias para que cualquier filtro provincial lo capture.
+# Mantener sincronizado con el backfill SQL de la migración 0008.
+NUTS_PROVINCIA_MAP: dict[str, str] = {
+    "ES511": "barcelona",
+    "ES512": "girona",
+    "ES513": "lleida",
+    "ES514": "tarragona",
+}
+PROVINCIAS_CATALUNA = ["barcelona", "girona", "lleida", "tarragona"]
+
 
 # ---------------------------------------------------------------------------
 # Celery task
@@ -174,6 +185,58 @@ def _descargar_todas_las_paginas(where_clause: str) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
+def _extraer_provincias(codi_nuts: str | None) -> list[str]:
+    """Convierte un valor de `codi_nuts` en un array ordenado de provincias.
+
+    Casos cubiertos:
+      - None / vacío → []
+      - 'ES51' (Cataluña entera) → las 4 provincias
+      - 'ES511' / 'ES512' / 'ES513' / 'ES514' → ['barcelona' | 'girona' | …]
+      - Multi separado por '||' (p.ej. 'ES511||ES513') → ['barcelona','lleida']
+      - Cualquier otro código (ES, AD, ES523…) → []
+    """
+    if not codi_nuts:
+        return []
+    if codi_nuts == "ES51":
+        return list(PROVINCIAS_CATALUNA)
+    provincias = {
+        prov
+        for code in codi_nuts.split("||")
+        if (prov := NUTS_PROVINCIA_MAP.get(code.strip())) is not None
+    }
+    return sorted(provincias)
+
+
+def _extraer_tipo_organismo(organismo: str | None) -> str | None:
+    """Clasifica el organismo en una de las 6 categorías por nombre.
+
+    Heurística por prefijo/contenido, primer match gana. Mantener idéntico
+    al CASE del backfill SQL en migración 0008.
+    """
+    if not organismo:
+        return None
+    n = organismo.strip()
+    nl = n.lower()
+    if nl.startswith("ajuntament"):
+        return "ayuntamiento"
+    if "diputació" in nl:
+        return "diputacio"
+    if "consell comarcal" in nl:
+        return "consell_comarcal"
+    if "universitat" in nl:
+        return "universidad"
+    if (
+        nl.startswith("generalitat")
+        or nl.startswith("departament")
+        or nl.startswith("servei català")
+        or nl.startswith("institut català")
+        or nl.startswith("agència catalana")
+        or nl.startswith("ics")
+    ):
+        return "generalitat"
+    return "otros"
+
+
 def _parsear_row(row: dict[str, Any]) -> dict[str, Any] | None:
     expediente = row.get("codi_expedient")
     if not expediente:
@@ -208,10 +271,13 @@ def _parsear_row(row: dict[str, Any]) -> dict[str, Any] | None:
     enllac = row.get("enllac_publicacio")
     url_publicacio = enllac.get("url") if isinstance(enllac, dict) else None
 
+    organismo_str = (organismo or "")[:512] if organismo else None
+    codi_nuts = row.get("codi_nuts")
+
     return {
         "expediente": str(expediente)[:512],
         "titulo": (titulo or "")[:2048] if titulo else None,
-        "organismo": (organismo or "")[:512] if organismo else None,
+        "organismo": organismo_str,
         "organismo_id": (organismo_id or "")[:256] if organismo_id else None,
         "importe_licitacion": importe_sin_iva,
         "importe_presupuesto_base": importe_con_iva,
@@ -221,6 +287,8 @@ def _parsear_row(row: dict[str, Any]) -> dict[str, Any] | None:
         "tipo_contrato": tipo_contrato,
         "tipo_procedimiento": procediment,
         "url_placsp": url_publicacio[:1024] if url_publicacio else None,
+        "provincias": _extraer_provincias(codi_nuts),
+        "tipo_organismo": _extraer_tipo_organismo(organismo_str),
         "raw_data": {
             "fuente": "pscp_cat",
             "tipus_contracte_cat": tipo_cat,
@@ -325,6 +393,8 @@ async def _upsert_licitaciones(
         "tipo_contrato",
         "tipo_procedimiento",
         "url_placsp",
+        "provincias",
+        "tipo_organismo",
         "semaforo",
         "semaforo_razon",
         "raw_data",

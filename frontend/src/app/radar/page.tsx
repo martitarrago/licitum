@@ -1,47 +1,24 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { Suspense, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  AlertCircle,
-  CheckCircle2,
-  Circle,
   ExternalLink,
   Loader2,
   RefreshCcw,
   Search,
   XCircle,
 } from "lucide-react";
-import { licitacionesApi, type LicitacionRead, type SemaforoType } from "@/lib/api/licitaciones";
+import {
+  licitacionesApi,
+  type LicitacionRead,
+} from "@/lib/api/licitaciones";
 import { LicitacionCard } from "@/components/ui/LicitacionCard";
+import { RadarFilterBar } from "@/components/radar/RadarFilterBar";
+import { RadarActiveChips } from "@/components/radar/RadarActiveChips";
+import { useRadarFilters } from "@/lib/hooks/useRadarFilters";
 
-// ─── Filtros de semáforo ──────────────────────────────────────────────────────
-
-type FiltroSemaforo = "todos" | SemaforoType;
-
-const FILTROS_SEMAFORO: { value: FiltroSemaforo; label: string; icon: React.ReactNode }[] = [
-  { value: "todos", label: "Todos", icon: <Circle className="h-3.5 w-3.5" /> },
-  {
-    value: "verde",
-    label: "Aptas",
-    icon: <CheckCircle2 className="h-3.5 w-3.5 text-success" />,
-  },
-  {
-    value: "amarillo",
-    label: "Marginales",
-    icon: <AlertCircle className="h-3.5 w-3.5 text-warning" />,
-  },
-  {
-    value: "rojo",
-    label: "Fuera de alcance",
-    icon: <XCircle className="h-3.5 w-3.5 text-danger" />,
-  },
-  {
-    value: "gris",
-    label: "Sin clasificar",
-    icon: <Circle className="h-3.5 w-3.5 text-muted-foreground" />,
-  },
-];
+const PAGE_SIZE = 24;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -57,66 +34,97 @@ function parseLicitacion(l: LicitacionRead) {
       | "rojo",
     cpvs: l.cpv_codes,
     url: l.url_placsp,
-    razon: l.semaforo_razon,
   };
 }
 
-// ─── Página ───────────────────────────────────────────────────────────────────
+// ─── Skeleton ────────────────────────────────────────────────────────────────
+
+function CardSkeleton() {
+  return (
+    <div className="flex overflow-hidden rounded-xl bg-surface-raised ring-1 ring-border shadow-sm">
+      <div className="w-2 flex-shrink-0 animate-pulse bg-muted" />
+      <div className="flex flex-1 flex-col gap-4 p-5">
+        <div className="h-5 w-28 animate-pulse rounded-full bg-muted" />
+        <div className="space-y-2">
+          <div className="h-4 w-4/5 animate-pulse rounded bg-muted" />
+          <div className="h-3 w-3/5 animate-pulse rounded bg-muted" />
+        </div>
+        <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
+          <div className="space-y-1.5">
+            <div className="h-2.5 w-12 animate-pulse rounded bg-muted" />
+            <div className="h-5 w-20 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="space-y-1.5">
+            <div className="h-2.5 w-16 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page (envuelve en Suspense por useSearchParams) ─────────────────────────
 
 export default function RadarPage() {
-  const [filtroSemaforo, setFiltroSemaforo] = useState<FiltroSemaforo>("todos");
-  const [busqueda, setBusqueda] = useState("");
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 24;
+  return (
+    <Suspense fallback={<div />}>
+      <RadarPageContent />
+    </Suspense>
+  );
+}
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["licitaciones", filtroSemaforo, busqueda, page],
+function RadarPageContent() {
+  const filtersState = useRadarFilters();
+  const { filters, patchFilters, clearFilters, activeCount } = filtersState;
+
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ["licitaciones", filters],
     queryFn: () =>
       licitacionesApi.list({
-        semaforo: filtroSemaforo === "todos" ? null : filtroSemaforo,
-        q: busqueda || null,
-        page,
+        semaforo: filters.semaforo === "todos" ? null : filters.semaforo,
+        provincia: filters.provincia.length > 0 ? filters.provincia : null,
+        tipo_organismo:
+          filters.tipo_organismo.length > 0 ? filters.tipo_organismo : null,
+        importe_min: filters.importe_min,
+        importe_max: filters.importe_max,
+        plazo_min_dias: filters.plazo_min_dias,
+        plazo_max_dias: filters.plazo_max_dias,
+        cpv_prefix: filters.cpv_prefix,
+        q: filters.q || null,
+        page: filters.page,
         page_size: PAGE_SIZE,
       }),
-    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+    staleTime: 60_000,
   });
 
   const ingesta = useMutation({
     mutationFn: () => licitacionesApi.triggerIngesta(),
     onSuccess: () => {
-      // El worker tarda 10-30s (descarga + upsert bulk). Reintentamos
-      // refetch varias veces para capturar cuando los datos estén escritos.
-      [3000, 8000, 15000, 30000].forEach((delay) => {
-        setTimeout(() => refetch(), delay);
-      });
+      // El worker tarda 10-30s. Reintentos escalonados para capturar la
+      // ventana en la que los datos quedan persistidos.
+      [3000, 8000, 15000, 30000].forEach((d) => setTimeout(() => refetch(), d));
     },
   });
 
-  const handleBusqueda = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setBusqueda(e.target.value);
-      setPage(1);
-    },
-    [],
+  const setPage = useCallback(
+    (p: number) => patchFilters({ page: p }),
+    [patchFilters],
   );
-
-  const handleFiltro = useCallback((v: FiltroSemaforo) => {
-    setFiltroSemaforo(v);
-    setPage(1);
-  }, []);
 
   const total = data?.total ?? 0;
   const licitaciones = data?.items ?? [];
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Radar IA</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Radar IA</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Licitaciones de Catalunya filtradas por semáforo de solvencia
+            Licitaciones de Cataluña filtradas por semáforo de solvencia
           </p>
         </div>
         <button
@@ -125,102 +133,105 @@ export default function RadarPage() {
           className="
             inline-flex items-center gap-2 rounded-lg
             bg-foreground px-4 py-2 text-sm font-medium text-surface
-            transition-opacity hover:opacity-80 disabled:opacity-50
+            transition-opacity hover:opacity-85 disabled:opacity-50
+            focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground
           "
         >
           {ingesta.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
-            <RefreshCcw className="h-4 w-4" />
+            <RefreshCcw className="h-4 w-4" aria-hidden="true" />
           )}
           Actualizar feed
         </button>
       </div>
 
+      {/* Banners de ingesta */}
       {ingesta.isSuccess && (
-        <div className="rounded-lg bg-success/10 px-4 py-2.5 text-sm text-success ring-1 ring-success/25">
+        <div className="mb-4 rounded-xl bg-success/10 px-4 py-2.5 text-sm text-success ring-1 ring-success/25">
           Ingestión lanzada — el feed se actualizará en unos minutos.
         </div>
       )}
       {ingesta.isError && (
-        <div className="rounded-lg bg-danger/10 px-4 py-2.5 text-sm text-danger ring-1 ring-danger/25">
+        <div className="mb-4 rounded-xl bg-danger/10 px-4 py-2.5 text-sm text-danger ring-1 ring-danger/25">
           Error al lanzar la ingestión. ¿Está el worker de Celery activo?
         </div>
       )}
 
-      {/* Filtros */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {/* Tabs semáforo */}
-        <div className="flex flex-wrap gap-1.5">
-          {FILTROS_SEMAFORO.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => handleFiltro(f.value)}
-              className={`
-                inline-flex items-center gap-1.5 rounded-full px-3 py-1.5
-                text-xs font-medium ring-1 ring-inset transition-colors
-                ${
-                  filtroSemaforo === f.value
-                    ? "bg-foreground text-surface ring-foreground"
-                    : "bg-transparent text-muted-foreground ring-border hover:bg-muted"
-                }
-              `}
-            >
-              {f.icon}
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Búsqueda */}
-        <div className="relative max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Buscar licitación u organismo…"
-            value={busqueda}
-            onChange={handleBusqueda}
-            className="
-              w-full rounded-lg border border-border bg-surface pl-9 pr-3 py-2
-              text-sm text-foreground placeholder:text-muted-foreground
-              focus:outline-none focus:ring-2 focus:ring-foreground/20
-            "
-          />
-        </div>
+      {/* Barra de filtros */}
+      <div className="mb-3">
+        <RadarFilterBar state={filtersState} />
       </div>
+
+      {/* Chips de filtros activos */}
+      {activeCount > 0 && (
+        <div className="mb-4">
+          <RadarActiveChips state={filtersState} />
+        </div>
+      )}
 
       {/* Contador */}
       {!isLoading && (
-        <p className="text-sm text-muted-foreground">
-          {total === 0
-            ? "No hay licitaciones"
-            : `${total.toLocaleString("es-ES")} licitación${total !== 1 ? "es" : ""}`}
+        <p className="mb-4 text-xs tabular-nums text-muted-foreground">
+          {total === 0 ? (
+            "Sin resultados"
+          ) : (
+            <>
+              <span className="font-semibold text-foreground">
+                {total.toLocaleString("es-ES")}
+              </span>{" "}
+              licitación{total !== 1 ? "es" : ""}
+              {activeCount > 0 && (
+                <>
+                  {" "}
+                  con {activeCount} filtro{activeCount !== 1 ? "s" : ""} aplicado
+                  {activeCount !== 1 ? "s" : ""}
+                </>
+              )}
+              {isFetching && (
+                <span className="ml-2 inline-flex items-center gap-1 text-muted-foreground/70">
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                  Actualizando…
+                </span>
+              )}
+            </>
+          )}
         </p>
       )}
 
-      {/* Grid */}
+      {/* Estados */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
         </div>
       ) : isError ? (
-        <div className="flex flex-col items-center gap-3 py-24 text-center">
-          <XCircle className="h-10 w-10 text-danger" />
-          <p className="text-sm text-muted-foreground">
-            Error al cargar licitaciones. Comprueba que el backend está activo.
+        <div className="flex flex-col items-center gap-3 py-20 text-center">
+          <XCircle className="h-10 w-10 text-danger" aria-hidden="true" />
+          <p className="text-sm font-semibold text-danger">
+            No se pudo cargar el feed.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Comprueba que el backend está activo.
           </p>
           <button
             onClick={() => refetch()}
-            className="text-sm font-medium underline underline-offset-2"
+            className="
+              inline-flex items-center gap-1.5 rounded-lg bg-muted px-3 py-2
+              text-sm font-medium text-foreground transition-colors
+              hover:bg-neutral-200 dark:hover:bg-neutral-800
+            "
           >
+            <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
             Reintentar
           </button>
         </div>
       ) : licitaciones.length === 0 ? (
-        <EmptyState hasFilter={filtroSemaforo !== "todos" || busqueda !== ""} />
+        <EmptyState hasFilters={activeCount > 0} onClear={clearFilters} />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {licitaciones.map((l) => {
               const p = parseLicitacion(l);
               return (
@@ -239,9 +250,9 @@ export default function RadarPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="
-                        absolute right-3 top-3 z-10
-                        rounded-md p-1.5 text-muted-foreground
-                        transition-colors hover:bg-muted hover:text-foreground
+                        absolute right-3 top-3 z-10 rounded-md p-1.5
+                        text-muted-foreground transition-colors
+                        hover:bg-muted hover:text-foreground
                       "
                       title="Ver publicación oficial"
                     >
@@ -255,23 +266,27 @@ export default function RadarPage() {
 
           {/* Paginación */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-2">
+            <div className="mt-6 flex items-center justify-center gap-2">
               <button
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-border
-                  disabled:opacity-40 hover:bg-muted transition-colors"
+                disabled={filters.page === 1}
+                onClick={() => setPage(filters.page - 1)}
+                className="
+                  rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-border
+                  transition-colors hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent
+                "
               >
                 Anterior
               </button>
-              <span className="text-sm text-muted-foreground">
-                {page} / {totalPages}
+              <span className="text-xs tabular-nums text-muted-foreground">
+                Página {filters.page} de {totalPages}
               </span>
               <button
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-border
-                  disabled:opacity-40 hover:bg-muted transition-colors"
+                disabled={filters.page >= totalPages}
+                onClick={() => setPage(filters.page + 1)}
+                className="
+                  rounded-lg px-3 py-1.5 text-sm font-medium ring-1 ring-border
+                  transition-colors hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent
+                "
               >
                 Siguiente
               </button>
@@ -279,26 +294,43 @@ export default function RadarPage() {
           )}
         </>
       )}
-    </div>
+    </main>
   );
 }
 
-function EmptyState({ hasFilter }: { hasFilter: boolean }) {
+function EmptyState({
+  hasFilters,
+  onClear,
+}: {
+  hasFilters: boolean;
+  onClear: () => void;
+}) {
   return (
-    <div className="flex flex-col items-center gap-4 py-24 text-center">
-      <div className="rounded-full bg-muted p-4">
-        <Search className="h-8 w-8 text-muted-foreground" />
+    <div className="flex flex-col items-center gap-4 py-20 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+        <Search className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
       </div>
-      <div>
-        <p className="font-medium text-foreground">
-          {hasFilter ? "Sin resultados para este filtro" : "Todavía no hay licitaciones"}
+      <div className="space-y-1">
+        <p className="text-sm font-semibold text-foreground">
+          {hasFilters ? "Sin resultados con estos filtros" : "Todavía no hay licitaciones"}
         </p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {hasFilter
-            ? "Prueba a quitar los filtros."
-            : "Pulsa «Actualizar feed» para descargar las licitaciones públicas de Catalunya."}
+        <p className="text-xs text-muted-foreground">
+          {hasFilters
+            ? "Prueba a quitar algún filtro o cambiar el rango."
+            : "Pulsa «Actualizar feed» para descargar las licitaciones públicas de Cataluña."}
         </p>
       </div>
+      {hasFilters && (
+        <button
+          onClick={onClear}
+          className="
+            rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-surface
+            transition-opacity hover:opacity-85
+          "
+        >
+          Limpiar filtros
+        </button>
+      )}
     </div>
   );
 }
