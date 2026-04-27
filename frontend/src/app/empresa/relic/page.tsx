@@ -28,14 +28,10 @@ export default function RelicPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-      <header className="mb-8">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          M2 · Empresa
-        </p>
-        <h1 className="mt-1 font-serif text-3xl font-medium tracking-tight">
-          RELIC
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+      <header className="mb-10 animate-fade-up">
+        <p className="eyebrow mb-3">Empresa · M2</p>
+        <h1 className="display-h text-4xl leading-[1] sm:text-5xl">relic</h1>
+        <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
           Sincronización con el Registre Electrònic d&apos;Empreses Licitadores
           i Classificades de Catalunya. Si tu empresa está inscrita, conéctala
           aquí: ahorra 30-60 minutos en cada Sobre A y mantiene tus

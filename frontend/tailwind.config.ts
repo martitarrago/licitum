@@ -47,16 +47,16 @@ const config: Config = {
           DEFAULT: "#E85820",
         },
 
-        // Semáforo de solvencia — tonos apagados (variante "Opción 2")
-        // que reducen saturación para no gritar en los badges.
+        // Semáforo — tonos apagados, no gritan
         success: "#65A375",
         warning: "#D4A23E",
         danger:  "#C45A5A",
 
-        // Tokens semánticos (resuelven vía CSS vars, cambian en dark mode)
+        // Tokens semánticos (vía CSS vars, cambian en dark mode)
         surface: {
           DEFAULT: "hsl(var(--surface) / <alpha-value>)",
           raised:  "hsl(var(--surface-raised) / <alpha-value>)",
+          sunken:  "hsl(var(--surface-sunken) / <alpha-value>)",
         },
         border: "hsl(var(--border) / <alpha-value>)",
         muted: {
@@ -67,11 +67,53 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "-apple-system", "sans-serif"],
+        // Display — Bricolage Grotesque, mimica el wordmark licitum
+        // (geométrica, lowercase-friendly, terminales rectos, peso confident)
+        display: ["var(--font-display)", "var(--font-inter)", "system-ui", "sans-serif"],
         serif: ["var(--font-fraunces)", "ui-serif", "Georgia", "serif"],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
       },
       borderColor: {
         DEFAULT: "hsl(var(--border) / <alpha-value>)",
+      },
+      // Sombras editoriales — dos capas (sutil + soft halo) para profundidad
+      // sin "glow" exagerado. Evitan el aspecto de juguete.
+      boxShadow: {
+        "card": "0 1px 2px 0 rgb(0 0 0 / 0.04), 0 4px 12px -2px rgb(0 0 0 / 0.05)",
+        "card-hover": "0 1px 2px 0 rgb(0 0 0 / 0.05), 0 12px 28px -4px rgb(0 0 0 / 0.10)",
+        "elev-1": "0 1px 2px 0 rgb(0 0 0 / 0.04)",
+        "elev-2": "0 1px 2px 0 rgb(0 0 0 / 0.04), 0 4px 12px -2px rgb(0 0 0 / 0.06)",
+        "elev-3": "0 4px 16px -2px rgb(0 0 0 / 0.08), 0 20px 48px -8px rgb(0 0 0 / 0.12)",
+        // Inset para cards sunken (dentro de hero, p.ej.)
+        "inset-soft": "inset 0 1px 2px 0 rgb(0 0 0 / 0.04)",
+      },
+      transitionTimingFunction: {
+        // iOS-like — acelera poco al inicio, frena con gracia
+        "out-soft": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "out-ios": "cubic-bezier(0.32, 0.72, 0, 1)",
+      },
+      keyframes: {
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        "fade-up": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "slide-in-right": {
+          from: { opacity: "0", transform: "translateX(8px)" },
+          to: { opacity: "1", transform: "translateX(0)" },
+        },
+        "shimmer": {
+          "100%": { transform: "translateX(100%)" },
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "fade-up": "fade-up 400ms cubic-bezier(0.16, 1, 0.3, 1) backwards",
+        "slide-in-right": "slide-in-right 300ms cubic-bezier(0.16, 1, 0.3, 1) backwards",
+        "shimmer": "shimmer 1.6s infinite",
       },
     },
   },

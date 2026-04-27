@@ -40,17 +40,16 @@ export default function SobreAListPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-      <header className="mb-8">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          M4 · Documentación administrativa
-        </p>
-        <h1 className="mt-1 font-serif text-3xl font-medium tracking-tight">
-          Sobres A generados
+      <header className="mb-10 animate-fade-up">
+        <p className="eyebrow mb-3">Documentación administrativa · M4</p>
+        <h1 className="display-h text-4xl leading-[1] sm:text-5xl">
+          sobres A generados
         </h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+        <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
           Histórico de declaraciones responsables y DEUC simplificados generados
-          desde Licitum. Cada generación captura un snapshot de los datos de tu
-          empresa al momento — meses después puedes consultar exactamente qué
+          desde Licitum. Cada generación captura un{" "}
+          <strong className="text-foreground">snapshot</strong> de los datos de
+          tu empresa al momento — meses después puedes consultar exactamente qué
           firmaste, aunque los datos hayan cambiado.
         </p>
       </header>

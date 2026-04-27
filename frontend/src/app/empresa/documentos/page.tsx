@@ -61,25 +61,20 @@ export default function DocumentosPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <header className="mb-10 flex flex-wrap items-end justify-between gap-4 animate-fade-up">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            M2 · Empresa
-          </p>
-          <h1 className="mt-1 font-serif text-3xl font-medium tracking-tight">
-            Documentos administrativos
+          <p className="eyebrow mb-3">Empresa · M2</p>
+          <h1 className="display-h text-4xl leading-[1] sm:text-5xl">
+            documentos administrativos
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
             Hacienda, Seguridad Social, pólizas, ISOs, REA y TC2 con sus fechas
-            de caducidad. Cuando ganes una adjudicación provisional tendrás 10
-            días hábiles para presentarlos — tenerlos al día evita perder obras
-            ya ganadas.
+            de caducidad. Cuando ganes una adjudicación provisional tendrás{" "}
+            <strong className="text-foreground">10 días hábiles</strong> para
+            presentarlos — tenerlos al día evita perder obras ya ganadas.
           </p>
         </div>
-        <button
-          onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-surface transition-colors hover:bg-foreground/90"
-        >
+        <button onClick={() => setOpen(true)} className="btn-primary">
           <Plus className="h-4 w-4" strokeWidth={2} />
           Nuevo documento
         </button>

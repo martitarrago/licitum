@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Fraunces } from "next/font/google";
+import { Bricolage_Grotesque, Fraunces, Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { Sidebar } from "@/components/layout/Sidebar";
 import "./globals.css";
@@ -8,6 +8,16 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
+});
+
+// Display font — geometric grotesque que mimica la energía del wordmark
+// "licitum": lowercase, terminales rectos, peso confident. Para hero
+// numbers, titulares grandes y eyebrows con peso.
+const bricolage = Bricolage_Grotesque({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+  weight: ["500", "600", "700", "800"],
 });
 
 const fraunces = Fraunces({
@@ -32,7 +42,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={`${inter.variable} ${fraunces.variable}`}>
+    <html
+      lang="es"
+      className={`${inter.variable} ${bricolage.variable} ${fraunces.variable}`}
+    >
       <body className="font-sans antialiased">
         <Providers>
           <div className="flex h-screen overflow-hidden bg-surface">

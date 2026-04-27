@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ArrowRight,
+  ArrowUpRight,
+  CheckCircle2,
   Clock,
-  FileSignature,
-  Info,
+  ShieldCheck,
   Sparkles,
   TrendingUp,
   type LucideIcon,
@@ -19,10 +21,17 @@ import {
   licitacionesApi,
   type LicitacionRead,
 } from "@/lib/api/licitaciones";
+import { documentosApi, type ResumenSaludDocumental } from "@/lib/api/documentos";
+import {
+  trackerApi,
+  ESTADO_LABELS,
+  type EstadoTracker,
+  type TrackerResumen,
+} from "@/lib/api/tracker";
 import { LicitacionRow } from "@/components/ui/LicitacionRow";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
-// ─── Formatters (módulo) ─────────────────────────────────────────────────────
+// ─── Formatters ─────────────────────────────────────────────────────────────
 
 const eur = new Intl.NumberFormat("es-ES", {
   style: "currency",
@@ -43,18 +52,22 @@ const fechaLargaFormatter = new Intl.DateTimeFormat("es-ES", {
   month: "long",
 });
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function saludo(date: Date): string {
   const h = date.getHours();
-  if (h < 6) return "Buenas noches";
-  if (h < 14) return "Buenos días";
-  if (h < 21) return "Buenas tardes";
-  return "Buenas noches";
+  if (h < 6) return "buenas noches";
+  if (h < 14) return "buenos días";
+  if (h < 21) return "buenas tardes";
+  return "buenas noches";
 }
 
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function diasHasta(value: string | Date | null): number | null {
+  if (!value) return null;
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (isNaN(d.getTime())) return null;
+  const ms = d.getTime() - Date.now();
+  return Math.ceil(ms / (1000 * 60 * 60 * 24));
 }
 
 function parseLicitacion(l: LicitacionRead) {
@@ -73,7 +86,7 @@ function parseLicitacion(l: LicitacionRead) {
   };
 }
 
-// ─── Página ──────────────────────────────────────────────────────────────────
+// ─── Página ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const now = new Date();
@@ -84,7 +97,18 @@ export default function DashboardPage() {
     staleTime: 60_000,
   });
 
-  // Cierran esta semana — verdes con plazo ≤14 días, ascendente
+  const tracker = useQuery({
+    queryKey: ["dashboard-tracker-resumen"],
+    queryFn: () => trackerApi.resumen(EMPRESA_DEMO_ID, 7),
+    staleTime: 60_000,
+  });
+
+  const saludDocs = useQuery({
+    queryKey: ["dashboard-salud-documental"],
+    queryFn: () => documentosApi.resumenSalud(EMPRESA_DEMO_ID),
+    staleTime: 60_000,
+  });
+
   const cierran = useQuery({
     queryKey: ["dashboard-cierran-pronto"],
     queryFn: () =>
@@ -97,7 +121,6 @@ export default function DashboardPage() {
     staleTime: 60_000,
   });
 
-  // Nuevas oportunidades — verdes ordenadas por afinidad (orden por defecto del backend)
   const nuevas = useQuery({
     queryKey: ["dashboard-nuevas"],
     queryFn: () =>
@@ -108,8 +131,6 @@ export default function DashboardPage() {
     staleTime: 60_000,
   });
 
-  // Distribución por semáforo — 3 queries baratas (page_size=1 → solo total)
-  // para alimentar la barra apilada del gráfico de oportunidades.
   const distribucion = useQuery({
     queryKey: ["dashboard-distribucion-semaforo"],
     queryFn: async () => {
@@ -124,43 +145,36 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-      {/* HERO ── saludo editorial + fecha */}
-      <header className="mb-8">
-        <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground sm:text-4xl">
+    <div className="mx-auto w-full max-w-[1400px] px-4 py-10 sm:px-8">
+      {/* HERO ── saludo en lowercase + display heavy (energía del wordmark) */}
+      <header className="mb-12 animate-fade-up">
+        <p className="eyebrow mb-3">{fechaLargaFormatter.format(now)}</p>
+        <h1 className="display-h text-5xl leading-[0.95] sm:text-7xl">
           {saludo(now)}.
         </h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Empresa Demo · {capitalize(fechaLargaFormatter.format(now))}
+        <p className="mt-4 max-w-2xl text-base text-muted-foreground">
+          Tu pipeline de licitaciones en un vistazo. Detectar, decidir,
+          presentar y seguir cada oportunidad — todo desde aquí.
         </p>
       </header>
 
-      {/* KPIs ── banda de 4 */}
+      {/* KPIs ── 4 cards con números display */}
       <section
         aria-label="Indicadores clave"
-        className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        className="stagger mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         <KpiSolvencia data={solvencia.data} loading={solvencia.isLoading} />
         <KpiOportunidades
           verde={distribucion.data?.verde ?? 0}
           loading={distribucion.isLoading}
         />
-        <KpiPendiente
-          label="Avales inmovilizados"
-          modulo="M7"
-          icon={FileSignature}
-          tooltip="Importe total de avales bancarios activos. Disponible cuando se construya el módulo de Administración."
-        />
-        <KpiPendiente
-          label="Tasa de éxito"
-          modulo="M8"
-          icon={TrendingUp}
-          tooltip="Porcentaje de licitaciones adjudicadas sobre las presentadas. Disponible cuando se construya el módulo Histórico."
-        />
+        <KpiPipeline data={tracker.data} loading={tracker.isLoading} />
+        <KpiSaludDocumental data={saludDocs.data} loading={saludDocs.isLoading} />
       </section>
 
-      {/* GRÁFICO ── distribución de semáforo (decision-tool central) */}
-      <section className="mb-6" aria-label="Distribución por semáforo">
+      {/* Plazos críticos + Distribución */}
+      <section className="mb-10 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_minmax(0,360px)]">
+        <PlazosCriticos data={tracker.data} loading={tracker.isLoading} />
         <DistribucionSemaforo
           data={distribucion.data}
           loading={distribucion.isLoading}
@@ -168,11 +182,11 @@ export default function DashboardPage() {
       </section>
 
       {/* DOS LISTAS — el detalle accionable */}
-      <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section className="mb-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ListaLicitaciones
           icon={Clock}
           titulo="Cierran esta semana"
-          subtitulo="Verdes · plazo ≤14 días"
+          subtitulo="Verdes con plazo ≤14 días"
           ctaHref="/radar?semaforo=verde&plazo_max_dias=14"
           ctaLabel="Ver todas"
           loading={cierran.isLoading}
@@ -187,7 +201,7 @@ export default function DashboardPage() {
           ctaLabel="Ir al Radar"
           loading={nuevas.isLoading}
           items={nuevas.data?.items ?? []}
-          emptyMsg="Aún no hay licitaciones compatibles. Pulsa «Actualizar lista» en el Radar."
+          emptyMsg="Aún no hay licitaciones compatibles. Pulsa «Actualizar» en el Radar."
         />
       </section>
 
@@ -199,7 +213,7 @@ export default function DashboardPage() {
   );
 }
 
-// ─── KPI: Solvencia (M3) ─────────────────────────────────────────────────────
+// ─── KPI: Solvencia ─────────────────────────────────────────────────────────
 
 function KpiSolvencia({
   data,
@@ -217,36 +231,31 @@ function KpiSolvencia({
   return (
     <KpiTile
       label="Solvencia anual"
-      tooltip="Anualidad media de obra certificada en los últimos 5 años (LCSP art. 88). Determina el tamaño máximo de licitación al que puedes optar."
+      icon={TrendingUp}
+      tooltip="Anualidad media de obra certificada (LCSP art. 88). Determina el techo de licitación al que puedes optar."
     >
       {tieneObras ? (
         <>
-          <p className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+          <p className="display-num text-[2.75rem] leading-none text-foreground">
             {eurCompact.format(anualidad)}
           </p>
-          <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
-            Pico: {eurCompact.format(pico)}
+          <p className="mt-3 text-xs tabular-nums text-muted-foreground">
+            Pico {eurCompact.format(pico)}
             {data?.anio_pico ? ` · ${data.anio_pico}` : ""}
           </p>
         </>
       ) : (
-        <>
-          <p className="text-3xl font-semibold tracking-tight text-muted-foreground/60">
-            —
-          </p>
-          <Link
-            href="/empresa/certificados"
-            className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-foreground hover:underline"
-          >
-            Subir certificados <ArrowRight className="h-3 w-3" />
-          </Link>
-        </>
+        <KpiEmpty
+          number="—"
+          ctaLabel="Subir certificados"
+          ctaHref="/empresa/certificados"
+        />
       )}
     </KpiTile>
   );
 }
 
-// ─── KPI: Oportunidades (M2) ────────────────────────────────────────────────
+// ─── KPI: Oportunidades verdes ──────────────────────────────────────────────
 
 function KpiOportunidades({
   verde,
@@ -259,22 +268,245 @@ function KpiOportunidades({
 
   return (
     <KpiTile
-      label="Oportunidades verdes"
-      tooltip="Licitaciones del Radar para las que cumples solvencia (semáforo verde) y siguen abiertas."
+      label="Oportunidades"
+      icon={Sparkles}
+      tooltip="Licitaciones del Radar para las que cumples solvencia (verde) y siguen abiertas."
     >
-      <p className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+      <p className="display-num text-[2.75rem] leading-none text-foreground">
         {verde}
       </p>
-      <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+      <p className="mt-3 text-xs tabular-nums text-muted-foreground">
         {verde === 0
-          ? "ninguna abierta ahora"
-          : `licitación${verde === 1 ? "" : "es"} abierta${verde === 1 ? "" : "s"}`}
+          ? "ninguna abierta"
+          : `verde${verde === 1 ? "" : "s"} en el Radar`}
       </p>
+      {verde > 0 && (
+        <Link
+          href="/radar?semaforo=verde"
+          className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-foreground/80 transition-colors hover:text-foreground"
+        >
+          Ver Radar <ArrowRight className="h-3 w-3" strokeWidth={2.25} />
+        </Link>
+      )}
     </KpiTile>
   );
 }
 
-// ─── Gráfico: distribución por semáforo (barra apilada) ────────────────────
+// ─── KPI: Pipeline activo (M6) ──────────────────────────────────────────────
+
+function KpiPipeline({
+  data,
+  loading,
+}: {
+  data: TrackerResumen | undefined;
+  loading: boolean;
+}) {
+  if (loading) return <KpiSkeleton />;
+  const total = data?.total_activas ?? 0;
+  const conPlazo = data?.deadlines_semana?.length ?? 0;
+
+  return (
+    <KpiTile
+      label="Pipeline activo"
+      icon={ArrowUpRight}
+      tooltip="Licitaciones que has añadido al pipeline y siguen en estado activo (no terminales)."
+    >
+      <p className="display-num text-[2.75rem] leading-none text-foreground">
+        {total}
+      </p>
+      <p className="mt-3 text-xs tabular-nums text-muted-foreground">
+        {total === 0
+          ? "ninguna en el pipeline"
+          : `licitación${total === 1 ? "" : "es"} en marcha`}
+      </p>
+      {conPlazo > 0 && (
+        <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-danger">
+          <AlertTriangle className="h-3 w-3" strokeWidth={2.5} />
+          {conPlazo} plazo{conPlazo === 1 ? "" : "s"} crítico{conPlazo === 1 ? "" : "s"}
+        </p>
+      )}
+    </KpiTile>
+  );
+}
+
+// ─── KPI: Salud documental (M2) ─────────────────────────────────────────────
+
+function KpiSaludDocumental({
+  data,
+  loading,
+}: {
+  data: ResumenSaludDocumental | undefined;
+  loading: boolean;
+}) {
+  if (loading) return <KpiSkeleton />;
+  const total = data?.total ?? 0;
+  const vigentes = data?.vigentes ?? 0;
+  const aCaducar = data?.a_caducar ?? 0;
+  const caducados = data?.caducados ?? 0;
+  const pct = total === 0 ? null : Math.round((vigentes / total) * 100);
+
+  return (
+    <KpiTile
+      label="Salud documental"
+      icon={ShieldCheck}
+      tooltip="Porcentaje de documentos administrativos al día (Hacienda, SS, pólizas, ISOs). Cuando ganas adjudicación tienes 10 días hábiles para presentarlos."
+    >
+      {total === 0 ? (
+        <KpiEmpty
+          number="—"
+          ctaLabel="Añadir documentos"
+          ctaHref="/empresa/documentos"
+        />
+      ) : (
+        <>
+          <p className="display-num text-[2.75rem] leading-none text-foreground">
+            {pct}%
+          </p>
+          <p className="mt-3 text-xs tabular-nums text-muted-foreground">
+            {vigentes} vigente{vigentes === 1 ? "" : "s"} de {total}
+          </p>
+          {(aCaducar > 0 || caducados > 0) && (
+            <div className="mt-2 flex items-center gap-3 text-xs">
+              {aCaducar > 0 && (
+                <span className="inline-flex items-center gap-1 text-warning">
+                  <Clock className="h-3 w-3" strokeWidth={2.5} />
+                  {aCaducar}
+                </span>
+              )}
+              {caducados > 0 && (
+                <span className="inline-flex items-center gap-1 text-danger">
+                  <AlertTriangle className="h-3 w-3" strokeWidth={2.5} />
+                  {caducados}
+                </span>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </KpiTile>
+  );
+}
+
+// ─── Plazos críticos (M6 cross-section) ─────────────────────────────────────
+
+function PlazosCriticos({
+  data,
+  loading,
+}: {
+  data: TrackerResumen | undefined;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="card p-6">
+        <div className="skeleton h-3 w-32 rounded" />
+        <div className="mt-5 space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="skeleton h-12 rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const items = data?.deadlines_semana ?? [];
+
+  return (
+    <div className="card p-6">
+      <header className="mb-5 flex items-baseline justify-between gap-4">
+        <div>
+          <p className="eyebrow">Plazos críticos · 7 días</p>
+          <h2 className="mt-1.5 font-display text-2xl font-bold tracking-tight">
+            {items.length === 0
+              ? "Sin plazos urgentes"
+              : `${items.length} reloj${items.length === 1 ? "" : "es"} corriendo`}
+          </h2>
+        </div>
+        <Link
+          href="/tracker"
+          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Pipeline <ArrowRight className="h-3 w-3" strokeWidth={2.25} />
+        </Link>
+      </header>
+
+      {items.length === 0 ? (
+        <div className="rounded-lg bg-success/5 px-4 py-6 ring-1 ring-success/15">
+          <p className="text-sm text-success">
+            <CheckCircle2 className="mr-1 inline h-4 w-4" strokeWidth={2.25} />
+            Estás al día. Ninguna licitación tiene reloj legal corriendo en los
+            próximos 7 días.
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {items.slice(0, 4).map((item) => {
+            const dias = diasHasta(item.deadline_actual);
+            const urgente = dias != null && dias <= 2;
+            return (
+              <li key={item.id}>
+                <Link
+                  href={`/radar/${encodeURIComponent(item.expediente)}`}
+                  className="card-interactive flex items-center justify-between gap-3 px-4 py-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-1 text-sm font-medium">
+                      {item.titulo ?? "(sin título)"}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {ESTADO_LABELS[item.estado as EstadoTracker] ?? item.estado}
+                      {item.organismo ? ` · ${item.organismo}` : ""}
+                    </p>
+                  </div>
+                  <DeadlinePill dias={dias} urgente={urgente} />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function DeadlinePill({
+  dias,
+  urgente,
+}: {
+  dias: number | null;
+  urgente: boolean;
+}) {
+  if (dias == null) {
+    return (
+      <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
+        sin plazo
+      </span>
+    );
+  }
+  const label =
+    dias < 0
+      ? `−${Math.abs(dias)} d`
+      : dias === 0
+      ? "hoy"
+      : dias === 1
+      ? "mañana"
+      : `${dias} d`;
+  return (
+    <span
+      className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold tabular-nums ring-1 ring-inset ${
+        dias < 0 || urgente
+          ? "bg-danger/10 text-danger ring-danger/20"
+          : dias <= 7
+          ? "bg-warning/10 text-warning ring-warning/20"
+          : "bg-muted text-muted-foreground ring-border"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ─── Distribución de semáforo (gráfico) ─────────────────────────────────────
 
 function DistribucionSemaforo({
   data,
@@ -285,13 +517,13 @@ function DistribucionSemaforo({
 }) {
   if (loading) {
     return (
-      <div className="rounded-2xl bg-surface-raised ring-1 ring-border px-5 py-5">
-        <div className="h-3 w-48 animate-pulse rounded bg-muted" />
-        <div className="mt-4 h-3 w-full animate-pulse rounded-full bg-muted" />
-        <div className="mt-3 grid grid-cols-3 gap-3">
-          <div className="h-10 animate-pulse rounded bg-muted" />
-          <div className="h-10 animate-pulse rounded bg-muted" />
-          <div className="h-10 animate-pulse rounded bg-muted" />
+      <div className="card p-6">
+        <div className="skeleton h-3 w-32 rounded" />
+        <div className="skeleton mt-5 h-3 w-full rounded-full" />
+        <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="skeleton h-12 rounded" />
+          <div className="skeleton h-12 rounded" />
+          <div className="skeleton h-12 rounded" />
         </div>
       </div>
     );
@@ -304,10 +536,8 @@ function DistribucionSemaforo({
 
   if (total === 0) {
     return (
-      <div className="rounded-2xl bg-surface-raised ring-1 ring-border px-5 py-5">
-        <p className="text-[11px] font-medium text-muted-foreground">
-          Reparto del Radar por semáforo
-        </p>
+      <div className="card p-6">
+        <p className="eyebrow">Reparto del Radar</p>
         <p className="mt-3 text-sm text-muted-foreground">
           Aún no hay licitaciones cargadas. Lanza una ingestión desde{" "}
           <Link
@@ -325,78 +555,67 @@ function DistribucionSemaforo({
   const pctVerde = (verde / total) * 100;
   const pctAmarillo = (amarillo / total) * 100;
   const pctRojo = (rojo / total) * 100;
-  const pctVerdeAccesible = pctVerde + pctAmarillo;
+  const accesibles = pctVerde + pctAmarillo;
 
   return (
-    <div className="rounded-2xl bg-surface-raised ring-1 ring-border px-5 py-5">
-      <header className="mb-4 flex items-baseline justify-between gap-4">
-        <div>
-          <p className="text-[11px] font-medium text-muted-foreground">
-            Reparto del Radar por semáforo
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            De{" "}
-            <span className="font-semibold tabular-nums text-foreground">
-              {total.toLocaleString("es-ES")}
-            </span>{" "}
-            licitaciones abiertas, puedes optar a{" "}
-            <span className="font-semibold tabular-nums text-foreground">
-              {(verde + amarillo).toLocaleString("es-ES")}
-            </span>{" "}
-            <span className="text-muted-foreground/70">
-              ({pctVerdeAccesible.toFixed(0)}%)
-            </span>
-            .
-          </p>
-        </div>
+    <div className="card p-6">
+      <header className="mb-5">
+        <p className="eyebrow">Reparto del Radar</p>
+        <h2 className="mt-1.5 font-display text-2xl font-bold tracking-tight">
+          {accesibles.toFixed(0)}% accesibles
+        </h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          De {total.toLocaleString("es-ES")} abiertas, puedes optar a{" "}
+          <span className="font-semibold tabular-nums text-foreground">
+            {(verde + amarillo).toLocaleString("es-ES")}
+          </span>
+        </p>
       </header>
 
-      {/* Barra apilada */}
       <div
-        className="flex h-3 w-full overflow-hidden rounded-full bg-muted"
+        className="flex h-2 w-full overflow-hidden rounded-full bg-muted shadow-inset-soft"
         role="img"
         aria-label={`Verde ${verde}, amarillo ${amarillo}, rojo ${rojo}`}
       >
         {pctVerde > 0 && (
           <div
-            className="h-full bg-success transition-all duration-500"
+            className="h-full bg-success transition-all duration-700 ease-out-soft"
             style={{ width: `${pctVerde}%` }}
             title={`Verde — ${verde}`}
           />
         )}
         {pctAmarillo > 0 && (
           <div
-            className="h-full bg-warning transition-all duration-500"
+            className="h-full bg-warning transition-all duration-700 ease-out-soft"
             style={{ width: `${pctAmarillo}%` }}
             title={`Amarillo — ${amarillo}`}
           />
         )}
         {pctRojo > 0 && (
           <div
-            className="h-full bg-danger transition-all duration-500"
+            className="h-full bg-danger transition-all duration-700 ease-out-soft"
             style={{ width: `${pctRojo}%` }}
             title={`Rojo — ${rojo}`}
           />
         )}
       </div>
 
-      {/* Leyenda con cifras y porcentaje */}
-      <div className="mt-4 grid grid-cols-3 gap-3">
-        <LeyendaSemaforo
+      <div className="mt-5 grid grid-cols-3 gap-3">
+        <Leyenda
           dotClass="bg-success"
-          label="Cumples solvencia"
+          label="Cumples"
           count={verde}
           pct={pctVerde}
           href="/radar?semaforo=verde"
         />
-        <LeyendaSemaforo
+        <Leyenda
           dotClass="bg-warning"
-          label="Solvencia ajustada"
+          label="Ajustada"
           count={amarillo}
           pct={pctAmarillo}
           href="/radar?semaforo=amarillo"
         />
-        <LeyendaSemaforo
+        <Leyenda
           dotClass="bg-danger"
           label="No cumples"
           count={rojo}
@@ -408,7 +627,7 @@ function DistribucionSemaforo({
   );
 }
 
-function LeyendaSemaforo({
+function Leyenda({
   dotClass,
   label,
   count,
@@ -424,21 +643,14 @@ function LeyendaSemaforo({
   return (
     <Link
       href={href}
-      className="
-        group flex flex-col gap-1 rounded-lg px-3 py-2
-        ring-1 ring-border bg-surface
-        transition-colors hover:ring-foreground/20
-      "
+      className="group flex flex-col gap-1 rounded-lg bg-surface px-3 py-2.5 ring-1 ring-border transition-all duration-200 ease-out-soft hover:-translate-y-px hover:shadow-elev-1 hover:ring-foreground/20"
     >
       <div className="flex items-center gap-2">
-        <span
-          aria-hidden="true"
-          className={`h-2 w-2 flex-shrink-0 rounded-full ${dotClass}`}
-        />
+        <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} aria-hidden="true" />
         <span className="text-[11px] text-muted-foreground">{label}</span>
       </div>
       <div className="flex items-baseline justify-between">
-        <span className="text-xl font-semibold tabular-nums text-foreground">
+        <span className="font-display text-xl font-bold tabular-nums">
           {count.toLocaleString("es-ES")}
         </span>
         <span className="text-[11px] tabular-nums text-muted-foreground">
@@ -449,98 +661,73 @@ function LeyendaSemaforo({
   );
 }
 
-// ─── KPI: Tile placeholder (M7, M8) ─────────────────────────────────────────
-
-function KpiPendiente({
-  label,
-  modulo,
-  icon: Icon,
-  tooltip,
-}: {
-  label: string;
-  modulo: string;
-  icon: LucideIcon;
-  tooltip: string;
-}) {
-  return (
-    <div
-      className="
-        relative flex flex-col justify-between
-        rounded-2xl bg-surface-raised ring-1 ring-border
-        px-5 py-4
-      "
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <p className="text-[11px] font-medium text-muted-foreground">
-            {label}
-          </p>
-          <span
-            title={tooltip}
-            className="cursor-help text-muted-foreground/70"
-          >
-            <Info className="h-3 w-3" />
-          </span>
-        </div>
-        <Icon
-          className="h-4 w-4 text-muted-foreground/40"
-          aria-hidden="true"
-        />
-      </div>
-      <div className="mt-2 flex items-end justify-between">
-        <p className="text-3xl font-semibold tracking-tight text-muted-foreground/30">
-          —
-        </p>
-        <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/55">
-          {modulo} · pronto
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Tile primitive ─────────────────────────────────────────────────────────
+// ─── KPI primitives ─────────────────────────────────────────────────────────
 
 function KpiTile({
   label,
+  icon: Icon,
   tooltip,
   children,
 }: {
   label: string;
+  icon?: LucideIcon;
   tooltip?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl bg-surface-raised ring-1 ring-border px-5 py-4">
-      <div className="flex items-center gap-1.5">
-        <p className="text-[11px] font-medium text-muted-foreground">
+    <div className="card p-5 transition-all duration-200 ease-out-soft hover:-translate-y-px hover:shadow-card-hover">
+      <div className="flex items-center justify-between">
+        <p className="eyebrow" title={tooltip}>
           {label}
         </p>
-        {tooltip && (
-          <span
-            title={tooltip}
-            className="cursor-help text-muted-foreground/70 hover:text-muted-foreground"
-          >
-            <Info className="h-3 w-3" />
-          </span>
+        {Icon && (
+          <Icon
+            className="h-4 w-4 text-muted-foreground/40"
+            strokeWidth={1.75}
+            aria-hidden="true"
+          />
         )}
       </div>
-      <div className="mt-2">{children}</div>
+      <div className="mt-4">{children}</div>
     </div>
+  );
+}
+
+function KpiEmpty({
+  number,
+  ctaLabel,
+  ctaHref,
+}: {
+  number: string;
+  ctaLabel: string;
+  ctaHref: string;
+}) {
+  return (
+    <>
+      <p className="display-num text-[2.75rem] leading-none text-muted-foreground/40">
+        {number}
+      </p>
+      <Link
+        href={ctaHref}
+        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-foreground transition-colors hover:underline"
+      >
+        {ctaLabel} <ArrowRight className="h-3 w-3" strokeWidth={2.25} />
+      </Link>
+    </>
   );
 }
 
 function KpiSkeleton() {
   return (
-    <div className="rounded-2xl bg-surface-raised ring-1 ring-border px-5 py-4">
-      <div className="h-3 w-24 animate-pulse rounded bg-muted" />
-      <div className="mt-3 h-8 w-28 animate-pulse rounded bg-muted" />
-      <div className="mt-2 h-2 w-20 animate-pulse rounded bg-muted" />
+    <div className="card p-5">
+      <div className="skeleton h-3 w-20 rounded" />
+      <div className="skeleton mt-5 h-10 w-32 rounded" />
+      <div className="skeleton mt-3 h-2.5 w-24 rounded" />
     </div>
   );
 }
 
-// ─── Lista de licitaciones (sección) ────────────────────────────────────────
+// ─── Lista de licitaciones ──────────────────────────────────────────────────
 
 function ListaLicitaciones({
   icon: Icon,
@@ -562,24 +749,28 @@ function ListaLicitaciones({
   emptyMsg: string;
 }) {
   return (
-    <div className="rounded-2xl bg-surface-raised ring-1 ring-border px-5 pt-4 pb-3">
-      <header className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Icon
-            className="h-4 w-4 text-muted-foreground"
-            aria-hidden="true"
-          />
+    <div className="card p-6">
+      <header className="mb-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-muted p-2">
+            <Icon
+              className="h-4 w-4 text-foreground"
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+          </div>
           <div>
-            <h2 className="text-sm font-semibold text-foreground">{titulo}</h2>
-            <p className="text-[11px] text-muted-foreground">{subtitulo}</p>
+            <h2 className="font-display text-base font-bold leading-tight tracking-tight">
+              {titulo}
+            </h2>
+            <p className="text-xs text-muted-foreground">{subtitulo}</p>
           </div>
         </div>
         <Link
           href={ctaHref}
-          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
-          {ctaLabel}
-          <ArrowRight className="h-3 w-3" />
+          {ctaLabel} <ArrowRight className="h-3 w-3" strokeWidth={2.25} />
         </Link>
       </header>
 
@@ -590,7 +781,7 @@ function ListaLicitaciones({
           ))}
         </div>
       ) : items.length === 0 ? (
-        <p className="px-1 py-6 text-center text-xs text-muted-foreground">
+        <p className="px-1 py-8 text-center text-sm text-muted-foreground">
           {emptyMsg}
         </p>
       ) : (
@@ -622,14 +813,14 @@ function ListaLicitaciones({
 
 function RowSkeleton() {
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-surface-raised ring-1 ring-border px-4 py-3">
-      <div className="h-4 w-1 animate-pulse rounded bg-muted" />
-      <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+    <div className="flex items-center gap-3 rounded-lg bg-surface-raised px-4 py-3 ring-1 ring-border">
+      <div className="skeleton h-4 w-1 rounded" />
+      <div className="skeleton h-4 w-4 rounded" />
       <div className="flex-1 space-y-1.5">
-        <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
-        <div className="h-2.5 w-1/2 animate-pulse rounded bg-muted" />
+        <div className="skeleton h-3 w-3/4 rounded" />
+        <div className="skeleton h-2.5 w-1/2 rounded" />
       </div>
-      <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+      <div className="skeleton h-4 w-16 rounded" />
     </div>
   );
 }
@@ -655,11 +846,11 @@ function DesgloseRolece({
 }) {
   if (loading) {
     return (
-      <div className="rounded-2xl bg-surface-raised ring-1 ring-border px-5 py-5">
-        <div className="h-3 w-40 animate-pulse rounded bg-muted" />
-        <div className="mt-4 space-y-2.5">
+      <div className="card p-6">
+        <div className="skeleton h-3 w-40 rounded" />
+        <div className="mt-5 space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-3 animate-pulse rounded bg-muted" />
+            <div key={i} className="skeleton h-3 rounded" />
           ))}
         </div>
       </div>
@@ -668,17 +859,15 @@ function DesgloseRolece({
 
   if (!data || data.total_obras === 0) {
     return (
-      <div className="rounded-2xl bg-surface-raised ring-1 ring-border px-5 py-5">
-        <p className="text-[11px] font-medium text-muted-foreground">
-          Solvencia por grupo ROLECE
-        </p>
+      <div className="card p-6">
+        <p className="eyebrow">Solvencia por grupo ROLECE</p>
         <p className="mt-3 text-sm text-muted-foreground">
           Aún no hay obras certificadas. Sube tus certificados desde{" "}
           <Link
             href="/empresa/certificados"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
-            Solvencia → Certificados
+            Empresa → Certificados
           </Link>{" "}
           para ver aquí el reparto por grupo.
         </p>
@@ -691,37 +880,38 @@ function DesgloseRolece({
   );
 
   return (
-    <div className="rounded-2xl bg-surface-raised ring-1 ring-border px-5 py-5">
-      <header className="mb-4 flex items-baseline justify-between">
-        <p className="text-[11px] font-medium text-muted-foreground">
-          Solvencia por grupo ROLECE
-        </p>
-        <p className="text-[11px] tabular-nums text-muted-foreground">
-          {data.total_obras} {data.total_obras === 1 ? "obra" : "obras"}
-        </p>
+    <div className="card p-6">
+      <header className="mb-5 flex items-baseline justify-between">
+        <div>
+          <p className="eyebrow">Solvencia por grupo ROLECE</p>
+          <h2 className="mt-1.5 font-display text-2xl font-bold tracking-tight">
+            {data.total_obras}{" "}
+            {data.total_obras === 1 ? "obra certificada" : "obras certificadas"}
+          </h2>
+        </div>
       </header>
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         {data.por_grupo.map((g, idx) => {
           const pct =
             maxImporte > 0 ? (Number(g.importe_total) / maxImporte) * 100 : 0;
           return (
             <div key={g.grupo} className="flex items-center gap-3">
               <span
-                className="w-28 flex-shrink-0 truncate text-xs font-medium text-foreground"
+                className="w-32 flex-shrink-0 truncate text-xs font-medium"
                 title={grupoLabel(g.grupo)}
               >
                 {grupoLabel(g.grupo)}
               </span>
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted shadow-inset-soft">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${grupoColor(idx)}`}
+                  className={`h-full rounded-full transition-all duration-700 ease-out-soft ${grupoColor(idx)}`}
                   style={{ width: `${Math.max(pct, 2)}%` }}
                 />
               </div>
-              <span className="w-24 flex-shrink-0 text-right text-xs font-semibold tabular-nums text-foreground">
+              <span className="w-28 flex-shrink-0 text-right text-sm font-semibold tabular-nums">
                 {eur.format(Number(g.importe_total))}
               </span>
-              <span className="w-14 flex-shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+              <span className="w-16 flex-shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                 {g.num_obras} {g.num_obras === 1 ? "obra" : "obras"}
               </span>
             </div>

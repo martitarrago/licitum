@@ -4,19 +4,21 @@
 
 @layer base {
   :root {
-    /* Light mode — blanco puro, grises neutros (base marca negra) */
+    /* Light mode — off-white cálido + grises zinc puros (base marca negra) */
     --surface:           0 0% 100%;     /* #FFFFFF */
-    --surface-raised:    0 0% 98%;      /* #FAFAFA */
-    --border:            0 0% 90%;      /* #E5E5E5 */
+    --surface-raised:    0 0% 99.2%;    /* #FDFDFD — un pelín por debajo del fondo */
+    --surface-sunken:    0 0% 97.5%;    /* #F8F8F8 — recess para inputs / inset */
+    --border:            0 0% 91%;      /* #E8E8E8 — sutil pero definido */
     --muted:             0 0% 96%;      /* #F5F5F5 */
     --muted-foreground:  0 0% 44%;      /* #707070 */
     --foreground:        0 0% 9%;       /* #171717 */
   }
 
   .dark {
-    /* Dark mode — negro profundo, grises puros */
+    /* Dark mode — negro profundo + grises zinc */
     --surface:           0 0% 4%;       /* #0A0A0A */
     --surface-raised:    0 0% 7%;       /* #121212 */
+    --surface-sunken:    0 0% 3%;       /* #080808 */
     --border:            0 0% 15%;      /* #262626 */
     --muted:             0 0% 10%;      /* #1A1A1A */
     --muted-foreground:  0 0% 60%;      /* #999999 */
@@ -31,22 +33,136 @@
 
   body {
     @apply bg-surface text-foreground;
-    /* Inter stylistic sets: ss01 (disambigua I/l/1), cv11 (single-story 'a') */
+    /* Inter stylistic sets: cv11 (single-story 'a'), ss01 (disambigua I/l/1) */
     font-feature-settings: "cv11", "ss01";
   }
 
-  /* Números tabulares en tablas y dashboards (crítico para alinear cifras) */
+  /* Números tabulares por defecto en cualquier elemento numérico crítico */
   table,
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
+
+  /* Headlines serif: contrast-leaning, mejor para títulos grandes */
+  h1, h2, h3 {
+    letter-spacing: -0.01em;
+  }
+
+  /* Focus ring consistente — sutil pero claro */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--foreground) / 0.3);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Scrollbars finos en webkit — el default es pesado */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 8px;
+    border: 2px solid hsl(var(--surface));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  /* Selection editorial — fondo foreground, texto surface (invertido) */
+  ::selection {
+    background: hsl(var(--foreground));
+    color: hsl(var(--surface));
+  }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(2px); }
-  to   { opacity: 1; transform: translateY(0); }
+@layer components {
+  /* Card editorial: sombra layered + ring sutil + hover lift */
+  .card {
+    @apply rounded-2xl bg-surface-raised ring-1 ring-border shadow-card;
+  }
+  .card-interactive {
+    @apply card transition-all duration-200 ease-out-soft;
+    @apply hover:shadow-card-hover hover:-translate-y-px hover:ring-foreground/15;
+  }
+
+  /* Botón primario editorial */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg;
+    @apply bg-foreground px-4 py-2 text-sm font-medium text-surface;
+    @apply transition-all duration-150 ease-out-soft;
+    @apply hover:bg-foreground/90 hover:shadow-elev-1 active:translate-y-px;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg;
+    @apply bg-surface px-4 py-2 text-sm font-medium text-muted-foreground;
+    @apply ring-1 ring-border transition-all duration-150 ease-out-soft;
+    @apply hover:text-foreground hover:ring-foreground/20;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Eyebrow — etiqueta de sección mayúsculas, type editorial */
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground;
+  }
+
+  /* Display number — KPI grande con familia display (Bricolage),
+     peso heavy + tracking tight como el wordmark licitum */
+  .display-num {
+    @apply font-display font-bold tabular-nums tracking-tight;
+    font-feature-settings: "ss01", "tnum";
+  }
+
+  /* Display heading — hero "buenos días", "tu pipeline", etc.
+     Lowercase + heavy + tracking apretado = energía del logo */
+  .display-h {
+    @apply font-display font-extrabold tracking-tight text-foreground;
+    letter-spacing: -0.025em;
+  }
 }
 
-.animate-fade-in {
-  animation: fadeIn 150ms ease-out;
+@layer utilities {
+  /* Stagger fade-up: aplicar a contenedor con > * { animation-delay } */
+  .stagger > * { animation: fade-up 400ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: 50ms; }
+  .stagger > *:nth-child(3) { animation-delay: 100ms; }
+  .stagger > *:nth-child(4) { animation-delay: 150ms; }
+  .stagger > *:nth-child(5) { animation-delay: 200ms; }
+  .stagger > *:nth-child(6) { animation-delay: 250ms; }
+  .stagger > *:nth-child(7) { animation-delay: 300ms; }
+  .stagger > *:nth-child(8) { animation-delay: 350ms; }
+
+  /* Shimmer skeleton — más sofisticado que pulse */
+  .skeleton {
+    @apply relative overflow-hidden bg-muted;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background: linear-gradient(
+      90deg,
+      transparent 0,
+      hsl(var(--surface-raised) / 0.6) 50%,
+      transparent 100%
+    );
+  }
+
+  /* Texture overlay sutil para hero sections — granito muy fino */
+  .texture-grain {
+    position: relative;
+  }
+  .texture-grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.4;
+    background-image: radial-gradient(hsl(var(--foreground) / 0.04) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
 }

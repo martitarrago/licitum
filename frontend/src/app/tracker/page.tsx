@@ -47,20 +47,17 @@ export default function TrackerPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6">
-      <header className="mb-6">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          M6 · Pipeline
-        </p>
-        <h1 className="mt-1 font-serif text-3xl font-medium tracking-tight">
-          Tracker
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+      <header className="mb-8 animate-fade-up">
+        <p className="eyebrow mb-3">Pipeline · M6</p>
+        <h1 className="display-h text-4xl leading-[1] sm:text-5xl">tracker</h1>
+        <p className="mt-3 max-w-3xl text-sm text-muted-foreground">
           Estado de cada licitación a través del ciclo público completo. Las
-          columnas marcadas con <Info className="-mb-0.5 inline h-3.5 w-3.5" strokeWidth={2} /> tienen{" "}
-          <strong>reloj legal</strong>: 3 días hábiles para subsanar el Sobre A,
-          10 días tras adjudicación provisional para presentar Hacienda + SS +
-          pólizas + garantía definitiva. Perder estos plazos significa perder
-          obras ya ganadas.
+          columnas marcadas con{" "}
+          <Info className="-mb-0.5 inline h-3.5 w-3.5" strokeWidth={2} /> tienen{" "}
+          <strong className="text-foreground">reloj legal</strong>: 3 días
+          hábiles para subsanar el Sobre A, 10 días tras adjudicación provisional
+          para presentar Hacienda + SS + pólizas + garantía definitiva. Perder
+          estos plazos significa perder obras ya ganadas.
         </p>
       </header>
 
