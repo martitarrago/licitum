@@ -794,7 +794,7 @@ function Calculadora({ d }: { d: PliegoExtracted }) {
       <div className="mt-5 border-t border-surface/10 pt-3 text-xs text-surface/60">
         {temerariaPct == null && d.baja_temeraria_extracto && (
           <p className="mb-1.5">
-            ⓘ No se pudo extraer un umbral numérico del literal del pliego — juzga manualmente con la cláusula del bloque "Criterios de valoración" arriba.
+            ⓘ No se pudo extraer un umbral numérico del literal del pliego — juzga manualmente con la cláusula del bloque &ldquo;Criterios de valoración&rdquo; arriba.
           </p>
         )}
         {!d.baja_temeraria_extracto && (

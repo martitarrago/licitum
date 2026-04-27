@@ -241,7 +241,7 @@ function Empty() {
       </h2>
       <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
         Añade licitaciones desde el Radar. Click en cualquier oportunidad →
-        botón "Añadir al pipeline".
+        botón &ldquo;Añadir al pipeline&rdquo;.
       </p>
       <Link
         href="/radar"

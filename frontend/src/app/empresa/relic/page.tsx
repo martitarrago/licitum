@@ -9,7 +9,6 @@ import {
   Loader2,
   RefreshCcw,
   ShieldCheck,
-  Trash2,
   Unplug,
 } from "lucide-react";
 import { relicApi, type EmpresaRelic } from "@/lib/api/relic";
