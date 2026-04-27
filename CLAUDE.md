@@ -13,12 +13,26 @@ AI:       Claude API claude-sonnet-4-6 — structured outputs siempre
 Deploy:   Railway (backend + worker) + Vercel (frontend)
 
 ## Design system (DECISIONES CERRADAS — no cambiar sin confirmación)
-Feeling:        Editorial y limpio   — B&N con acento naranja
+Feeling:        Editorial premium    — B&N con acento naranja, restraint icónica
 Color primario: #18181B (negro zinc — botones, mark, activos)
-Color acento:   #F59E0B (naranja — solo logo dot y franja activa sidebar, ≤1 aparición por pantalla)
+Color acento:   #E85820 (naranja del wordmark — sólo logo y franja activa sidebar, ≤1 aparición por pantalla)
 Dark mode:      sí — fondo #0A0A0A (negro profundo, grises zinc puros)
-Tipografía:     [se definirá en fase de diseño]
-Componente ref: /frontend/src/components/ui/LicitacionCard.tsx (cuando exista)
+Tipografía:
+  - Display: Bricolage Grotesque (extiende energía del wordmark — geométrica, lowercase-friendly, peso 500-800). `font-display`
+  - Body:    Inter (variable, todo el rango). `font-sans`
+  - Acento editorial: Fraunces 500/600. `font-serif` (uso secundario en blockquotes y emphasis)
+  - Mono:    ui-monospace stack para datos tabulares y códigos. `font-mono`
+Utility classes (definidas en globals.css):
+  - `.card` / `.card-interactive` — rounded-2xl + sombra layered (no ring plano)
+  - `.btn-primary` / `.btn-secondary` — estilos de botón consistentes
+  - `.eyebrow` — overline uppercase tracking 0.08em
+  - `.display-h` — hero heading lowercase + extra-bold + tracking -0.025em
+  - `.display-num` — KPIs grandes con Bricolage bold tabular
+  - `.skeleton` — shimmer loader (no pulse simple)
+  - `.stagger > *` — fade-up escalonado 50ms entre hijos
+Sombras editoriales: `shadow-card`, `shadow-card-hover`, `shadow-elev-1/2/3`, `shadow-inset-soft`
+Iconos: `lucide-react` SÓLO donde son funcionales (buttons de acción, sidebar nav, loading spinners). Iconos decorativos en KPI cards, section headers, body text → fuera. Status comunicado via color + dot pequeño + texto.
+Componente ref: `/frontend/src/components/ui/LicitacionCard.tsx`, `/frontend/src/app/dashboard/page.tsx` (showcase del sistema completo)
 
 ## Módulos (MVP — foco Catalunya)
 
