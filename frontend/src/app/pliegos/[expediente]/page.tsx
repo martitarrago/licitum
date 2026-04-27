@@ -6,18 +6,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
-  Calculator,
-  Calendar,
   CheckCircle2,
   ExternalLink,
-  FileText,
   FileUp,
-  Flag,
   Info,
   Loader2,
   RefreshCcw,
-  ShieldCheck,
-  Sparkles,
   Trash2,
   XCircle,
   type LucideIcon,
@@ -152,11 +146,10 @@ function Header({
       <h1 className="display-h mt-2 text-3xl leading-[1.05] sm:text-4xl">
         {titulo}
       </h1>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
         {organismo && <span>{organismo}</span>}
         {fechaLimite && (
-          <span className="inline-flex items-center gap-1">
-            <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>
             Límite {fmtFecha(fechaLimite)}
             {dias != null && dias >= 0 && (
               <span
@@ -415,12 +408,11 @@ function ResumenEjecutivo({
   idioma: string | undefined | null;
 }) {
   return (
-    <section className="rounded-2xl bg-surface-raised p-6 ring-1 ring-border">
-      <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+    <section className="card p-6">
+      <p className="eyebrow mb-3 flex items-center gap-2">
         Resumen ejecutivo
         {idioma && (
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase">
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
             {idioma}
           </span>
         )}
@@ -434,17 +426,14 @@ function ResumenEjecutivo({
 
 function BanderasRojas({ items }: { items: BanderaRoja[] }) {
   return (
-    <section className="rounded-2xl bg-warning/5 p-6 ring-1 ring-warning/20">
-      <p className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-warning">
-        <Flag className="h-3.5 w-3.5" aria-hidden="true" />
-        Banderas rojas detectadas
-      </p>
-      <ul className="space-y-2">
+    <section className="rounded-2xl bg-warning/5 p-6 ring-1 ring-warning/20 shadow-card">
+      <p className="eyebrow mb-3 text-warning">Banderas rojas detectadas</p>
+      <ul className="space-y-2.5">
         {items.map((b, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm">
-            <AlertTriangle
-              className="mt-0.5 h-4 w-4 shrink-0 text-warning"
-              strokeWidth={2}
+          <li key={i} className="flex items-start gap-3 text-sm">
+            <span
+              className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
+              aria-hidden="true"
             />
             <div>
               <span className="font-medium">
@@ -462,18 +451,18 @@ function BanderasRojas({ items }: { items: BanderaRoja[] }) {
 // ─── Bloques de datos ──────────────────────────────────────────────────────
 
 function Bloque({
+  eyebrow,
   titulo,
-  icon: Icon,
   children,
 }: {
+  eyebrow: string;
   titulo: string;
-  icon: LucideIcon;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl bg-surface-raised p-6 ring-1 ring-border">
-      <h2 className="mb-4 inline-flex items-center gap-2 font-serif text-lg font-medium">
-        <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
+    <section className="card p-6">
+      <p className="eyebrow mb-2">{eyebrow}</p>
+      <h2 className="mb-5 font-display text-xl font-bold tracking-tight">
         {titulo}
       </h2>
       <dl className="space-y-3">{children}</dl>
@@ -513,7 +502,7 @@ function BloqueEconomico({ d }: { d: PliegoExtracted }) {
     d.valor_estimado_contrato == null;
   if (empty) return null;
   return (
-    <Bloque titulo="Económico" icon={Info}>
+    <Bloque eyebrow="Importes" titulo="Presupuesto y valor estimado">
       <Row label="Presupuesto base (sin IVA)" value={fmtEur(d.presupuesto_base_sin_iva)} />
       <Row
         label="IVA aplicable"
@@ -532,7 +521,7 @@ function BloquePlazos({ d }: { d: PliegoExtracted }) {
     !d.fecha_visita_obra;
   if (empty) return null;
   return (
-    <Bloque titulo="Plazos y fechas clave" icon={Calendar}>
+    <Bloque eyebrow="Calendario" titulo="Plazos y fechas clave">
       <Row
         label="Plazo de ejecución"
         value={
@@ -562,7 +551,7 @@ function BloqueSolvencia({ d }: { d: PliegoExtracted }) {
     : null;
 
   return (
-    <Bloque titulo="Solvencia exigida" icon={ShieldCheck}>
+    <Bloque eyebrow="Requisitos" titulo="Solvencia exigida">
       <Row label="Clasificación" value={clasif ?? "No exige"} />
       <Row
         label="Volumen anual mínimo"
@@ -596,7 +585,7 @@ function BloqueValoracion({ d }: { d: PliegoExtracted }) {
     d.pct_criterios_objetivos == null;
   if (empty) return null;
   return (
-    <Bloque titulo="Criterios de valoración" icon={Sparkles}>
+    <Bloque eyebrow="Puntuación" titulo="Criterios y fórmulas de valoración">
       <Row
         label="Ponderación"
         value={
@@ -700,8 +689,7 @@ function Calculadora({ d }: { d: PliegoExtracted }) {
           <p className="text-xs font-medium uppercase tracking-wider text-surface/60">
             M5 · Calculadora de oferta
           </p>
-          <h2 className="mt-1 inline-flex items-center gap-2 font-serif text-xl font-medium">
-            <Calculator className="h-4 w-4" strokeWidth={1.75} />
+          <h2 className="mt-1 font-display text-xl font-bold tracking-tight">
             Tu oferta económica
           </h2>
         </div>
@@ -821,7 +809,7 @@ function BloqueGarantias({ d }: { d: PliegoExtracted }) {
     d.garantia_provisional_pct == null && d.garantia_definitiva_pct == null;
   if (empty) return null;
   return (
-    <Bloque titulo="Garantías" icon={ShieldCheck}>
+    <Bloque eyebrow="Caución" titulo="Garantías exigidas">
       <Row
         label="Provisional"
         value={
@@ -844,7 +832,7 @@ function BloqueGarantias({ d }: { d: PliegoExtracted }) {
 
 function BloqueSobreA({ items }: { items: string[] }) {
   return (
-    <Bloque titulo="Documentación adicional Sobre A" icon={FileText}>
+    <Bloque eyebrow="Sobre A" titulo="Documentación adicional">
       <ul className="space-y-1.5 text-sm">
         {items.map((doc, i) => (
           <li key={i} className="flex items-start gap-2">
