@@ -2,14 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ExternalLink,
-  FileSearch,
-  Flag,
-  Loader2,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { pliegosApi, type EstadoAnalisis, type PliegoListItem } from "@/lib/api/pliegos";
 
 export default function PliegosListPage() {
@@ -70,15 +63,18 @@ function Item({ item }: { item: PliegoListItem }) {
               )}
               {item.banderas_rojas_count != null &&
                 item.banderas_rojas_count > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-md bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning">
-                    <Flag className="h-3 w-3" strokeWidth={2.5} />
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning">
+                    <span
+                      className="h-1.5 w-1.5 rounded-full bg-warning"
+                      aria-hidden="true"
+                    />
                     {item.banderas_rojas_count} bandera
                     {item.banderas_rojas_count !== 1 ? "s" : ""} roja
                     {item.banderas_rojas_count !== 1 ? "s" : ""}
                   </span>
                 )}
             </div>
-            <h2 className="mt-2 line-clamp-2 font-serif text-lg font-medium leading-snug">
+            <h2 className="mt-3 line-clamp-2 font-display text-lg font-bold leading-snug tracking-tight">
               {item.titulo ?? "(sin título)"}
             </h2>
             {item.organismo && (
@@ -107,10 +103,12 @@ function Item({ item }: { item: PliegoListItem }) {
               )}
             </p>
           </div>
-          <ExternalLink
-            className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
-            strokeWidth={2}
-          />
+          <span
+            className="mt-1 shrink-0 self-start text-muted-foreground transition-colors group-hover:text-foreground"
+            aria-hidden="true"
+          >
+            →
+          </span>
         </div>
       </Link>
     </li>
@@ -120,23 +118,23 @@ function Item({ item }: { item: PliegoListItem }) {
 function EstadoBadge({ estado }: { estado: EstadoAnalisis }) {
   if (estado === "completado") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
-        <CheckCircle2 className="h-3 w-3" strokeWidth={2.5} />
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+        <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
         Analizado
       </span>
     );
   }
   if (estado === "procesando" || estado === "pendiente") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
         <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2.5} />
         {estado === "procesando" ? "Procesando" : "En cola"}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-danger/10 px-2 py-0.5 text-[11px] font-medium text-danger">
-      <AlertTriangle className="h-3 w-3" strokeWidth={2.5} />
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-danger/10 px-2 py-0.5 text-[11px] font-medium text-danger">
+      <span className="h-1.5 w-1.5 rounded-full bg-danger" aria-hidden="true" />
       Falló
     </span>
   );
@@ -154,23 +152,18 @@ function Skeleton() {
 
 function Empty() {
   return (
-    <div className="rounded-2xl border-2 border-dashed border-border bg-surface-raised/50 px-6 py-16 text-center">
-      <FileSearch
-        className="mx-auto h-10 w-10 text-muted-foreground"
-        strokeWidth={1.5}
-      />
-      <h3 className="mt-4 font-serif text-lg font-medium">
+    <div className="card flex flex-col items-center px-6 py-20 text-center">
+      <p className="eyebrow mb-3">Sin análisis</p>
+      <h3 className="font-display text-2xl font-bold tracking-tight">
         Aún no se ha analizado ningún pliego
       </h3>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        Desde el detalle de cualquier licitación del Radar, click en{" "}
-        &ldquo;Analizar pliego con IA&rdquo;. La extracción tarda 30-60 segundos
-        y se guarda en cache global — la próxima vez es instantánea.
+      <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
+        Desde el detalle de cualquier licitación del Radar pulsa{" "}
+        <strong className="text-foreground">Analizar pliego con IA</strong>. La
+        extracción tarda 30-60 segundos y se guarda en cache global — la
+        próxima vez es instantánea.
       </p>
-      <Link
-        href="/radar"
-        className="mt-6 inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-surface transition-colors hover:bg-foreground/90"
-      >
+      <Link href="/radar" className="btn-primary mt-6">
         Ir al Radar
       </Link>
     </div>

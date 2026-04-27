@@ -2,13 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  Calendar,
-  Clock,
-  Info,
-  type LucideIcon,
-} from "lucide-react";
+import { Info } from "lucide-react";
 import {
   ESTADO_LABELS,
   ESTADO_TONO,
@@ -183,13 +177,10 @@ function DeadlineBadge({
 }) {
   const cls =
     urgencia === "vencido" || urgencia === "rojo"
-      ? "bg-danger/10 text-danger"
+      ? "bg-danger text-surface"
       : urgencia === "amarillo"
-      ? "bg-warning/10 text-warning"
+      ? "bg-warning/15 text-warning"
       : "bg-muted text-muted-foreground";
-
-  const Icon: LucideIcon =
-    urgencia === "vencido" || urgencia === "rojo" ? AlertTriangle : Clock;
 
   const label =
     dias < 0
@@ -198,13 +189,12 @@ function DeadlineBadge({
       ? "Vence hoy"
       : dias === 1
       ? "Vence mañana"
-      : `${dias} d para vencer`;
+      : `${dias} d`;
 
   return (
     <div
-      className={`mt-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${cls}`}
+      className={`mt-2 inline-block rounded-md px-2 py-0.5 text-[11px] font-semibold tabular-nums ${cls}`}
     >
-      <Icon className="h-3 w-3" strokeWidth={2.5} />
       {label}
     </div>
   );
@@ -228,22 +218,17 @@ function Skeleton() {
 
 function Empty() {
   return (
-    <div className="rounded-2xl border-2 border-dashed border-border bg-surface-raised/50 px-6 py-16 text-center">
-      <Calendar
-        className="mx-auto h-10 w-10 text-muted-foreground"
-        strokeWidth={1.5}
-      />
-      <h2 className="mt-4 font-serif text-lg font-medium">
-        Tu pipeline está vacío
+    <div className="card flex flex-col items-center px-6 py-20 text-center">
+      <p className="eyebrow mb-3">Pipeline vacío</p>
+      <h2 className="font-display text-2xl font-bold tracking-tight">
+        Aún no has añadido ninguna licitación
       </h2>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        Añade licitaciones desde el Radar. Click en cualquier oportunidad →
-        botón &ldquo;Añadir al pipeline&rdquo;.
+      <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
+        Desde el Radar, abre cualquier oportunidad y pulsa{" "}
+        <strong className="text-foreground">Añadir al pipeline</strong>. Aparecerá
+        aquí con su estado y los relojes legales que aplican.
       </p>
-      <Link
-        href="/radar"
-        className="mt-6 inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-surface transition-colors hover:bg-foreground/90"
-      >
+      <Link href="/radar" className="btn-primary mt-6">
         Ir al Radar
       </Link>
     </div>
