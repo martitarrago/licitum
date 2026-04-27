@@ -70,50 +70,41 @@ export function LicitacionRow({
   const afinidadAlta = (afinidad ?? 0) >= 0.7;
 
   return (
-    <article
-      className="
-        group relative flex items-stretch overflow-hidden
-        rounded-lg bg-surface-raised
-        ring-1 ring-border
-        transition-all hover:ring-foreground/20
-      "
-    >
+    <article className="group/row relative flex items-stretch overflow-hidden rounded-lg bg-surface-raised ring-1 ring-border transition-all duration-200 ease-out-soft hover:-translate-y-px hover:shadow-elev-1 hover:ring-foreground/15">
       <div className={`w-1 flex-shrink-0 ${estilo.stripe}`} aria-hidden="true" />
 
       <div className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3">
         <StatusIcon
           className={`h-4 w-4 flex-shrink-0 ${estilo.iconColor}`}
+          strokeWidth={2.25}
           aria-hidden="true"
         />
 
-        {/* Título + organismo (cuerpo flexible) */}
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold text-foreground">
+          <h3 className="truncate font-display text-sm font-semibold tracking-tight text-foreground">
             {titulo}
           </h3>
           <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Building2 className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+            <Building2 className="h-3 w-3 flex-shrink-0" strokeWidth={1.75} aria-hidden="true" />
             <span className="truncate">{organismo}</span>
             {afinidadAlta && (
               <span
                 className="ml-1 inline-flex items-center gap-1 text-[11px] font-medium text-foreground"
                 title={`Afinidad histórica: ${afinidad?.toFixed(2)}`}
               >
-                <Sparkles className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                <Sparkles className="h-3 w-3 flex-shrink-0" strokeWidth={2.25} aria-hidden="true" />
                 <span className="hidden sm:inline">Cliente conocido</span>
               </span>
             )}
           </div>
         </div>
 
-        {/* Importe (anchura fija para alinear) */}
         <div className="hidden flex-shrink-0 text-right sm:block">
-          <div className="text-sm font-semibold tabular-nums text-foreground">
+          <div className="display-num text-sm text-foreground">
             {importeFormatter.format(importe)}
           </div>
         </div>
 
-        {/* Fecha + días (anchura fija) */}
         <div className="w-20 flex-shrink-0 text-right">
           <div className="text-xs tabular-nums text-muted-foreground">
             {fechaCortaFormatter.format(fechaLimite)}

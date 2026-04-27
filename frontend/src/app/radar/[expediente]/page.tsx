@@ -252,7 +252,7 @@ function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
           )}
 
           {/* Título */}
-          <h1 className="text-xl font-semibold leading-snug text-foreground sm:text-2xl">
+          <h1 className="font-display text-2xl font-bold leading-snug tracking-tight text-foreground sm:text-3xl">
             {l.titulo ?? "Sin título"}
           </h1>
 

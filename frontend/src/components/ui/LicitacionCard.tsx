@@ -110,36 +110,21 @@ export function LicitacionCard({
   const afinidadTexto = afinidadInfo(afinidad ?? null);
 
   return (
-    <article
-      className="
-        group relative flex overflow-hidden
-        rounded-xl bg-surface-raised
-        ring-1 ring-border
-        shadow-sm transition-shadow hover:shadow-md
-      "
-    >
-      {/* Franja de semáforo — cue visual principal, siempre visible */}
-      <div
-        className={`w-2 flex-shrink-0 ${estilo.stripe}`}
-        aria-hidden="true"
-      />
+    <article className="card-interactive group relative flex overflow-hidden">
+      {/* Franja de semáforo — cue visual principal */}
+      <div className={`w-1.5 flex-shrink-0 ${estilo.stripe}`} aria-hidden="true" />
 
       <div className="flex flex-1 flex-col gap-4 p-5">
         {/* Badge de semáforo + razón */}
         <div className="space-y-1.5">
           <div
-            className={`
-              inline-flex items-center gap-1.5
-              rounded-full px-3 py-1
-              text-xs font-semibold text-muted-foreground
-              ring-1 ring-inset
-              ${estilo.badge}
-            `}
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground ring-1 ring-inset ${estilo.badge}`}
             role="status"
             title={razon ?? undefined}
           >
             <StatusIcon
-              className={`h-3.5 w-3.5 ${estilo.iconColor}`}
+              className={`h-3 w-3 ${estilo.iconColor}`}
+              strokeWidth={2.25}
               aria-hidden="true"
             />
             {estilo.label}
@@ -154,13 +139,13 @@ export function LicitacionCard({
           )}
         </div>
 
-        {/* Título + organismo + afinidad histórica (si aplica) */}
+        {/* Título + organismo + afinidad histórica */}
         <div className="space-y-1.5">
-          <h3 className="line-clamp-2 text-base font-semibold leading-snug text-foreground">
+          <h3 className="line-clamp-2 font-display text-[17px] font-semibold leading-snug tracking-tight text-foreground">
             {titulo}
           </h3>
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Building2 className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+            <Building2 className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={1.75} aria-hidden="true" />
             <span className="truncate">{organismo}</span>
           </div>
           {afinidadTexto && (
@@ -168,7 +153,7 @@ export function LicitacionCard({
               className="flex items-center gap-1.5 text-[11px] font-medium text-foreground"
               title={`Afinidad histórica: ${afinidad?.toFixed(2)}`}
             >
-              <Sparkles className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+              <Sparkles className="h-3 w-3 flex-shrink-0" strokeWidth={2.25} aria-hidden="true" />
               <span className="truncate">{afinidadTexto}</span>
             </div>
           )}
@@ -177,17 +162,15 @@ export function LicitacionCard({
         {/* Datos clave — importe + fecha */}
         <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
           <div>
-            <div className="mb-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Importe
-            </div>
-            <div className="text-lg font-semibold tabular-nums text-foreground">
+            <div className="eyebrow mb-1">Importe</div>
+            <div className="display-num text-xl text-foreground">
               {importeFormatter.format(importe)}
             </div>
           </div>
           <div>
-            <div className="mb-0.5 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              <Calendar className="h-3 w-3" aria-hidden="true" />
-              Fecha límite
+            <div className="eyebrow mb-1 flex items-center gap-1">
+              <Calendar className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
+              Cierra
             </div>
             <div className="text-sm font-medium tabular-nums text-foreground">
               {fechaFormatter.format(fechaLimite)}
@@ -212,13 +195,9 @@ export function LicitacionCard({
             {cpvs.map((cpv) => (
               <span
                 key={cpv}
-                className="
-                  inline-flex items-center gap-1
-                  rounded-md bg-muted px-2 py-0.5
-                  font-mono text-xs text-muted-foreground
-                "
+                className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 font-mono text-[10.5px] tracking-tight text-muted-foreground"
               >
-                <Tag className="h-3 w-3" aria-hidden="true" />
+                <Tag className="h-2.5 w-2.5" aria-hidden="true" strokeWidth={2} />
                 {cpv}
               </span>
             ))}

@@ -149,7 +149,7 @@ function Header({
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
         M3 · Análisis de pliego
       </p>
-      <h1 className="mt-1 font-serif text-3xl font-medium leading-tight tracking-tight">
+      <h1 className="display-h mt-2 text-3xl leading-[1.05] sm:text-4xl">
         {titulo}
       </h1>
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
@@ -747,7 +747,7 @@ function Calculadora({ d }: { d: PliegoExtracted }) {
           <p className="text-xs font-medium uppercase tracking-wider text-surface/60">
             Importe oferta (sin IVA)
           </p>
-          <p className="mt-1 font-serif text-3xl font-medium tabular-nums">
+          <p className="display-num mt-1 text-3xl text-surface">
             {fmtEur(importe)}
           </p>
           <p className="mt-0.5 text-xs text-surface/60">

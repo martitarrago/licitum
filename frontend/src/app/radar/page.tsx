@@ -137,27 +137,29 @@ function RadarPageContent() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <main className="mx-auto w-full max-w-[1400px] px-4 py-10 sm:px-8">
       {/* Header */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+      <header className="mb-8 flex flex-wrap items-end justify-between gap-4 animate-fade-up">
         <div>
-          <div className="flex items-center gap-1.5">
-            <h1 className="text-2xl font-semibold text-foreground">
-              Radar de licitaciones
+          <p className="eyebrow mb-3">Radar · M1</p>
+          <div className="flex items-center gap-2">
+            <h1 className="display-h text-4xl leading-[1] sm:text-5xl">
+              radar de licitaciones
             </h1>
             <button
               onClick={() => setInfoOpen((v) => !v)}
               aria-expanded={infoOpen}
               aria-label="Cómo funciona esta página"
               title="Cómo funciona esta página"
-              className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="mb-1 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <HelpCircle className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Licitaciones de obras públicas en Catalunya, filtradas según tus
-            preferencias y tu compatibilidad
+          <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
+            Licitaciones de obras públicas en Catalunya filtradas según tu
+            solvencia. Cruzamos CPV, ROLECE, RELIC y tu histórico para
+            destacar lo que <strong className="text-foreground">sí puedes ganar</strong>.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -165,40 +167,29 @@ function RadarPageContent() {
             onClick={() => recalcular.mutate()}
             disabled={recalcular.isPending}
             title="Vuelve a calcular qué licitaciones puedes ganar tras subir certificados o clasificaciones nuevas"
-            className="
-              inline-flex items-center gap-2 rounded-lg
-              bg-muted px-3 py-2 text-sm font-medium text-foreground
-              ring-1 ring-border transition-colors
-              hover:bg-neutral-200 dark:hover:bg-neutral-800
-              disabled:opacity-50
-            "
+            className="btn-secondary"
           >
             {recalcular.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
-              <RotateCw className="h-4 w-4" aria-hidden="true" />
+              <RotateCw className="h-4 w-4" aria-hidden="true" strokeWidth={2} />
             )}
             Recalcular semáforos
           </button>
           <button
             onClick={() => ingesta.mutate()}
             disabled={ingesta.isPending}
-            className="
-              inline-flex items-center gap-2 rounded-lg
-              bg-foreground px-4 py-2 text-sm font-medium text-surface
-              transition-opacity hover:opacity-85 disabled:opacity-50
-              focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground
-            "
+            className="btn-primary"
           >
             {ingesta.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
-              <RefreshCcw className="h-4 w-4" aria-hidden="true" />
+              <RefreshCcw className="h-4 w-4" aria-hidden="true" strokeWidth={2} />
             )}
             Actualizar lista
           </button>
         </div>
-      </div>
+      </header>
 
       {/* Panel explicativo — solo cuando el usuario pulsa ? */}
       {infoOpen && (
