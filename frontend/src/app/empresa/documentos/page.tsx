@@ -2,17 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  ExternalLink,
-  FileText,
-  Plus,
-  Trash2,
-  XCircle,
-  type LucideIcon,
-} from "lucide-react";
+import { ExternalLink, Plus, Trash2 } from "lucide-react";
 import {
   documentosApi,
   TIPO_DOCUMENTO_LABELS,
@@ -106,51 +96,53 @@ function SaludDocumental({ data }: { data: ResumenSaludDocumental }) {
     pct >= 80 ? "text-success" : pct >= 50 ? "text-warning" : "text-danger";
 
   return (
-    <section className="rounded-2xl bg-surface-raised p-6 ring-1 ring-border">
-      <div className="flex flex-wrap items-baseline justify-between gap-4">
+    <section className="card p-6">
+      <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Salud documental
-          </p>
-          <p className={`mt-1 font-serif text-4xl font-medium tracking-tight ${color}`}>
+          <p className="eyebrow">Salud documental</p>
+          <p className={`display-num mt-2 text-5xl leading-none ${color}`}>
             {pct}%
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             documentos al día — {data.vigentes} de {data.total}
           </p>
         </div>
-        <div className="grid grid-cols-3 gap-6 text-sm">
-          <Stat label="Vigentes" value={data.vigentes} icon={CheckCircle2} tone="success" />
-          <Stat label="A caducar" value={data.a_caducar} icon={Clock} tone="warning" />
-          <Stat label="Caducados" value={data.caducados} icon={XCircle} tone="danger" />
+        <div className="grid grid-cols-3 gap-8">
+          <Stat label="Vigentes" value={data.vigentes} dotClass="bg-success" />
+          <Stat label="A caducar" value={data.a_caducar} dotClass="bg-warning" />
+          <Stat label="Caducados" value={data.caducados} dotClass="bg-danger" />
         </div>
       </div>
 
       {data.proximos_a_caducar.length > 0 && (
         <div className="mt-6 border-t border-border pt-5">
-          <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Atención inmediata
-          </p>
+          <p className="eyebrow mb-3">Atención inmediata</p>
           <ul className="space-y-2">
-            {data.proximos_a_caducar.map((d) => (
-              <li
-                key={d.id}
-                className="flex items-center justify-between gap-4 text-sm"
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <EstadoIcon estado={d.estado} />
-                  <span className="font-medium">
-                    {TIPO_DOCUMENTO_LABELS[d.tipo]}
+            {data.proximos_a_caducar.map((d) => {
+              const dotColor = d.estado === "caducado" ? "bg-danger" : "bg-warning";
+              return (
+                <li
+                  key={d.id}
+                  className="flex items-center justify-between gap-4 text-sm"
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`}
+                      aria-hidden="true"
+                    />
+                    <span className="font-medium">
+                      {TIPO_DOCUMENTO_LABELS[d.tipo]}
+                    </span>
+                    {d.titulo && (
+                      <span className="text-muted-foreground">— {d.titulo}</span>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {fmtDeadline(d.dias_a_caducidad)}
                   </span>
-                  {d.titulo && (
-                    <span className="text-muted-foreground">— {d.titulo}</span>
-                  )}
-                </div>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {fmtDeadline(d.dias_a_caducidad)}
-                </span>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -161,29 +153,19 @@ function SaludDocumental({ data }: { data: ResumenSaludDocumental }) {
 function Stat({
   label,
   value,
-  icon: Icon,
-  tone,
+  dotClass,
 }: {
   label: string;
   value: number;
-  icon: LucideIcon;
-  tone: "success" | "warning" | "danger";
+  dotClass: string;
 }) {
-  const toneClass =
-    tone === "success"
-      ? "text-success"
-      : tone === "warning"
-      ? "text-warning"
-      : "text-danger";
   return (
     <div className="text-right">
-      <div className="flex items-center justify-end gap-1.5">
-        <Icon className={`h-4 w-4 ${toneClass}`} strokeWidth={2} />
-        <span className="text-2xl font-medium tracking-tight tabular-nums">
-          {value}
-        </span>
+      <div className="flex items-center justify-end gap-2">
+        <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} aria-hidden="true" />
+        <span className="display-num text-2xl">{value}</span>
       </div>
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">
+      <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
         {label}
       </p>
     </div>
@@ -272,53 +254,40 @@ function EstadoBadge({
 }) {
   if (estado === "vigente") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
-        <CheckCircle2 className="h-3 w-3" strokeWidth={2.5} />
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+        <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
         Vigente
       </span>
     );
   }
   if (estado === "a_caducar") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
-        <Clock className="h-3 w-3" strokeWidth={2.5} />
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
+        <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true" />
         {dias != null ? `${dias} d` : "A caducar"}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
-      <AlertTriangle className="h-3 w-3" strokeWidth={2.5} />
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
+      <span className="h-1.5 w-1.5 rounded-full bg-danger" aria-hidden="true" />
       {dias != null ? `${Math.abs(dias)} d caducado` : "Caducado"}
     </span>
   );
 }
 
-function EstadoIcon({ estado }: { estado: EstadoDocumento }) {
-  if (estado === "caducado") {
-    return <AlertTriangle className="h-4 w-4 shrink-0 text-danger" strokeWidth={2.25} />;
-  }
-  return <Clock className="h-4 w-4 shrink-0 text-warning" strokeWidth={2.25} />;
-}
-
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="rounded-2xl border-2 border-dashed border-border bg-surface-raised/50 px-6 py-16 text-center">
-      <FileText
-        className="mx-auto h-10 w-10 text-muted-foreground"
-        strokeWidth={1.5}
-      />
-      <h3 className="mt-4 font-serif text-lg font-medium">
-        Aún no hay documentos
+    <div className="card flex flex-col items-center px-6 py-20 text-center">
+      <p className="eyebrow mb-3">Sin documentos</p>
+      <h3 className="font-display text-2xl font-bold tracking-tight">
+        Aún no has subido ningún documento
       </h3>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+      <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
         Sube tu certificado de Hacienda al corriente, el de Seguridad Social y
         las pólizas. Te avisaremos antes de que caduquen.
       </p>
-      <button
-        onClick={onAdd}
-        className="mt-6 inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-surface transition-colors hover:bg-foreground/90"
-      >
+      <button onClick={onAdd} className="btn-primary mt-6">
         <Plus className="h-4 w-4" strokeWidth={2} />
         Subir el primero
       </button>

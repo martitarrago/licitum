@@ -2,13 +2,7 @@
 
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  CheckCircle2,
-  ExternalLink,
-  FileSignature,
-  ShieldCheck,
-  Trash2,
-} from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { sobreAApi, type SobreAListItem } from "@/lib/api/sobre_a";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
@@ -77,7 +71,7 @@ function Item({
   onDelete: (i: SobreAListItem) => void;
 }) {
   return (
-    <li className="rounded-2xl bg-surface-raised p-5 ring-1 ring-border">
+    <li className="card-interactive p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -85,32 +79,30 @@ function Item({
               {item.expediente}
             </p>
             {item.usa_relic ? (
-              <span className="inline-flex items-center gap-1 rounded-md bg-foreground/[0.06] px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ring-foreground/10">
-                <ShieldCheck className="h-3 w-3" strokeWidth={2.25} />
+              <span className="rounded-md bg-foreground/[0.06] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider ring-1 ring-inset ring-foreground/10">
                 RELIC
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 Declaración detallada
               </span>
             )}
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Generado el <strong className="text-foreground">{fmtFecha(item.created_at)}</strong>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Generado el{" "}
+            <strong className="text-foreground">
+              {fmtFecha(item.created_at)}
+            </strong>
             {" · "}
-            <span className="inline-flex items-center gap-1 text-success">
-              <CheckCircle2 className="h-3 w-3" strokeWidth={2.5} />
-              Snapshot persistido
-            </span>
+            <span className="text-success">Snapshot persistido</span>
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Link
             href={`/sobre-a/${item.id}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-foreground px-3.5 py-2 text-xs font-medium text-surface transition-opacity hover:opacity-85"
+            className="rounded-lg bg-foreground px-4 py-2 text-xs font-medium text-surface transition-opacity hover:opacity-85"
           >
-            <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
-            Ver
+            Ver →
           </Link>
           <button
             onClick={() => onDelete(item)}
@@ -137,23 +129,18 @@ function Skeleton() {
 
 function Empty() {
   return (
-    <div className="rounded-2xl border-2 border-dashed border-border bg-surface-raised/50 px-6 py-16 text-center">
-      <FileSignature
-        className="mx-auto h-10 w-10 text-muted-foreground"
-        strokeWidth={1.5}
-      />
-      <h3 className="mt-4 font-serif text-lg font-medium">
+    <div className="card flex flex-col items-center px-6 py-20 text-center">
+      <p className="eyebrow mb-3">Sin Sobres A</p>
+      <h3 className="font-display text-2xl font-bold tracking-tight">
         Aún no has generado ningún Sobre A
       </h3>
-      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-        Desde el detalle de cualquier licitación del Radar, click en
-        &quot;Generar Sobre A&quot;. Si tu empresa está en RELIC, la versión
-        simplificada se genera automáticamente.
+      <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
+        Desde el detalle de cualquier licitación del Radar pulsa{" "}
+        <strong className="text-foreground">Generar Sobre A</strong>. Si tu
+        empresa está en RELIC, la versión simplificada se genera
+        automáticamente.
       </p>
-      <Link
-        href="/radar"
-        className="mt-6 inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-surface transition-colors hover:bg-foreground/90"
-      >
+      <Link href="/radar" className="btn-primary mt-6">
         Ir al Radar
       </Link>
     </div>
