@@ -6,3 +6,10 @@ class EstadoCertificado(StrEnum):
     procesando = "procesando"
     validado = "validado"
     rechazado = "rechazado"
+
+
+class EstadoAnalisisPliego(StrEnum):
+    pendiente = "pendiente"
+    procesando = "procesando"
+    completado = "completado"
+    fallido = "fallido"

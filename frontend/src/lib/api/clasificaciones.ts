@@ -51,21 +51,21 @@ export const clasificacionesApi = {
     if (params?.empresa_id) qs.set("empresa_id", params.empresa_id);
     if (params?.activa !== undefined) qs.set("activa", String(params.activa));
     const query = qs.toString() ? `?${qs.toString()}` : "";
-    return apiFetch<ClasificacionRolece[]>(`/api/v1/clasificaciones${query}`);
+    return apiFetch<ClasificacionRolece[]>(`/api/v1/empresa/clasificaciones${query}`);
   },
 
   create: (data: ClasificacionCreate) =>
-    apiFetch<ClasificacionRolece>("/api/v1/clasificaciones", {
+    apiFetch<ClasificacionRolece>("/api/v1/empresa/clasificaciones", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   update: (id: string, data: ClasificacionUpdate) =>
-    apiFetch<ClasificacionRolece>(`/api/v1/clasificaciones/${id}`, {
+    apiFetch<ClasificacionRolece>(`/api/v1/empresa/clasificaciones/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
 
   delete: (id: string) =>
-    apiFetch<void>(`/api/v1/clasificaciones/${id}`, { method: "DELETE" }),
+    apiFetch<void>(`/api/v1/empresa/clasificaciones/${id}`, { method: "DELETE" }),
 };

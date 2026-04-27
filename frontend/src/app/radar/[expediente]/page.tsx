@@ -25,6 +25,8 @@ import {
   type SemaforoType,
   type TipoOrganismo,
 } from "@/lib/api/licitaciones";
+import { EstadoSelector } from "@/components/tracker/EstadoSelector";
+import { GenerarSobreABoton } from "@/components/sobre-a/GenerarSobreABoton";
 
 const TIPO_CONTRATO_LABEL: Record<string, string> = {
   obras: "Obras",
@@ -275,27 +277,37 @@ function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
             )}
           </div>
 
-          {/* CTA principal: ver pliego oficial */}
-          {l.url_placsp && (
-            <div className="flex flex-wrap gap-3 border-t border-border pt-5">
+          {/* Acciones */}
+          <div className="flex flex-wrap items-center gap-3 border-t border-border pt-5">
+            <Link
+              href={`/pliegos/${encodeURIComponent(l.expediente)}`}
+              className="
+                inline-flex items-center gap-2 rounded-lg
+                bg-foreground px-5 py-2.5 text-sm font-medium text-surface
+                transition-opacity hover:opacity-85
+              "
+            >
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              Analizar pliego con IA
+            </Link>
+            <GenerarSobreABoton expediente={l.expediente} />
+            <EstadoSelector expediente={l.expediente} />
+            {l.url_placsp && (
               <a
                 href={l.url_placsp}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="
                   inline-flex items-center gap-2 rounded-lg
-                  bg-foreground px-5 py-2.5 text-sm font-medium text-surface
-                  transition-opacity hover:opacity-85
+                  bg-surface px-5 py-2.5 text-sm font-medium text-muted-foreground
+                  ring-1 ring-border transition-colors hover:text-foreground
                 "
               >
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
                 Ver pliego oficial en PSCP
               </a>
-              <p className="self-center text-xs text-muted-foreground">
-                Se abre en otra pestaña, en la web pública de la Generalitat
-              </p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

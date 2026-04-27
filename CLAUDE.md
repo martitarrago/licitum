@@ -20,18 +20,25 @@ Dark mode:      sí — fondo #0A0A0A (negro profundo, grises zinc puros)
 Tipografía:     [se definirá en fase de diseño]
 Componente ref: /frontend/src/components/ui/LicitacionCard.tsx (cuando exista)
 
-## Módulos
-Orden de construcción: **M3 Solvencia** → M2 Radar IA → M7 Admin → M1 Dashboard → M4 BC3 → M5 Memorias → M6 Competencia → M8 Histórico
+## Módulos (MVP — foco Catalunya)
+
+El MVP de Licitum cubre el ciclo completo de una licitación pública de obra para PYMES catalanas: detectar → decidir → presentar Sobre A + Sobre C → seguir hasta formalización. Diferenciador estratégico: catalán nativo + RELIC integrado + procedimientos catalanes específicos. Sobre B (memoria técnica), BC3, competencia, avales e histórico se quedan fuera del MVP — ver `docs/modules/v2/`.
 
 Documentación por módulo en `docs/modules/`:
-- [M1 Dashboard](docs/modules/M1-dashboard.md) — pantalla "buenos días" con resumen empresa
-- [M2 Radar IA](docs/modules/M2-radar-ia.md) — feed PLACSP filtrado por semáforo
-- [M3 Solvencia](docs/modules/M3-solvencia.md) ✅ — certificados de obra + clasificaciones ROLECE
-- [M4 BC3](docs/modules/M4-bc3.md) — extracción presupuesto administrativo + análisis de costes
-- [M5 Memorias](docs/modules/M5-memorias.md) — generación de sobres A/B/C
-- [M6 Competencia](docs/modules/M6-competencia.md) — histórico de bajas + simulador
-- [M7 Admin](docs/modules/M7-admin.md) — DEUC + caja de avales
-- [M8 Histórico](docs/modules/M8-historico.md) — aprendizaje de actas de resolución
+- [M1 Radar](docs/modules/M1-radar.md) ✅ base — feed PSCP Catalunya con semáforo y afinidad. Pendiente: 4º eje del semáforo + importación PSCP one-click + acciones guardar/analizar/descartar
+- [M2 Empresa](docs/modules/M2-empresa.md) 🟡 — caja fuerte de documentos vivos: certificados ✅ + ROLECE ✅ + RELIC + Hacienda/SS + pólizas, con caducidad y semáforo de salud documental
+- [M3 Pliegos](docs/modules/M3-pliegos.md) 🔲 — analizador IA de PCAP+PPT con recomendación ir/no ir + soporte catalán nativo
+- [M4 Sobre A](docs/modules/M4-sobre-a.md) 🔲 — generación DEUC + declaración responsable, con DEUC ultra-simplificado para empresas en RELIC
+- [M5 Calculadora](docs/modules/M5-calculadora.md) 🔲 — oferta económica con baja temeraria y puntuación en tiempo real (cierra Sobre C)
+- [M6 Tracker](docs/modules/M6-tracker.md) 🔲 — pipeline kanban con todos los estados del ciclo + relojes legales (subsanación 3d, documentación previa 10d). Es el home del producto.
+
+Orden de construcción propuesto:
+1. **Validación pre-código** (1-2 semanas): 3-5 pilotos catalanes + 5-10 PCAPs reales + acceso programático RELIC
+2. **Cimientos** (2-3 semanas): auth real (sustituir `EMPRESA_DEMO_ID`), M2 ampliado (RELIC + datos básicos + caducidades), M1 refinado (4º eje + acciones)
+3. **Decisión** (3-4 semanas): M3 completo (extracción + recomendación + UI dashboard), importación PSCP one-click, soporte IA catalán
+4. **Generación** (2-3 semanas): M4 Sobre A (DEUC + decl. responsable) + M5 Calculadora
+5. **Cierre del ciclo** (2 semanas): M6 Tracker con relojes legales + agente de avisos diario
+6. **Pulido** (1-2 semanas): UI editorial coherente + onboarding M2 + catalán completo en UI
 
 ## Reglas de código
 - Async/await en todos los endpoints FastAPI

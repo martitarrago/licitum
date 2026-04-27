@@ -235,7 +235,7 @@ function KpiSolvencia({
             —
           </p>
           <Link
-            href="/solvencia/certificados"
+            href="/empresa/certificados"
             className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-foreground hover:underline"
           >
             Subir certificados <ArrowRight className="h-3 w-3" />
@@ -675,7 +675,7 @@ function DesgloseRolece({
         <p className="mt-3 text-sm text-muted-foreground">
           Aún no hay obras certificadas. Sube tus certificados desde{" "}
           <Link
-            href="/solvencia/certificados"
+            href="/empresa/certificados"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
             Solvencia → Certificados

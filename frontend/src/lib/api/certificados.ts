@@ -106,7 +106,7 @@ function uploadXhr(
 ): Promise<CertificadoObraRead> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${API_BASE}/api/v1/solvencia/certificados`);
+    xhr.open("POST", `${API_BASE}/api/v1/empresa/certificados`);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
@@ -131,35 +131,35 @@ export const certificadosApi = {
     if (params?.limit != null) qs.set("limit", String(params.limit));
     if (params?.offset != null) qs.set("offset", String(params.offset));
     const query = qs.toString() ? `?${qs.toString()}` : "";
-    return apiFetch<CertificadoObraListItem[]>(`/api/v1/solvencia/certificados${query}`);
+    return apiFetch<CertificadoObraListItem[]>(`/api/v1/empresa/certificados${query}`);
   },
 
   get: (id: string) =>
-    apiFetch<CertificadoObraRead>(`/api/v1/solvencia/certificados/${id}`),
+    apiFetch<CertificadoObraRead>(`/api/v1/empresa/certificados/${id}`),
 
   upload: (formData: FormData, onProgress: (pct: number) => void) =>
     uploadXhr(formData, onProgress),
 
   patch: (id: string, data: PatchCertificadoPayload) =>
-    apiFetch<CertificadoObraRead>(`/api/v1/solvencia/certificados/${id}`, {
+    apiFetch<CertificadoObraRead>(`/api/v1/empresa/certificados/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
 
   validar: (id: string) =>
     apiFetch<CertificadoObraRead>(
-      `/api/v1/solvencia/certificados/${id}/validar`,
+      `/api/v1/empresa/certificados/${id}/validar`,
       { method: "POST" }
     ),
 
   rechazar: (id: string) =>
     apiFetch<CertificadoObraRead>(
-      `/api/v1/solvencia/certificados/${id}/rechazar`,
+      `/api/v1/empresa/certificados/${id}/rechazar`,
       { method: "POST" }
     ),
 
   reextraer: (id: string, forzar = false) =>
-    fetch(`${API_BASE}/api/v1/solvencia/certificados/${id}/reextraer`, {
+    fetch(`${API_BASE}/api/v1/empresa/certificados/${id}/reextraer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ forzar }),
@@ -169,17 +169,17 @@ export const certificadosApi = {
 
   revertir: (id: string) =>
     apiFetch<CertificadoObraRead>(
-      `/api/v1/solvencia/certificados/${id}/revertir`,
+      `/api/v1/empresa/certificados/${id}/revertir`,
       { method: "POST" }
     ),
 
   eliminar: (id: string) =>
-    fetch(`${API_BASE}/api/v1/solvencia/certificados/${id}`, { method: "DELETE" }).then(
+    fetch(`${API_BASE}/api/v1/empresa/certificados/${id}`, { method: "DELETE" }).then(
       (res) => { if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`); }
     ),
 
   eliminarBatch: (ids: string[]) =>
-    fetch(`${API_BASE}/api/v1/solvencia/certificados/batch`, {
+    fetch(`${API_BASE}/api/v1/empresa/certificados/batch`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids }),
@@ -187,7 +187,7 @@ export const certificadosApi = {
 
   resumenSolvencia: (empresa_id: string) =>
     apiFetch<ResumenSolvencia>(
-      `/api/v1/solvencia/certificados/resumen-solvencia?empresa_id=${empresa_id}`
+      `/api/v1/empresa/certificados/resumen-solvencia?empresa_id=${empresa_id}`
     ),
 
   createManual: (data: {
@@ -205,7 +205,7 @@ export const certificadosApi = {
     porcentaje_ute?: number;
     contratista_principal?: boolean;
   }) =>
-    apiFetch<CertificadoObraRead>("/api/v1/solvencia/certificados/manual", {
+    apiFetch<CertificadoObraRead>("/api/v1/empresa/certificados/manual", {
       method: "POST",
       body: JSON.stringify(data),
     }),

@@ -42,7 +42,9 @@ from app.core.cpv_rolece import (
     parsear_anualidad,
 )
 from app.models.certificado_obra import CertificadoObra
+from app.models.clasificacion_relic import ClasificacionRelic
 from app.models.clasificacion_rolece import ClasificacionRolece
+from app.models.empresa_relic import EmpresaRelic
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +127,7 @@ async def cargar_solvencia_empresa(
     """
     today = date.today()
 
-    # ── Clasificaciones agrupadas por grupo ─────────────────────────────
+    # ── Clasificaciones manuales (M2 Empresa: clasificaciones_rolece) ───
     res_clas = await db.execute(
         select(
             ClasificacionRolece.grupo,
@@ -145,6 +147,28 @@ async def cargar_solvencia_empresa(
             continue
         if grupo and cat_int > max_cat.get(grupo, 0):
             max_cat[grupo] = cat_int
+
+    # ── Clasificaciones RELIC (M2: clasificaciones_relic, sync Socrata) ──
+    # Sólo OBRES no suspendidas con categoría parseada. RELIC y manual se
+    # FUSIONAN tomando el máximo por grupo: la fuente que tenga la categoría
+    # más alta gana. RELIC suele ser más actual y completa, pero respetamos
+    # cualquier valor manual superior por si el usuario lo introdujo a mano.
+    res_relic = await db.execute(
+        select(
+            ClasificacionRelic.grupo,
+            ClasificacionRelic.categoria,
+        )
+        .join(EmpresaRelic, EmpresaRelic.id == ClasificacionRelic.empresa_relic_id)
+        .where(
+            EmpresaRelic.empresa_id == empresa_id,
+            ClasificacionRelic.tipus_cl == "OBRES",
+            ClasificacionRelic.suspensio.is_(False),
+            ClasificacionRelic.categoria.is_not(None),
+        )
+    )
+    for grupo, categoria in res_relic.all():
+        if grupo and categoria is not None and categoria > max_cat.get(grupo, 0):
+            max_cat[grupo] = categoria
 
     # ── Certificados: max(importe) por grupo + historial organismo/CPV ───
     res_certs = await db.execute(
