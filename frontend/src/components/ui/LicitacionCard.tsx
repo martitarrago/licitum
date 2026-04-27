@@ -1,14 +1,3 @@
-import {
-  AlertCircle,
-  Building2,
-  Calendar,
-  CheckCircle2,
-  Sparkles,
-  Tag,
-  XCircle,
-  type LucideIcon,
-} from "lucide-react";
-
 type Semaforo = "verde" | "amarillo" | "rojo";
 
 interface LicitacionCardProps {
@@ -18,53 +7,49 @@ interface LicitacionCardProps {
   fechaLimite: Date;
   semaforo: Semaforo;
   cpvs: string[];
-  /** Razón explicativa generada por el evaluator de solvencia. Se muestra
-   *  como tooltip nativo del badge y como texto pequeño bajo el badge. */
+  /** Razón explicativa generada por el evaluator de solvencia. */
   razon?: string | null;
-  /** Afinidad histórica 0-1. >=0.7 implica match de organismo (ya has
-   *  trabajado allí); 0.3-0.7 implica match de CPV. <0.3 no se muestra. */
+  /** Afinidad histórica 0-1. ≥0.7 implica match de organismo; 0.3-0.7 implica match de CPV. */
   afinidad?: number | null;
 }
 
 function afinidadInfo(score: number | null | undefined): string | null {
   if (score == null || score < 0.3) return null;
-  if (score >= 0.7) return "Has trabajado antes con este organismo";
-  return "Tipo de obra similar a tu histórico";
+  if (score >= 0.7) return "Cliente conocido";
+  return "Tipo de obra similar";
 }
 
 interface SemaforoStyle {
   label: string;
-  Icon: LucideIcon;
-  stripe: string;     // franja lateral — color sólido
-  badge: string;      // bg + ring del badge (sin color de texto)
-  iconColor: string;  // color del icono dentro del badge
+  stripe: string;
+  badgeBg: string;
+  badgeRing: string;
+  textColor: string;
 }
 
-// El texto del badge SIEMPRE va en text-muted-foreground.
-// Los colores del semáforo se reservan para elementos no-textuales:
-// franja lateral e icono. Así el badge respira más y se ve profesional
-// en densidad de dashboard.
+// El badge se simplifica a texto + pildora en color del semáforo (sutil),
+// sin icono. El color comunica el estado por sí solo.
 const semaforoStyles: Record<Semaforo, SemaforoStyle> = {
   verde: {
     label: "Cumple solvencia",
-    Icon: CheckCircle2,
     stripe: "bg-success",
-    badge: "bg-success/10 ring-success/25 dark:bg-success/20",
-    iconColor: "text-success",
+    badgeBg: "bg-success/10",
+    badgeRing: "ring-success/25",
+    textColor: "text-success",
   },
   amarillo: {
     label: "Solvencia ajustada",
-    Icon: AlertCircle,
     stripe: "bg-warning",
-    badge: "bg-warning/10 ring-warning/25 dark:bg-warning/20",
-    iconColor: "text-warning",
+    badgeBg: "bg-warning/10",
+    badgeRing: "ring-warning/25",
+    textColor: "text-warning",
   },
   rojo: {
     label: "No cumple solvencia",
-    Icon: XCircle,
     stripe: "bg-danger",
-    badge: "bg-danger/10 ring-danger/25 dark:bg-danger/20",
-    iconColor: "text-danger",
+    badgeBg: "bg-danger/10",
+    badgeRing: "ring-danger/25",
+    textColor: "text-danger",
   },
 };
 
@@ -103,7 +88,6 @@ export function LicitacionCard({
   afinidad,
 }: LicitacionCardProps) {
   const estilo = semaforoStyles[semaforo];
-  const StatusIcon = estilo.Icon;
   const dias = diasHasta(fechaLimite);
   const urgente = dias >= 0 && dias <= 7;
   const cerrada = dias < 0;
@@ -111,22 +95,18 @@ export function LicitacionCard({
 
   return (
     <article className="card-interactive group relative flex overflow-hidden">
-      {/* Franja de semáforo — cue visual principal */}
+      {/* Franja de semáforo — único cue visual del estado */}
       <div className={`w-1.5 flex-shrink-0 ${estilo.stripe}`} aria-hidden="true" />
 
       <div className="flex flex-1 flex-col gap-4 p-5">
         {/* Badge de semáforo + razón */}
         <div className="space-y-1.5">
           <div
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground ring-1 ring-inset ${estilo.badge}`}
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider ring-1 ring-inset ${estilo.badgeBg} ${estilo.badgeRing} ${estilo.textColor}`}
             role="status"
             title={razon ?? undefined}
           >
-            <StatusIcon
-              className={`h-3 w-3 ${estilo.iconColor}`}
-              strokeWidth={2.25}
-              aria-hidden="true"
-            />
+            <span className={`h-1.5 w-1.5 rounded-full ${estilo.stripe}`} aria-hidden="true" />
             {estilo.label}
           </div>
           {razon && (
@@ -139,23 +119,19 @@ export function LicitacionCard({
           )}
         </div>
 
-        {/* Título + organismo + afinidad histórica */}
-        <div className="space-y-1.5">
+        {/* Título + organismo */}
+        <div className="space-y-1">
           <h3 className="line-clamp-2 font-display text-[17px] font-semibold leading-snug tracking-tight text-foreground">
             {titulo}
           </h3>
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Building2 className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={1.75} aria-hidden="true" />
-            <span className="truncate">{organismo}</span>
-          </div>
+          <p className="truncate text-sm text-muted-foreground">{organismo}</p>
           {afinidadTexto && (
-            <div
-              className="flex items-center gap-1.5 text-[11px] font-medium text-foreground"
+            <p
+              className="text-[11px] font-medium uppercase tracking-wider text-foreground"
               title={`Afinidad histórica: ${afinidad?.toFixed(2)}`}
             >
-              <Sparkles className="h-3 w-3 flex-shrink-0" strokeWidth={2.25} aria-hidden="true" />
-              <span className="truncate">{afinidadTexto}</span>
-            </div>
+              · {afinidadTexto}
+            </p>
           )}
         </div>
 
@@ -168,10 +144,7 @@ export function LicitacionCard({
             </div>
           </div>
           <div>
-            <div className="eyebrow mb-1 flex items-center gap-1">
-              <Calendar className="h-3 w-3" aria-hidden="true" strokeWidth={2} />
-              Cierra
-            </div>
+            <div className="eyebrow mb-1">Cierra</div>
             <div className="text-sm font-medium tabular-nums text-foreground">
               {fechaFormatter.format(fechaLimite)}
             </div>
@@ -189,15 +162,14 @@ export function LicitacionCard({
           </div>
         </div>
 
-        {/* CPVs */}
+        {/* CPVs — chips mono sin iconos */}
         {cpvs.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {cpvs.map((cpv) => (
               <span
                 key={cpv}
-                className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 font-mono text-[10.5px] tracking-tight text-muted-foreground"
+                className="rounded-md bg-muted px-2 py-0.5 font-mono text-[10.5px] tracking-tight text-muted-foreground"
               >
-                <Tag className="h-2.5 w-2.5" aria-hidden="true" strokeWidth={2} />
                 {cpv}
               </span>
             ))}
@@ -209,8 +181,6 @@ export function LicitacionCard({
 }
 
 // ─── Ejemplo de uso ─────────────────────────────────────────────────────
-// Tres cards cubriendo los tres estados del semáforo con datos realistas
-// para el contexto catalán (organismos, CPVs de construcción, importes PYME).
 
 export function LicitacionCardExample() {
   return (

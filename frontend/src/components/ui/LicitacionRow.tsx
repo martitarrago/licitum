@@ -1,12 +1,3 @@
-import {
-  AlertCircle,
-  Building2,
-  CheckCircle2,
-  Sparkles,
-  XCircle,
-  type LucideIcon,
-} from "lucide-react";
-
 type Semaforo = "verde" | "amarillo" | "rojo";
 
 interface LicitacionRowProps {
@@ -15,20 +6,14 @@ interface LicitacionRowProps {
   importe: number;
   fechaLimite: Date;
   semaforo: Semaforo;
-  /** Afinidad histórica 0-1 — sólo se muestra el chip si ≥0.3 */
+  /** Afinidad histórica 0-1 — sólo se muestra el chip si ≥0.7 */
   afinidad?: number | null;
 }
 
-interface SemaforoStyle {
-  Icon: LucideIcon;
-  stripe: string;
-  iconColor: string;
-}
-
-const semaforoStyles: Record<Semaforo, SemaforoStyle> = {
-  verde:    { Icon: CheckCircle2, stripe: "bg-success", iconColor: "text-success" },
-  amarillo: { Icon: AlertCircle,  stripe: "bg-warning", iconColor: "text-warning" },
-  rojo:     { Icon: XCircle,      stripe: "bg-danger",  iconColor: "text-danger"  },
+const STRIPE_BY_SEMAFORO: Record<Semaforo, string> = {
+  verde: "bg-success",
+  amarillo: "bg-warning",
+  rojo: "bg-danger",
 };
 
 const importeFormatter = new Intl.NumberFormat("es-ES", {
@@ -62,8 +47,7 @@ export function LicitacionRow({
   semaforo,
   afinidad,
 }: LicitacionRowProps) {
-  const estilo = semaforoStyles[semaforo];
-  const StatusIcon = estilo.Icon;
+  const stripe = STRIPE_BY_SEMAFORO[semaforo];
   const dias = diasHasta(fechaLimite);
   const cerrada = dias < 0;
   const urgente = dias >= 0 && dias <= 7;
@@ -71,29 +55,21 @@ export function LicitacionRow({
 
   return (
     <article className="group/row relative flex items-stretch overflow-hidden rounded-lg bg-surface-raised ring-1 ring-border transition-all duration-200 ease-out-soft hover:-translate-y-px hover:shadow-elev-1 hover:ring-foreground/15">
-      <div className={`w-1 flex-shrink-0 ${estilo.stripe}`} aria-hidden="true" />
+      <div className={`w-1 flex-shrink-0 ${stripe}`} aria-hidden="true" />
 
       <div className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3">
-        <StatusIcon
-          className={`h-4 w-4 flex-shrink-0 ${estilo.iconColor}`}
-          strokeWidth={2.25}
-          aria-hidden="true"
-        />
-
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-display text-sm font-semibold tracking-tight text-foreground">
             {titulo}
           </h3>
-          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Building2 className="h-3 w-3 flex-shrink-0" strokeWidth={1.75} aria-hidden="true" />
+          <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
             <span className="truncate">{organismo}</span>
             {afinidadAlta && (
               <span
-                className="ml-1 inline-flex items-center gap-1 text-[11px] font-medium text-foreground"
+                className="hidden whitespace-nowrap font-medium uppercase tracking-wider text-[10px] text-foreground sm:inline"
                 title={`Afinidad histórica: ${afinidad?.toFixed(2)}`}
               >
-                <Sparkles className="h-3 w-3 flex-shrink-0" strokeWidth={2.25} aria-hidden="true" />
-                <span className="hidden sm:inline">Cliente conocido</span>
+                · Cliente conocido
               </span>
             )}
           </div>

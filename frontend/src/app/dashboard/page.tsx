@@ -3,17 +3,6 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle,
-  ArrowRight,
-  ArrowUpRight,
-  CheckCircle2,
-  Clock,
-  ShieldCheck,
-  Sparkles,
-  TrendingUp,
-  type LucideIcon,
-} from "lucide-react";
-import {
   certificadosApi,
   type ResumenSolvencia,
 } from "@/lib/api/certificados";
@@ -145,23 +134,23 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-4 py-10 sm:px-8">
-      {/* HERO ── saludo en lowercase + display heavy (energía del wordmark) */}
-      <header className="mb-12 animate-fade-up">
+    <div className="mx-auto w-full max-w-[1400px] px-4 py-12 sm:px-10">
+      {/* HERO */}
+      <header className="mb-14 animate-fade-up">
         <p className="eyebrow mb-3">{fechaLargaFormatter.format(now)}</p>
         <h1 className="display-h text-5xl leading-[0.95] sm:text-7xl">
           {saludo(now)}.
         </h1>
-        <p className="mt-4 max-w-2xl text-base text-muted-foreground">
+        <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
           Tu pipeline de licitaciones en un vistazo. Detectar, decidir,
           presentar y seguir cada oportunidad — todo desde aquí.
         </p>
       </header>
 
-      {/* KPIs ── 4 cards con números display */}
+      {/* KPIs ── 4 números desnudos, sin decoración */}
       <section
         aria-label="Indicadores clave"
-        className="stagger mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        className="stagger mb-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         <KpiSolvencia data={solvencia.data} loading={solvencia.isLoading} />
         <KpiOportunidades
@@ -173,7 +162,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Plazos críticos + Distribución */}
-      <section className="mb-10 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_minmax(0,360px)]">
+      <section className="mb-12 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_minmax(0,360px)]">
         <PlazosCriticos data={tracker.data} loading={tracker.isLoading} />
         <DistribucionSemaforo
           data={distribucion.data}
@@ -181,10 +170,9 @@ export default function DashboardPage() {
         />
       </section>
 
-      {/* DOS LISTAS — el detalle accionable */}
-      <section className="mb-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* DOS LISTAS */}
+      <section className="mb-12 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ListaLicitaciones
-          icon={Clock}
           titulo="Cierran esta semana"
           subtitulo="Verdes con plazo ≤14 días"
           ctaHref="/radar?semaforo=verde&plazo_max_dias=14"
@@ -194,7 +182,6 @@ export default function DashboardPage() {
           emptyMsg="No tienes licitaciones verdes con cierre próximo."
         />
         <ListaLicitaciones
-          icon={Sparkles}
           titulo="Nuevas oportunidades"
           subtitulo="Compatibles con tu solvencia"
           ctaHref="/radar?semaforo=verde"
@@ -231,7 +218,6 @@ function KpiSolvencia({
   return (
     <KpiTile
       label="Solvencia anual"
-      icon={TrendingUp}
       tooltip="Anualidad media de obra certificada (LCSP art. 88). Determina el techo de licitación al que puedes optar."
     >
       {tieneObras ? (
@@ -255,7 +241,7 @@ function KpiSolvencia({
   );
 }
 
-// ─── KPI: Oportunidades verdes ──────────────────────────────────────────────
+// ─── KPI: Oportunidades ─────────────────────────────────────────────────────
 
 function KpiOportunidades({
   verde,
@@ -269,7 +255,6 @@ function KpiOportunidades({
   return (
     <KpiTile
       label="Oportunidades"
-      icon={Sparkles}
       tooltip="Licitaciones del Radar para las que cumples solvencia (verde) y siguen abiertas."
     >
       <p className="display-num text-[2.75rem] leading-none text-foreground">
@@ -283,9 +268,9 @@ function KpiOportunidades({
       {verde > 0 && (
         <Link
           href="/radar?semaforo=verde"
-          className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-foreground/80 transition-colors hover:text-foreground"
+          className="mt-3 inline-block text-xs font-medium text-foreground/80 underline-offset-4 transition-colors hover:text-foreground hover:underline"
         >
-          Ver Radar <ArrowRight className="h-3 w-3" strokeWidth={2.25} />
+          Ver Radar →
         </Link>
       )}
     </KpiTile>
@@ -308,7 +293,6 @@ function KpiPipeline({
   return (
     <KpiTile
       label="Pipeline activo"
-      icon={ArrowUpRight}
       tooltip="Licitaciones que has añadido al pipeline y siguen en estado activo (no terminales)."
     >
       <p className="display-num text-[2.75rem] leading-none text-foreground">
@@ -320,9 +304,13 @@ function KpiPipeline({
           : `licitación${total === 1 ? "" : "es"} en marcha`}
       </p>
       {conPlazo > 0 && (
-        <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-danger">
-          <AlertTriangle className="h-3 w-3" strokeWidth={2.5} />
-          {conPlazo} plazo{conPlazo === 1 ? "" : "s"} crítico{conPlazo === 1 ? "" : "s"}
+        <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-danger">
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-danger"
+            aria-hidden="true"
+          />
+          {conPlazo} plazo{conPlazo === 1 ? "" : "s"} crítico
+          {conPlazo === 1 ? "" : "s"}
         </p>
       )}
     </KpiTile>
@@ -348,7 +336,6 @@ function KpiSaludDocumental({
   return (
     <KpiTile
       label="Salud documental"
-      icon={ShieldCheck}
       tooltip="Porcentaje de documentos administrativos al día (Hacienda, SS, pólizas, ISOs). Cuando ganas adjudicación tienes 10 días hábiles para presentarlos."
     >
       {total === 0 ? (
@@ -368,14 +355,20 @@ function KpiSaludDocumental({
           {(aCaducar > 0 || caducados > 0) && (
             <div className="mt-2 flex items-center gap-3 text-xs">
               {aCaducar > 0 && (
-                <span className="inline-flex items-center gap-1 text-warning">
-                  <Clock className="h-3 w-3" strokeWidth={2.5} />
+                <span className="flex items-center gap-1.5 text-warning">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-warning"
+                    aria-hidden="true"
+                  />
                   {aCaducar}
                 </span>
               )}
               {caducados > 0 && (
-                <span className="inline-flex items-center gap-1 text-danger">
-                  <AlertTriangle className="h-3 w-3" strokeWidth={2.5} />
+                <span className="flex items-center gap-1.5 text-danger">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-danger"
+                    aria-hidden="true"
+                  />
                   {caducados}
                 </span>
               )}
@@ -387,7 +380,7 @@ function KpiSaludDocumental({
   );
 }
 
-// ─── Plazos críticos (M6 cross-section) ─────────────────────────────────────
+// ─── Plazos críticos ────────────────────────────────────────────────────────
 
 function PlazosCriticos({
   data,
@@ -416,7 +409,7 @@ function PlazosCriticos({
       <header className="mb-5 flex items-baseline justify-between gap-4">
         <div>
           <p className="eyebrow">Plazos críticos · 7 días</p>
-          <h2 className="mt-1.5 font-display text-2xl font-bold tracking-tight">
+          <h2 className="mt-2 font-display text-2xl font-bold tracking-tight">
             {items.length === 0
               ? "Sin plazos urgentes"
               : `${items.length} reloj${items.length === 1 ? "" : "es"} corriendo`}
@@ -424,16 +417,15 @@ function PlazosCriticos({
         </div>
         <Link
           href="/tracker"
-          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
         >
-          Pipeline <ArrowRight className="h-3 w-3" strokeWidth={2.25} />
+          Pipeline →
         </Link>
       </header>
 
       {items.length === 0 ? (
         <div className="rounded-lg bg-success/5 px-4 py-6 ring-1 ring-success/15">
           <p className="text-sm text-success">
-            <CheckCircle2 className="mr-1 inline h-4 w-4" strokeWidth={2.25} />
             Estás al día. Ninguna licitación tiene reloj legal corriendo en los
             próximos 7 días.
           </p>
@@ -493,12 +485,12 @@ function DeadlinePill({
       : `${dias} d`;
   return (
     <span
-      className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold tabular-nums ring-1 ring-inset ${
+      className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold tabular-nums ${
         dias < 0 || urgente
-          ? "bg-danger/10 text-danger ring-danger/20"
+          ? "bg-danger text-surface"
           : dias <= 7
-          ? "bg-warning/10 text-warning ring-warning/20"
-          : "bg-muted text-muted-foreground ring-border"
+          ? "bg-warning/15 text-warning"
+          : "bg-muted text-muted-foreground"
       }`}
     >
       {label}
@@ -506,7 +498,7 @@ function DeadlinePill({
   );
 }
 
-// ─── Distribución de semáforo (gráfico) ─────────────────────────────────────
+// ─── Distribución de semáforo ───────────────────────────────────────────────
 
 function DistribucionSemaforo({
   data,
@@ -561,7 +553,7 @@ function DistribucionSemaforo({
     <div className="card p-6">
       <header className="mb-5">
         <p className="eyebrow">Reparto del Radar</p>
-        <h2 className="mt-1.5 font-display text-2xl font-bold tracking-tight">
+        <h2 className="mt-2 font-display text-2xl font-bold tracking-tight">
           {accesibles.toFixed(0)}% accesibles
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -646,7 +638,10 @@ function Leyenda({
       className="group flex flex-col gap-1 rounded-lg bg-surface px-3 py-2.5 ring-1 ring-border transition-all duration-200 ease-out-soft hover:-translate-y-px hover:shadow-elev-1 hover:ring-foreground/20"
     >
       <div className="flex items-center gap-2">
-        <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} aria-hidden="true" />
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${dotClass}`}
+          aria-hidden="true"
+        />
         <span className="text-[11px] text-muted-foreground">{label}</span>
       </div>
       <div className="flex items-baseline justify-between">
@@ -665,30 +660,19 @@ function Leyenda({
 
 function KpiTile({
   label,
-  icon: Icon,
   tooltip,
   children,
 }: {
   label: string;
-  icon?: LucideIcon;
   tooltip?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="card p-5 transition-all duration-200 ease-out-soft hover:-translate-y-px hover:shadow-card-hover">
-      <div className="flex items-center justify-between">
-        <p className="eyebrow" title={tooltip}>
-          {label}
-        </p>
-        {Icon && (
-          <Icon
-            className="h-4 w-4 text-muted-foreground/40"
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-        )}
-      </div>
-      <div className="mt-4">{children}</div>
+    <div className="card p-6 transition-all duration-200 ease-out-soft hover:-translate-y-px hover:shadow-card-hover">
+      <p className="eyebrow" title={tooltip}>
+        {label}
+      </p>
+      <div className="mt-5">{children}</div>
     </div>
   );
 }
@@ -709,9 +693,9 @@ function KpiEmpty({
       </p>
       <Link
         href={ctaHref}
-        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-foreground transition-colors hover:underline"
+        className="mt-3 inline-block text-xs font-medium text-foreground underline-offset-4 transition-colors hover:underline"
       >
-        {ctaLabel} <ArrowRight className="h-3 w-3" strokeWidth={2.25} />
+        {ctaLabel} →
       </Link>
     </>
   );
@@ -719,9 +703,9 @@ function KpiEmpty({
 
 function KpiSkeleton() {
   return (
-    <div className="card p-5">
+    <div className="card p-6">
       <div className="skeleton h-3 w-20 rounded" />
-      <div className="skeleton mt-5 h-10 w-32 rounded" />
+      <div className="skeleton mt-6 h-10 w-32 rounded" />
       <div className="skeleton mt-3 h-2.5 w-24 rounded" />
     </div>
   );
@@ -730,7 +714,6 @@ function KpiSkeleton() {
 // ─── Lista de licitaciones ──────────────────────────────────────────────────
 
 function ListaLicitaciones({
-  icon: Icon,
   titulo,
   subtitulo,
   ctaHref,
@@ -739,7 +722,6 @@ function ListaLicitaciones({
   items,
   emptyMsg,
 }: {
-  icon: LucideIcon;
   titulo: string;
   subtitulo: string;
   ctaHref: string;
@@ -750,27 +732,18 @@ function ListaLicitaciones({
 }) {
   return (
     <div className="card p-6">
-      <header className="mb-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-muted p-2">
-            <Icon
-              className="h-4 w-4 text-foreground"
-              strokeWidth={1.75}
-              aria-hidden="true"
-            />
-          </div>
-          <div>
-            <h2 className="font-display text-base font-bold leading-tight tracking-tight">
-              {titulo}
-            </h2>
-            <p className="text-xs text-muted-foreground">{subtitulo}</p>
-          </div>
+      <header className="mb-5 flex items-end justify-between gap-4">
+        <div>
+          <p className="eyebrow mb-2">{subtitulo}</p>
+          <h2 className="font-display text-xl font-bold leading-tight tracking-tight">
+            {titulo}
+          </h2>
         </div>
         <Link
           href={ctaHref}
-          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
         >
-          {ctaLabel} <ArrowRight className="h-3 w-3" strokeWidth={2.25} />
+          {ctaLabel} →
         </Link>
       </header>
 
@@ -815,7 +788,6 @@ function RowSkeleton() {
   return (
     <div className="flex items-center gap-3 rounded-lg bg-surface-raised px-4 py-3 ring-1 ring-border">
       <div className="skeleton h-4 w-1 rounded" />
-      <div className="skeleton h-4 w-4 rounded" />
       <div className="flex-1 space-y-1.5">
         <div className="skeleton h-3 w-3/4 rounded" />
         <div className="skeleton h-2.5 w-1/2 rounded" />
@@ -881,14 +853,12 @@ function DesgloseRolece({
 
   return (
     <div className="card p-6">
-      <header className="mb-5 flex items-baseline justify-between">
-        <div>
-          <p className="eyebrow">Solvencia por grupo ROLECE</p>
-          <h2 className="mt-1.5 font-display text-2xl font-bold tracking-tight">
-            {data.total_obras}{" "}
-            {data.total_obras === 1 ? "obra certificada" : "obras certificadas"}
-          </h2>
-        </div>
+      <header className="mb-5">
+        <p className="eyebrow">Solvencia por grupo ROLECE</p>
+        <h2 className="mt-2 font-display text-2xl font-bold tracking-tight">
+          {data.total_obras}{" "}
+          {data.total_obras === 1 ? "obra certificada" : "obras certificadas"}
+        </h2>
       </header>
       <div className="space-y-3">
         {data.por_grupo.map((g, idx) => {
