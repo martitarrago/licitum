@@ -23,6 +23,7 @@ from app.models.licitacion import Licitacion
 from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
 from app.schemas.licitacion_analisis_ia import (
     LicitacionAnalisisIARead,
+    PliegoListItem,
     RecomendacionRead,
 )
 from app.services.recomendacion_evaluator import calcular_recomendacion
@@ -34,6 +35,63 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MAX_PDF_SIZE = 50 * 1024 * 1024  # 50 MB — los PCAPs pueden ser grandes
+
+
+@router.get(
+    "",
+    response_model=list[PliegoListItem],
+    summary="Lista todos los pliegos analizados (cache global, sin filtro por empresa)",
+)
+async def listar_pliegos(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[PliegoListItem]:
+    """Listing del cache global de análisis IA.
+
+    El análisis del pliego es cache GLOBAL por licitación — no filtramos por
+    empresa porque cualquier usuario puede beneficiarse del mismo análisis.
+    Ordenado por fecha de creación DESC.
+    """
+    stmt = (
+        select(LicitacionAnalisisIA, Licitacion)
+        .join(Licitacion, Licitacion.id == LicitacionAnalisisIA.licitacion_id)
+        .order_by(LicitacionAnalisisIA.created_at.desc())
+    )
+    rows = (await db.execute(stmt)).all()
+    items: list[PliegoListItem] = []
+    for analisis, lic in rows:
+        veredicto: str | None = None
+        banderas: int | None = None
+        if analisis.estado == EstadoAnalisisPliego.completado and analisis.extracted_data:
+            br = analisis.extracted_data.get("banderas_rojas") or []
+            if isinstance(br, list):
+                banderas = len(br)
+            # Heurística rápida sobre la extracción para mostrar un veredicto
+            # resumido sin tener que cargar la recomendación por empresa.
+            # Indica fortaleza de la oportunidad bruta del pliego (no
+            # personalizada).
+            veredicto = "ok"
+            if banderas and banderas >= 3:
+                veredicto = "atencion"
+        items.append(
+            PliegoListItem(
+                licitacion_id=analisis.licitacion_id,
+                expediente=lic.expediente,
+                titulo=lic.titulo,
+                organismo=lic.organismo,
+                importe_licitacion=lic.importe_licitacion,
+                fecha_limite=lic.fecha_limite,
+                estado=analisis.estado.value
+                if hasattr(analisis.estado, "value")
+                else str(analisis.estado),
+                idioma_detectado=analisis.idioma_detectado,
+                confianza_global=analisis.confianza_global,
+                procesado_at=analisis.procesado_at,
+                created_at=analisis.created_at,
+                veredicto_recomendado=veredicto,
+                banderas_rojas_count=banderas,
+            )
+        )
+    return items
 
 
 async def _get_licitacion_or_404(

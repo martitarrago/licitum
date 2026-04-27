@@ -79,7 +79,30 @@ async function readError(res: Response): Promise<string> {
   }
 }
 
+export interface PliegoListItem {
+  licitacion_id: string;
+  expediente: string;
+  titulo: string | null;
+  organismo: string | null;
+  importe_licitacion: string | null;
+  fecha_limite: string | null;
+  estado: EstadoAnalisis;
+  idioma_detectado: string | null;
+  confianza_global: string | null;
+  procesado_at: string | null;
+  created_at: string;
+  veredicto_recomendado: string | null;
+  banderas_rojas_count: number | null;
+}
+
 export const pliegosApi = {
+  /** GET listing — todos los pliegos con análisis IA (cache global). */
+  list: async (): Promise<PliegoListItem[]> => {
+    const res = await fetch(`${API_BASE}/api/v1/pliegos`);
+    if (!res.ok) throw new Error(await readError(res));
+    return res.json();
+  },
+
   /** GET — devuelve null si no hay análisis aún (404). */
   get: async (expediente: string): Promise<PliegoAnalisis | null> => {
     const res = await fetch(`${API_BASE}/api/v1/pliegos/${expediente}`);

@@ -23,6 +23,26 @@ class LicitacionAnalisisIARead(BaseModel):
     updated_at: datetime
 
 
+class PliegoListItem(BaseModel):
+    """Item ligero para el listing /pliegos — sin extracted_data."""
+
+    licitacion_id: uuid.UUID
+    expediente: str
+    titulo: str | None
+    organismo: str | None
+    importe_licitacion: Decimal | None
+    fecha_limite: datetime | None
+    estado: str
+    idioma_detectado: str | None
+    confianza_global: Decimal | None
+    procesado_at: datetime | None
+    created_at: datetime
+    # Veredicto resumen extraído del extracted_data si está completado;
+    # None mientras procesa o si falló.
+    veredicto_recomendado: str | None = None
+    banderas_rojas_count: int | None = None
+
+
 class BanderaRoja(BaseModel):
     tipo: str
     descripcion: str

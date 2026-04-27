@@ -66,11 +66,11 @@ export const MODULE_GROUPS: ModuleGroup[] = [
       },
       {
         id: "pliegos",
-        code: "M3",
+        code: "",
         label: "Pliegos",
         href: "/pliegos",
         icon: FileSearch,
-        available: false,
+        available: true,
       },
     ],
   },
