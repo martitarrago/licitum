@@ -99,13 +99,6 @@ export const MODULE_GROUPS: ModuleGroup[] = [
         href: "/empresa/perfil",
         icon: ShieldCheck,
         available: true,
-        children: [
-          { label: "Perfil", href: "/empresa/perfil" },
-          { label: "Documentos", href: "/empresa/documentos" },
-          { label: "Certificados", href: "/empresa/certificados" },
-          { label: "Clasificaciones", href: "/empresa/clasificaciones" },
-          { label: "RELIC", href: "/empresa/relic" },
-        ],
       },
     ],
   },

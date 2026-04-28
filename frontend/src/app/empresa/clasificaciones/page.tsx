@@ -34,22 +34,22 @@ export default function ClasificacionesPage() {
   const tablaRef = useRef<ClasificacionesTablaHandle>(null);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-5xl">
       {/* Header */}
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold text-foreground">
-            Clasificaciones ROLECE
-          </h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Grupos y subgrupos de obra para los que tu empresa está habilitada
+          (RD 1098/2001). Mantén las fechas de caducidad al día — caducar
+          excluye automáticamente de licitaciones en curso.
           <button
             onClick={() => setInfoOpen((v) => !v)}
-            className={`rounded-full p-1 transition-colors hover:bg-muted ${infoOpen ? "text-foreground" : "text-muted-foreground/50 hover:text-muted-foreground"}`}
+            className={`ml-1.5 inline-flex translate-y-0.5 rounded-full p-1 transition-colors hover:bg-muted ${infoOpen ? "text-foreground" : "text-muted-foreground/50 hover:text-muted-foreground"}`}
             aria-label="Información sobre clasificaciones ROLECE"
             aria-expanded={infoOpen}
           >
-            <HelpCircle className="h-4 w-4" />
+            <HelpCircle className="h-3.5 w-3.5" />
           </button>
-        </div>
+        </p>
 
         {!isLoading && !isError && (
           <button
@@ -108,6 +108,6 @@ export default function ClasificacionesPage() {
       {!isLoading && !isError && clasificaciones && (
         <ClasificacionesTabla ref={tablaRef} clasificaciones={clasificaciones} />
       )}
-    </main>
+    </div>
   );
 }

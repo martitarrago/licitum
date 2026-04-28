@@ -211,18 +211,12 @@ export default function PerfilPage() {
     setForm((f) => ({ ...f, [k]: v }));
 
   return (
-    <form
-      onSubmit={submit}
-      className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6"
-    >
-      <header className="mb-10 animate-fade-up">
-        <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">perfil</h1>
-        <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-          Datos identificativos, dirección, representante legal y volumen de
-          negocio. Alimentan el DEUC del Sobre A y la solvencia económica
-          declarada en cada licitación.
-        </p>
-      </header>
+    <form onSubmit={submit} className="mx-auto w-full max-w-3xl">
+      <p className="mb-8 max-w-2xl text-sm text-muted-foreground">
+        Datos identificativos, dirección, representante legal y volumen de
+        negocio. Alimentan el DEUC del Sobre A y la solvencia económica
+        declarada en cada licitación.
+      </p>
 
       <div className="space-y-8">
         <Section title="Identificación">

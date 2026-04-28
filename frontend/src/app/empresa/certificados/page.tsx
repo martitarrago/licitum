@@ -270,23 +270,23 @@ export default function CertificadosPage() {
   }, [certificados, filtro, orden, ordenDir]);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-5xl">
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-1">
-          <h1 className="text-2xl font-semibold text-foreground">
-            Certificados de obra
-          </h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Obras certificadas para acreditar solvencia técnica (LCSP art. 88).
+          Sólo certificados de buena ejecución, recepción de obra o ROLECE en
+          los últimos 5 años.
           <button
             onClick={() => setInfoOpen((v) => !v)}
             aria-expanded={infoOpen}
             aria-label="¿Qué documentos acreditan solvencia?"
             title="¿Qué documentos sirven?"
-            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="ml-1.5 inline-flex translate-y-0.5 rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <HelpCircle className="h-4 w-4" aria-hidden="true" />
+            <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
-        </div>
+        </p>
         <button
           onClick={() => setModalOpen(true)}
           className="
@@ -646,6 +646,6 @@ export default function CertificadosPage() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

@@ -50,24 +50,19 @@ export default function DocumentosPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-      <header className="mb-10 flex flex-wrap items-end justify-between gap-4 animate-fade-up">
-        <div>
-          <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">
-            documentos administrativos
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-            Hacienda, Seguridad Social, pólizas, ISOs, REA y TC2 con sus fechas
-            de caducidad. Cuando ganes una adjudicación provisional tendrás{" "}
-            <strong className="text-foreground">10 días hábiles</strong> para
-            presentarlos — tenerlos al día evita perder obras ya ganadas.
-          </p>
-        </div>
+    <>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Hacienda, Seguridad Social, pólizas, ISOs, REA y TC2 con sus fechas
+          de caducidad. Cuando ganes una adjudicación provisional tendrás{" "}
+          <strong className="text-foreground">10 días hábiles</strong> para
+          presentarlos — tenerlos al día evita perder obras ya ganadas.
+        </p>
         <button onClick={() => setOpen(true)} className="btn-primary">
           <Plus className="h-4 w-4" strokeWidth={2} />
           Nuevo documento
         </button>
-      </header>
+      </div>
 
       {resumen.data && <SaludDocumental data={resumen.data} />}
 
@@ -83,7 +78,7 @@ export default function DocumentosPage() {
       </section>
 
       {open && <DocumentosUploadModal onClose={() => setOpen(false)} />}
-    </div>
+    </>
   );
 }
 

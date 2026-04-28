@@ -19,16 +19,13 @@ export default function RelicPage() {
   const invalidate = () => qc.invalidateQueries({ queryKey: QUERY_KEY });
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-      <header className="mb-10 animate-fade-up">
-        <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">relic</h1>
-        <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-          Sincronización con el Registre Electrònic d&apos;Empreses Licitadores
-          i Classificades de Catalunya. Si tu empresa está inscrita, conéctala
-          aquí: ahorra 30-60 minutos en cada Sobre A y mantiene tus
-          clasificaciones siempre al día.
-        </p>
-      </header>
+    <>
+      <p className="mb-8 max-w-2xl text-sm text-muted-foreground">
+        Sincronización con el Registre Electrònic d&apos;Empreses Licitadores
+        i Classificades de Catalunya. Si tu empresa está inscrita, conéctala
+        aquí: ahorra 30-60 minutos en cada Sobre A y mantiene tus
+        clasificaciones siempre al día.
+      </p>
 
       {isLoading ? (
         <Skeleton />
@@ -37,7 +34,7 @@ export default function RelicPage() {
       ) : (
         <Conectado relic={relic} onChange={invalidate} />
       )}
-    </div>
+    </>
   );
 }
 
