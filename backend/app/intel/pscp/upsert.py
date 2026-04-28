@@ -238,14 +238,179 @@ async def upsert_record(session: AsyncSession, rec: dict[str, Any]) -> str:
 
 
 async def upsert_batch(session: AsyncSession, records: list[dict[str, Any]]) -> UpsertStats:
-    """Upsert un batch. Commit es responsabilidad del caller."""
+    """Upsert un batch en operaciones bulk.
+
+    Rendimiento: 1 SELECT + 1-3 INSERTs + 1 INSERT + 1 INSERT M:N = ~5 roundtrips
+    por batch de 1000 registros, vs ~2500 roundtrips del método record-a-record.
+    Speedup ~100-200x para batches grandes.
+
+    Commit es responsabilidad del caller.
+    """
     stats = UpsertStats()
+    if not records:
+        return stats
+
+    # Step 1: filtrar registros válidos + calcular hashes
+    valid: list[tuple[str, str, dict[str, Any]]] = []  # (socrata_id, hash, rec)
     for rec in records:
-        result = await upsert_record(session, rec)
-        if result == "inserted":
-            stats.inserted += 1
-        elif result == "updated":
-            stats.updated += 1
+        sid = rec.get(":id") or rec.get("socrata_row_id")
+        if not sid:
+            logger.warning("registro sin :id, skipping: %s", rec.get("codi_expedient"))
+            continue
+        valid.append((sid, compute_content_hash(rec), rec))
+
+    if not valid:
+        return stats
+
+    # Step 2: bulk fetch existing
+    sids = [v[0] for v in valid]
+    existing_rows = await session.execute(
+        select(
+            PscpAdjudicacion.id,
+            PscpAdjudicacion.socrata_row_id,
+            PscpAdjudicacion.content_hash,
+        ).where(PscpAdjudicacion.socrata_row_id.in_(sids))
+    )
+    existing: dict[str, tuple[Any, str]] = {
+        sid: (adj_id, h) for adj_id, sid, h in existing_rows.all()
+    }
+
+    # Step 3: classify
+    to_insert: list[dict[str, Any]] = []
+    to_update_real: list[tuple[Any, dict[str, Any]]] = []
+    to_touch_unchanged: list[Any] = []  # IDs que solo necesitan last_seen_at
+    insert_uts: list[tuple[str, str | None, str | None]] = []  # (sid, raw_cif, raw_denom)
+    update_ids_with_ute: list[tuple[Any, str | None, str | None]] = []
+
+    for sid, new_hash, rec in valid:
+        cols = _record_to_columns(rec, new_hash)
+        ute_cif = rec.get("identificacio_adjudicatari")
+        ute_denom = rec.get("denominacio_adjudicatari")
+
+        if sid not in existing:
+            to_insert.append(cols)
+            insert_uts.append((sid, ute_cif, ute_denom))
         else:
-            stats.unchanged += 1
+            existing_id, existing_hash = existing[sid]
+            if existing_hash == new_hash:
+                # Path rápido: solo bulk UPDATE last_seen_at, no toca raw_record ni updated_at
+                to_touch_unchanged.append(existing_id)
+            else:
+                cols_update = {k: v for k, v in cols.items() if k != "socrata_row_id"}
+                cols_update["updated_at"] = func.now()
+                cols_update["last_seen_at"] = func.now()
+                to_update_real.append((existing_id, cols_update))
+                update_ids_with_ute.append((existing_id, ute_cif, ute_denom))
+
+    # Step 4: bulk INSERT new adjudicaciones (RETURNING id, socrata_row_id)
+    # Postgres limita parámetros a 32767. Con ~53 columnas → max ~600 rows/stmt.
+    # Sub-chunk a 500 para margen de seguridad.
+    inserted_id_by_sid: dict[str, Any] = {}
+    INSERT_CHUNK = 500
+    if to_insert:
+        for i in range(0, len(to_insert), INSERT_CHUNK):
+            sub = to_insert[i : i + INSERT_CHUNK]
+            stmt = pg_insert(PscpAdjudicacion).values(sub).returning(
+                PscpAdjudicacion.id, PscpAdjudicacion.socrata_row_id
+            )
+            result = await session.execute(stmt)
+            for adj_id, sid in result.all():
+                inserted_id_by_sid[sid] = adj_id
+
+    stats.inserted = len(to_insert)
+
+    # Step 5a: bulk UPDATE last_seen_at para los unchanged (un único statement)
+    if to_touch_unchanged:
+        await session.execute(
+            update(PscpAdjudicacion)
+            .where(PscpAdjudicacion.id.in_(to_touch_unchanged))
+            .values(last_seen_at=func.now())
+        )
+
+    # Step 5b: per-record UPDATE para los que sí cambiaron (raro en steady state)
+    for adj_id, cols_update in to_update_real:
+        await session.execute(
+            update(PscpAdjudicacion)
+            .where(PscpAdjudicacion.id == adj_id)
+            .values(**cols_update)
+        )
+
+    stats.updated = len(to_update_real)
+    stats.unchanged = len(to_touch_unchanged)
+
+    # Step 6: bulk UPSERT empresas + bulk INSERT M:N
+    all_explosions: list[tuple[Any, int, str | None, Any]] = []  # (adj_id, posicio, denom, NormalizedCif)
+    empresa_seen: dict[str, Any] = {}  # cif -> NormalizedCif (para INSERT empresas)
+
+    # Para inserciones nuevas
+    for sid, raw_cif, raw_denom in insert_uts:
+        adj_id = inserted_id_by_sid.get(sid)
+        if not adj_id:
+            continue
+        for posicio, (norm, denom) in enumerate(explode_ute(raw_cif, raw_denom)):
+            all_explosions.append((adj_id, posicio, denom, norm))
+            empresa_seen[norm.cif] = norm
+
+    # Para updates con cambio (UTEs pueden haber cambiado)
+    if update_ids_with_ute:
+        # Borrar relaciones antiguas en bulk
+        update_ids = [uid for uid, _, _ in update_ids_with_ute]
+        await session.execute(
+            PscpAdjudicacionEmpresa.__table__.delete().where(
+                PscpAdjudicacionEmpresa.adjudicacion_id.in_(update_ids)
+            )
+        )
+        for adj_id, raw_cif, raw_denom in update_ids_with_ute:
+            for posicio, (norm, denom) in enumerate(explode_ute(raw_cif, raw_denom)):
+                all_explosions.append((adj_id, posicio, denom, norm))
+                empresa_seen[norm.cif] = norm
+
+    # Bulk UPSERT empresas (un único INSERT con muchos values, sub-chunked)
+    BULK_CHUNK = 1000  # 9 cols → max 3640 rows; sub-chunk 1000 para margen
+    if empresa_seen:
+        empresa_rows = [
+            {
+                "cif": norm.cif,
+                "cif_raw_seen": [norm.raw_seen],
+                "denominacio_canonica": next(
+                    (d for a, p, d, n in all_explosions if n.cif == norm.cif and d), None
+                ),
+                "nif_type": norm.nif_type,
+                "is_persona_fisica": norm.is_persona_fisica,
+                "is_anonimizada": norm.is_anonimizada,
+                "is_extranjera": norm.is_extranjera,
+                "checksum_valid": norm.checksum_valid,
+            }
+            for norm in empresa_seen.values()
+        ]
+        for i in range(0, len(empresa_rows), BULK_CHUNK):
+            sub = empresa_rows[i : i + BULK_CHUNK]
+            stmt = pg_insert(PscpEmpresa).values(sub)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["cif"],
+                set_={
+                    "last_seen_at": func.now(),
+                    "denominacio_canonica": stmt.excluded.denominacio_canonica,
+                },
+            )
+            await session.execute(stmt)
+
+    # Bulk INSERT M:N (4 cols → max ~8000 rows; sub-chunk 2000)
+    REL_CHUNK = 2000
+    if all_explosions:
+        rel_rows = [
+            {
+                "adjudicacion_id": adj_id,
+                "cif": norm.cif,
+                "posicio_ute": posicio,
+                "denominacio_raw": denom,
+            }
+            for adj_id, posicio, denom, norm in all_explosions
+        ]
+        for i in range(0, len(rel_rows), REL_CHUNK):
+            sub = rel_rows[i : i + REL_CHUNK]
+            stmt = pg_insert(PscpAdjudicacionEmpresa).values(sub)
+            stmt = stmt.on_conflict_do_nothing(index_elements=["adjudicacion_id", "cif"])
+            await session.execute(stmt)
+
     return stats
