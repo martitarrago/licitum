@@ -63,5 +63,13 @@ celery_app.conf.update(
             "schedule": crontab(hour=6, minute=30),
             "options": {"expires": 30 * 60},
         },
+        # Recalcular scores de ganabilidad por empresa.
+        # Después del feed M1 (07:00) — necesita licitaciones abiertas frescas.
+        # Idempotent: si M2 no cambió, skip vía empresa_context_hash.
+        "intel-scores-recalc": {
+            "task": "workers.intel_scores.calcular_para_todas_empresas",
+            "schedule": crontab(hour=7, minute=15),
+            "options": {"expires": 60 * 60},
+        },
     },
 )

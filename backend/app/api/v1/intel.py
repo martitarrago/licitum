@@ -206,6 +206,173 @@ async def get_empresa_perfil(
     }
 
 
+@router.get("/top-ganables", summary="Top licitaciones por score de ganabilidad para una empresa")
+async def get_top_ganables(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: str = Query(..., description="UUID de la empresa"),
+    limit: int = Query(10, ge=1, le=50),
+    min_score: int = Query(0, ge=0, le=100, description="Score mínimo a incluir"),
+) -> dict[str, Any]:
+    """Top N licitaciones para una empresa, no descartadas, score >= min_score."""
+    rows = (await db.execute(text(
+        """
+        SELECT lse.licitacion_id, lse.score, lse.confidence,
+               lse.data_completeness_pct, lse.breakdown_json,
+               l.expediente, l.titulo, l.organismo, l.organismo_id,
+               l.importe_licitacion, l.fecha_limite, l.cpv_codes,
+               l.provincias, l.semaforo
+        FROM licitacion_score_empresa lse
+        JOIN licitaciones l ON l.id = lse.licitacion_id
+        WHERE lse.empresa_id = :emp
+          AND lse.descartada = false
+          AND lse.score >= :ms
+          AND l.fecha_limite > now()
+        ORDER BY lse.score DESC, l.fecha_limite ASC
+        LIMIT :lim
+        """
+    ), {"emp": empresa_id, "ms": min_score, "lim": limit})).all()
+
+    items = []
+    for r in rows:
+        m = r._mapping
+        items.append({
+            "licitacion_id": str(m["licitacion_id"]),
+            "score": int(m["score"]),
+            "confidence": m["confidence"],
+            "data_completeness_pct": int(m["data_completeness_pct"]),
+            "expediente": m["expediente"],
+            "titulo": m["titulo"],
+            "organismo": m["organismo"],
+            "organismo_id": m["organismo_id"],
+            "importe_licitacion": float(m["importe_licitacion"]) if m["importe_licitacion"] is not None else None,
+            "fecha_limite": m["fecha_limite"].isoformat() if m["fecha_limite"] else None,
+            "cpv_codes": m["cpv_codes"],
+            "provincias": m["provincias"],
+            "semaforo": m["semaforo"],
+            "highlight": _pick_highlight(m["breakdown_json"]),
+        })
+    return {"items": items, "count": len(items)}
+
+
+@router.get("/feed", summary="Feed completo de licitaciones con score, paginado")
+async def get_feed_scored(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: str = Query(...),
+    min_score: int = Query(0, ge=0, le=100),
+    include_descartadas: bool = Query(False),
+    limit: int = Query(24, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    """Feed paginado del Radar para una empresa, ordenado por score desc."""
+    where = ["lse.empresa_id = :emp", "l.fecha_limite > now()", "lse.score >= :ms"]
+    params: dict[str, Any] = {"emp": empresa_id, "ms": min_score, "lim": limit, "off": offset}
+    if not include_descartadas:
+        where.append("lse.descartada = false")
+
+    sql = (
+        "SELECT lse.licitacion_id, lse.score, lse.confidence, lse.descartada, "
+        "       lse.reason_descarte, lse.data_completeness_pct, lse.breakdown_json, "
+        "       l.expediente, l.titulo, l.organismo, l.organismo_id, "
+        "       l.importe_licitacion, l.fecha_limite, l.cpv_codes, "
+        "       l.provincias, l.semaforo "
+        "FROM licitacion_score_empresa lse "
+        "JOIN licitaciones l ON l.id = lse.licitacion_id "
+        "WHERE " + " AND ".join(where) + " "
+        "ORDER BY lse.descartada ASC, lse.score DESC NULLS LAST, l.fecha_limite ASC "
+        "LIMIT :lim OFFSET :off"
+    )
+    count_sql = (
+        "SELECT count(*) FROM licitacion_score_empresa lse "
+        "JOIN licitaciones l ON l.id = lse.licitacion_id "
+        "WHERE " + " AND ".join(where)
+    )
+
+    total = (await db.execute(text(count_sql), params)).scalar_one()
+    rows = (await db.execute(text(sql), params)).all()
+
+    items = []
+    for r in rows:
+        m = r._mapping
+        items.append({
+            "licitacion_id": str(m["licitacion_id"]),
+            "score": int(m["score"]),
+            "confidence": m["confidence"],
+            "descartada": m["descartada"],
+            "reason_descarte": m["reason_descarte"],
+            "data_completeness_pct": int(m["data_completeness_pct"]),
+            "expediente": m["expediente"],
+            "titulo": m["titulo"],
+            "organismo": m["organismo"],
+            "organismo_id": m["organismo_id"],
+            "importe_licitacion": float(m["importe_licitacion"]) if m["importe_licitacion"] is not None else None,
+            "fecha_limite": m["fecha_limite"].isoformat() if m["fecha_limite"] else None,
+            "cpv_codes": m["cpv_codes"],
+            "provincias": m["provincias"],
+            "semaforo": m["semaforo"],
+            "highlight": _pick_highlight(m["breakdown_json"]),
+        })
+    return {"items": items, "count": len(items), "total": int(total), "offset": offset, "limit": limit}
+
+
+@router.get(
+    "/licitaciones/{licitacion_id}/score",
+    summary="Detalle del score de una licitación para una empresa (breakdown completo)",
+)
+async def get_licitacion_score_detail(
+    licitacion_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: str = Query(...),
+) -> dict[str, Any]:
+    r = await db.execute(text(
+        """
+        SELECT lse.score, lse.confidence, lse.descartada, lse.reason_descarte,
+               lse.data_completeness_pct, lse.breakdown_json, lse.hard_filters_json,
+               lse.computed_at,
+               l.expediente, l.titulo, l.organismo, l.importe_licitacion,
+               l.fecha_limite
+        FROM licitacion_score_empresa lse
+        JOIN licitaciones l ON l.id = lse.licitacion_id
+        WHERE lse.empresa_id = :emp AND lse.licitacion_id = :lic
+        """
+    ), {"emp": empresa_id, "lic": licitacion_id})
+    row = r.first()
+    if not row:
+        raise HTTPException(404, "Score no calculado para esta (empresa, licitación). Ejecuta workers.intel_scores.calcular_para_empresa.")
+    m = dict(row._mapping)
+    return {
+        "score": int(m["score"]),
+        "confidence": m["confidence"],
+        "descartada": m["descartada"],
+        "reason_descarte": m["reason_descarte"],
+        "data_completeness_pct": int(m["data_completeness_pct"]),
+        "breakdown": m["breakdown_json"],
+        "hard_filters": m["hard_filters_json"],
+        "computed_at": m["computed_at"].isoformat() if m["computed_at"] else None,
+        "licitacion": {
+            "expediente": m["expediente"],
+            "titulo": m["titulo"],
+            "organismo": m["organismo"],
+            "importe_licitacion": float(m["importe_licitacion"]) if m["importe_licitacion"] is not None else None,
+            "fecha_limite": m["fecha_limite"].isoformat() if m["fecha_limite"] else None,
+        },
+    }
+
+
+def _pick_highlight(breakdown: list[dict[str, Any]] | None) -> str | None:
+    """Frase corta para mostrar en la card. Escogemos la señal con mayor
+    impacto positivo cuando hay buen score, o la más débil si no hay clara
+    fortaleza — esto convierte 'la peor parte' en señal accionable."""
+    if not breakdown:
+        return None
+    # Encuentra la señal con mayor contribution si hay alguna >10
+    best = max(breakdown, key=lambda b: b.get("contribution", 0))
+    if best.get("contribution", 0) >= 10:
+        return best.get("explanation")
+    # Fallback: señal más débil para flagear
+    weak = min(breakdown, key=lambda b: b.get("value", 0))
+    return weak.get("explanation")
+
+
 @router.get("/_health", summary="Salud del pipeline data layer")
 async def get_health(
     db: Annotated[AsyncSession, Depends(get_db)],
