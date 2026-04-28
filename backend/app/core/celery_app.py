@@ -46,5 +46,21 @@ celery_app.conf.update(
             "schedule": crontab(hour=8, minute=0),
             "options": {"expires": 30 * 60},
         },
+        # Data layer PSCP — sync incremental obras adjudicadas + refresh mviews.
+        # PSCP actualiza datasets de madrugada; corremos a las 6am Madrid.
+        # Lookback 36h cubre cualquier delay del feed o reintentos.
+        "intel-pscp-incremental": {
+            "task": "workers.intel_pscp.incremental_sync",
+            "schedule": crontab(hour=6, minute=0),
+            "kwargs": {"lookback_hours": 36, "tipus_contracte": "Obres"},
+            "options": {"expires": 30 * 60},
+        },
+        # Refresh mviews 30min después del sync. Skip inteligente si no hay
+        # cambios reales (ver _has_real_changes_since_last_refresh).
+        "intel-pscp-mview-refresh": {
+            "task": "workers.intel_pscp.refresh_mviews",
+            "schedule": crontab(hour=6, minute=30),
+            "options": {"expires": 30 * 60},
+        },
     },
 )
