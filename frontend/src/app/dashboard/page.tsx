@@ -254,7 +254,7 @@ function KpiSolvencia({
         <KpiEmpty
           number="—"
           ctaLabel="Subir certificados"
-          ctaHref="/empresa/certificados"
+          ctaHref="/empresa/solvencia/certificados"
         />
       )}
     </KpiTile>

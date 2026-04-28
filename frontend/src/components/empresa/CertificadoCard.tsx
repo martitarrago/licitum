@@ -91,7 +91,7 @@ export function CertificadoCard({
 
   return (
     <Link
-      href={`/empresa/certificados/${cert.id}/revisar`}
+      href={`/empresa/solvencia/certificados/${cert.id}/revisar`}
       onClick={onToggleSelect ? (e) => { e.preventDefault(); onToggleSelect(cert.id); } : undefined}
       className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground rounded-xl"
     >

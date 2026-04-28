@@ -693,7 +693,7 @@ function ReviewForm({
       qc.invalidateQueries({ queryKey: ["resumen-solvencia"] });
       if (action === "rechazar") {
         qc.removeQueries({ queryKey: ["certificado", cert.id] });
-        router.push("/empresa/certificados");
+        router.push("/empresa/solvencia/certificados");
       } else {
         qc.invalidateQueries({ queryKey: ["certificado", cert.id] });
         setConfirmOpen(false);
@@ -1234,7 +1234,7 @@ export function CertificadoRevision({ id }: { id: string }) {
       qc.invalidateQueries({ queryKey: ["certificados"] });
       qc.invalidateQueries({ queryKey: ["resumen-solvencia"] });
       qc.removeQueries({ queryKey: ["certificado", id] });
-      router.push("/empresa/certificados");
+      router.push("/empresa/solvencia/certificados");
     },
   });
 
@@ -1291,7 +1291,7 @@ export function CertificadoRevision({ id }: { id: string }) {
       {/* Breadcrumb + acciones */}
       <div className="mb-5 flex items-center justify-between gap-4">
         <button
-          onClick={() => router.push("/empresa/certificados")}
+          onClick={() => router.push("/empresa/solvencia/certificados")}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />

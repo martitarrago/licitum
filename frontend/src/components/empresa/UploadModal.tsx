@@ -82,7 +82,7 @@ function TabPdf({ onClose }: { onClose: () => void }) {
       setProgress(100);
       await qc.invalidateQueries({ queryKey: ["certificados"] });
       onClose();
-      router.push(`/empresa/certificados/${cert.id}/revisar`);
+      router.push(`/empresa/solvencia/certificados/${cert.id}/revisar`);
     } catch (err) {
       clearInterval(fakeInterval);
       setError(err instanceof Error ? err.message : "Error al subir el archivo");
