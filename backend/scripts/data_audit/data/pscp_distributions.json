@@ -1,0 +1,187 @@
+{
+  "fase_publicacio": [
+    {
+      "fase_publicacio": "Publicació agregada de contractes",
+      "n": "1501313"
+    },
+    {
+      "fase_publicacio": "Formalització",
+      "n": "163221"
+    },
+    {
+      "fase_publicacio": "Adjudicació",
+      "n": "72096"
+    },
+    {
+      "fase_publicacio": "Anul·lació",
+      "n": "19662"
+    },
+    {
+      "fase_publicacio": "Anunci de licitació",
+      "n": "15160"
+    },
+    {
+      "fase_publicacio": "Execució",
+      "n": "5940"
+    },
+    {
+      "fase_publicacio": "Expedient en avaluació",
+      "n": "5463"
+    },
+    {
+      "fase_publicacio": "Anunci previ",
+      "n": "667"
+    },
+    {
+      "fase_publicacio": "Alerta futura",
+      "n": "623"
+    },
+    {
+      "fase_publicacio": "Consulta preliminar del mercat",
+      "n": "425"
+    }
+  ],
+  "resultat": [
+    {
+      "n": "1532576"
+    },
+    {
+      "resultat": "Formalització",
+      "n": "163209"
+    },
+    {
+      "resultat": "Adjudicació",
+      "n": "71972"
+    },
+    {
+      "resultat": "Desert",
+      "n": "10158"
+    },
+    {
+      "resultat": "Desisitment",
+      "n": "4514"
+    },
+    {
+      "resultat": "Renúncia",
+      "n": "1417"
+    },
+    {
+      "resultat": "Desistiment",
+      "n": "724"
+    }
+  ],
+  "procediment": [
+    {
+      "procediment": "Contracte menor",
+      "n": "1185958"
+    },
+    {
+      "n": "370110"
+    },
+    {
+      "procediment": "Obert",
+      "n": "112967"
+    },
+    {
+      "procediment": "Obert simplificat abreujat",
+      "n": "33205"
+    },
+    {
+      "procediment": "Obert Simplificat",
+      "n": "29652"
+    },
+    {
+      "procediment": "Negociat sense publicitat",
+      "n": "25304"
+    },
+    {
+      "procediment": "Obert simplificat",
+      "n": "20287"
+    },
+    {
+      "procediment": "Restringit",
+      "n": "2106"
+    },
+    {
+      "procediment": "Tramitació amb mesures de gestió eficient",
+      "n": "1904"
+    },
+    {
+      "procediment": "Altres procediments segons instruccions internes",
+      "n": "1382"
+    },
+    {
+      "procediment": "Concurs de projectes",
+      "n": "571"
+    },
+    {
+      "procediment": "Licitació amb negociació",
+      "n": "461"
+    },
+    {
+      "procediment": "Adjudicacions directes no menors",
+      "n": "460"
+    },
+    {
+      "procediment": "Negociat amb publicitat",
+      "n": "183"
+    },
+    {
+      "procediment": "Tramitacio amb mesures de gestió eficient",
+      "n": "12"
+    },
+    {
+      "procediment": "Diàleg competitiu",
+      "n": "7"
+    },
+    {
+      "procediment": "Associació per a la innovació",
+      "n": "1"
+    }
+  ],
+  "tipus_contracte": [
+    {
+      "tipus_contracte": "Serveis",
+      "n": "852260"
+    },
+    {
+      "tipus_contracte": "Subministraments",
+      "n": "826243"
+    },
+    {
+      "tipus_contracte": "Obres",
+      "n": "80106"
+    },
+    {
+      "n": "12749"
+    },
+    {
+      "tipus_contracte": "Concessió de serveis",
+      "n": "3880"
+    },
+    {
+      "tipus_contracte": "Administratiu especial",
+      "n": "3822"
+    },
+    {
+      "tipus_contracte": "Altra legislació sectorial",
+      "n": "2659"
+    },
+    {
+      "tipus_contracte": "Privat d'Administració Pública",
+      "n": "1580"
+    },
+    {
+      "tipus_contracte": "Contracte de serveis especials (annex IV)",
+      "n": "1101"
+    },
+    {
+      "tipus_contracte": "Concessió d'obres",
+      "n": "108"
+    },
+    {
+      "tipus_contracte": "Concessió de serveis especials (annex IV)",
+      "n": "62"
+    }
+  ]
+}

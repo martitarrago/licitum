@@ -36,23 +36,28 @@ Componente ref: `/frontend/src/components/ui/LicitacionCard.tsx`, `/frontend/src
 
 ## Módulos (MVP — foco Catalunya)
 
-El MVP de Licitum cubre el ciclo completo de una licitación pública de obra para PYMES catalanas: detectar → decidir → presentar Sobre A + Sobre C → seguir hasta formalización. Diferenciador estratégico: catalán nativo + RELIC integrado + procedimientos catalanes específicos. Sobre B (memoria técnica), BC3, competencia, avales e histórico se quedan fuera del MVP — ver `docs/modules/v2/`.
+El MVP de Licitum cubre el ciclo completo de una licitación pública de obra para PYMES catalanas: detectar → decidir → presentar Sobre A + Sobre B + Sobre C → seguir hasta formalización. Diferenciadores estratégicos: catalán nativo + RELIC integrado + procedimientos catalanes específicos + **motor de ganabilidad PSCP** (data layer histórico que alimenta Radar, Pliegos, Sobre B y Sobre C). BC3, avales e histórico siguen fuera del MVP — ver `docs/modules/v2/`.
 
 Documentación por módulo en `docs/modules/`:
-- [M1 Radar](docs/modules/M1-radar.md) ✅ base — feed PSCP Catalunya con semáforo y afinidad. Pendiente: 4º eje del semáforo + importación PSCP one-click + acciones guardar/analizar/descartar
+- [M1 Radar](docs/modules/M1-radar.md) ✅ base — feed PSCP Catalunya con semáforo y afinidad. Pendiente: 4º eje del semáforo + importación PSCP one-click + acciones guardar/analizar/descartar + **integración con score de ganabilidad** (Top 5 ganables vs N compatibles)
 - [M2 Empresa](docs/modules/M2-empresa.md) 🟡 — caja fuerte de documentos vivos: certificados ✅ + ROLECE ✅ + RELIC + Hacienda/SS + pólizas, con caducidad y semáforo de salud documental
-- [M3 Pliegos](docs/modules/M3-pliegos.md) 🔲 — analizador IA de PCAP+PPT con recomendación ir/no ir + soporte catalán nativo
+- [M3 Pliegos](docs/modules/M3-pliegos.md) 🔲 — analizador IA de PCAP+PPT con recomendación ir/no ir, **enriquecido con contexto del órgano del data layer PSCP** + soporte catalán nativo
 - [M4 Sobre A](docs/modules/M4-sobre-a.md) 🔲 — generación DEUC + declaración responsable, con DEUC ultra-simplificado para empresas en RELIC
-- [M5 Calculadora](docs/modules/M5-calculadora.md) 🔲 — oferta económica con baja temeraria y puntuación en tiempo real (cierra Sobre C)
-- [M6 Tracker](docs/modules/M6-tracker.md) 🔲 — pipeline kanban con todos los estados del ciclo + relojes legales (subsanación 3d, documentación previa 10d). Es el home del producto.
+- [M5 Sobre B](docs/modules/M5-sobre-b.md) 🔲 — redactor de memoria técnica adaptada al pliego + perfil del órgano (PSCP intel) + obras de referencia (M2). Killer feature, palanca de pricing premium
+- [M6 Calculadora](docs/modules/M6-calculadora.md) 🔲 — oferta económica con **baja media histórica del órgano+CPV** y baja temeraria calculada con datos reales (cierra Sobre C)
+- [M7 Tracker](docs/modules/M7-tracker.md) 🔲 — pipeline kanban con todos los estados del ciclo + relojes legales (subsanación 3d, documentación previa 10d). Es el home del producto.
+
+**Data layer transversal:** [docs/data-science/architecture.md](docs/data-science/architecture.md) — schema PostgreSQL, pipeline de ingestión PSCP, materialized views agregadas, scoring engine bayesiano. Alimenta M1, M3, M5 y M6.
 
 Orden de construcción propuesto:
 1. **Validación pre-código** (1-2 semanas): 3-5 pilotos catalanes + 5-10 PCAPs reales + acceso programático RELIC
-2. **Cimientos** (2-3 semanas): auth real (sustituir `EMPRESA_DEMO_ID`), M2 ampliado (RELIC + datos básicos + caducidades), M1 refinado (4º eje + acciones)
-3. **Decisión** (3-4 semanas): M3 completo (extracción + recomendación + UI dashboard), importación PSCP one-click, soporte IA catalán
-4. **Generación** (2-3 semanas): M4 Sobre A (DEUC + decl. responsable) + M5 Calculadora
-5. **Cierre del ciclo** (2 semanas): M6 Tracker con relojes legales + agente de avisos diario
-6. **Pulido** (1-2 semanas): UI editorial coherente + onboarding M2 + catalán completo en UI
+2. **Phase 1 — Data layer PSCP** (4-5 semanas): backfill 5 años + schema + materialized views + scoring engine + API intel + integración con M1 Radar
+3. **Phase 1.5 — Sample extracción pliegos** (1 semana): muestra 200 expedientes para validar disponibilidad de PCAP/PPT/memorias adjudicatarias antes de gastar $5-10k
+4. **Cimientos** (2-3 semanas): auth real (sustituir `EMPRESA_DEMO_ID`), M2 ampliado (RELIC + datos básicos + caducidades), M1 refinado (4º eje + acciones)
+5. **Decisión** (3-4 semanas): M3 completo (extracción + recomendación enriquecida con PSCP + UI dashboard), importación PSCP one-click, soporte IA catalán
+6. **Generación** (4-5 semanas): M4 Sobre A + M5 Sobre B (con perfil órgano de PSCP) + M6 Calculadora (con baja histórica de PSCP)
+7. **Cierre del ciclo** (2 semanas): M7 Tracker con relojes legales + agente de avisos diario
+8. **Pulido** (1-2 semanas): UI editorial coherente + onboarding M2 + catalán completo en UI
 
 ## Reglas de código
 - Async/await en todos los endpoints FastAPI

@@ -1,0 +1,2 @@
+# Sample fetched from Socrata — too large for git, regenerable via pscp_audit.py
+data/pscp_sample_adjudicats.json

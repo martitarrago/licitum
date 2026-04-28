@@ -1,0 +1,198 @@
+{
+  "ofertes_rebudes": {
+    "present": 4998,
+    "total": 5000,
+    "pct": 99.96
+  },
+  "identificacio_adjudicatari": {
+    "present": 5000,
+    "total": 5000,
+    "pct": 100.0
+  },
+  "tipus_identificacio_adjudicatari": {
+    "present": 0,
+    "total": 5000,
+    "pct": 0.0
+  },
+  "denominacio_adjudicatari": {
+    "present": 5000,
+    "total": 5000,
+    "pct": 100.0
+  },
+  "import_adjudicacio_sense": {
+    "present": 4969,
+    "total": 5000,
+    "pct": 99.38
+  },
+  "import_adjudicacio_amb_iva": {
+    "present": 4967,
+    "total": 5000,
+    "pct": 99.34
+  },
+  "pressupost_licitacio_sense": {
+    "present": 4943,
+    "total": 5000,
+    "pct": 98.86
+  },
+  "pressupost_licitacio_sense_1": {
+    "present": 4954,
+    "total": 5000,
+    "pct": 99.08
+  },
+  "valor_estimat_expedient": {
+    "present": 5000,
+    "total": 5000,
+    "pct": 100.0
+  },
+  "codi_cpv": {
+    "present": 4979,
+    "total": 5000,
+    "pct": 99.58
+  },
+  "nom_organ": {
+    "present": 5000,
+    "total": 5000,
+    "pct": 100.0
+  },
+  "codi_organ": {
+    "present": 5000,
+    "total": 5000,
+    "pct": 100.0
+  },
+  "procediment": {
+    "present": 4179,
+    "total": 5000,
+    "pct": 83.58
+  },
+  "tipus_contracte": {
+    "present": 5000,
+    "total": 5000,
+    "pct": 100.0
+  },
+  "data_publicacio_adjudicacio": {
+    "present": 5000,
+    "total": 5000,
+    "pct": 100.0
+  },
+  "data_adjudicacio_contracte": {
+    "present": 5000,
+    "total": 5000,
+    "pct": 100.0
+  },
+  "data_formalitzacio_contracte": {
+    "present": 1734,
+    "total": 5000,
+    "pct": 34.68
+  },
+  "resultat": {
+    "present": 4959,
+    "total": 5000,
+    "pct": 99.18
+  },
+  "fase_publicacio": {
+    "present": 5000,
+    "total": 5000,
+    "pct": 100.0
+  },
+  "lloc_execucio": {
+    "present": 5000,
+    "total": 5000,
+    "pct": 100.0
+  },
+  "codi_nuts": {
+    "present": 5000,
+    "total": 5000,
+    "pct": 100.0
+  },
+  "_ofertes_rebudes_dist": {
+    "n": 4998,
+    "avg": 3.023409363745498,
+    "median": 2,
+    "buckets": {
+      "1": 2205,
+      "2-3": 1453,
+      "4-5": 694,
+      "6-10": 485,
+      "11+": 161
+    }
+  },
+  "_by_procediment": {
+    "<null>": {
+      "total": 821,
+      "with_ofertes": 821,
+      "with_cif": 821,
+      "with_import": 821
+    },
+    "Obert": {
+      "total": 1707,
+      "with_ofertes": 1706,
+      "with_cif": 1707,
+      "with_import": 1681
+    },
+    "Obert simplificat abreujat": {
+      "total": 630,
+      "with_ofertes": 630,
+      "with_cif": 630,
+      "with_import": 630
+    },
+    "Negociat sense publicitat": {
+      "total": 462,
+      "with_ofertes": 462,
+      "with_cif": 462,
+      "with_import": 457
+    },
+    "Obert simplificat": {
+      "total": 870,
+      "with_ofertes": 869,
+      "with_cif": 870,
+      "with_import": 870
+    },
+    "Contracte menor": {
+      "total": 410,
+      "with_ofertes": 410,
+      "with_cif": 410,
+      "with_import": 410
+    },
+    "Restringit": {
+      "total": 15,
+      "with_ofertes": 15,
+      "with_cif": 15,
+      "with_import": 15
+    },
+    "Concurs de projectes": {
+      "total": 14,
+      "with_ofertes": 14,
+      "with_cif": 14,
+      "with_import": 14
+    },
+    "Adjudicacions directes no menors": {
+      "total": 54,
+      "with_ofertes": 54,
+      "with_cif": 54,
+      "with_import": 54
+    },
+    "Altres procediments segons instruccions internes": {
+      "total": 12,
+      "with_ofertes": 12,
+      "with_cif": 12,
+      "with_import": 12
+    },
+    "Diàleg competitiu": {
+      "total": 2,
+      "with_ofertes": 2,
+      "with_cif": 2,
+      "with_import": 2
+    },
+    "Licitació amb negociació": {
+      "total": 3,
+      "with_ofertes": 3,
+      "with_cif": 3,
+      "with_import": 3
+    }
+  },
+  "_baja": {
+    "calculable_pct": 95.14,
+    "avg": 9.42,
+    "median": 2.6
+  }
+}
