@@ -71,6 +71,22 @@ function parseLicitacion(l: LicitacionRead) {
   };
 }
 
+// Pipeline activo — orden visual: relojes legales primero (urgencia ↓ a ↑).
+const ACTIVE_STATES: EstadoTracker[] = [
+  "en_subsanacion",
+  "documentacion_previa",
+  "en_preparacion",
+  "presentada",
+];
+
+// Tailwind no soporta clases dinámicas por concatenación — mapping estático.
+const STATE_BAR_CLASS: Partial<Record<EstadoTracker, string>> = {
+  en_subsanacion: "bg-danger",
+  documentacion_previa: "bg-danger",
+  en_preparacion: "bg-foreground/85",
+  presentada: "bg-foreground/45",
+};
+
 // ─── Página ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -137,45 +153,39 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-12 sm:px-10">
       {/* HERO */}
-      <header className="mb-14 animate-fade-up">
+      <header className="mb-10 animate-fade-up">
         <h1 className="display-h text-5xl leading-[0.95] sm:text-7xl">
           {saludo(now)}.
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
-          Tu seguimiento en vivo de licitaciones, en un vistazo. Detectar,
-          decidir, presentar y seguir cada oportunidad — todo desde aquí.
+          Lo que requiere tu atención hoy, antes que cualquier otra cosa.
         </p>
       </header>
 
-      {/* KPIs ── 4 números desnudos, sin decoración */}
+      {/* 1 ── PLAZOS CRÍTICOS al frente — grita cuando hay relojes corriendo */}
+      <PlazosCriticos data={tracker.data} loading={tracker.isLoading} />
+
+      {/* 2 ── PIPELINE HEROÍNA — KPI principal con visualización */}
+      <PipelineHeroina
+        items={pipelineActivo.data}
+        loading={pipelineActivo.isLoading}
+      />
+
+      {/* 3 ── KPIs DE SOPORTE — contexto secundario */}
       <section
-        aria-label="Indicadores clave"
-        className="stagger mb-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        aria-label="Indicadores de soporte"
+        className="stagger mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3"
       >
         <KpiSolvencia data={solvencia.data} loading={solvencia.isLoading} />
         <KpiOportunidades
           verde={verdes.data?.total ?? 0}
           loading={verdes.isLoading}
         />
-        <KpiPipeline data={tracker.data} loading={tracker.isLoading} />
         <KpiSaludDocumental data={saludDocs.data} loading={saludDocs.isLoading} />
       </section>
 
-      {/* Plazos críticos — slim */}
-      <section className="mb-6">
-        <PlazosCriticos data={tracker.data} loading={tracker.isLoading} />
-      </section>
-
-      {/* Mini-pipeline */}
-      <section className="mb-12">
-        <MiniPipeline
-          items={pipelineActivo.data}
-          loading={pipelineActivo.isLoading}
-        />
-      </section>
-
-      {/* DOS LISTAS */}
-      <section className="mb-12 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* 4 ── DOS LISTAS */}
+      <section className="mb-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ListaLicitaciones
           titulo="Cierran esta semana"
           ctaHref="/radar?semaforo=verde&plazo_max_dias=14"
@@ -194,7 +204,7 @@ export default function DashboardPage() {
         />
       </section>
 
-      {/* DESGLOSE ROLECE */}
+      {/* 5 ── DESGLOSE ROLECE */}
       <section aria-label="Solvencia por grupo">
         <DesgloseRolece data={solvencia.data} loading={solvencia.isLoading} />
       </section>
@@ -279,46 +289,6 @@ function KpiOportunidades({
   );
 }
 
-// ─── KPI: Pipeline activo (M6) ──────────────────────────────────────────────
-
-function KpiPipeline({
-  data,
-  loading,
-}: {
-  data: TrackerResumen | undefined;
-  loading: boolean;
-}) {
-  if (loading) return <KpiSkeleton />;
-  const total = data?.total_activas ?? 0;
-  const conPlazo = data?.deadlines_semana?.length ?? 0;
-
-  return (
-    <KpiTile
-      label="En seguimiento"
-      tooltip="Licitaciones que has añadido al seguimiento y siguen en estado activo (no terminales)."
-    >
-      <p className="display-num text-[2.75rem] leading-none text-foreground">
-        {total}
-      </p>
-      <p className="mt-3 text-xs tabular-nums text-muted-foreground">
-        {total === 0
-          ? "ninguna en seguimiento"
-          : `licitación${total === 1 ? "" : "es"} en marcha`}
-      </p>
-      {conPlazo > 0 && (
-        <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-danger">
-          <span
-            className="h-1.5 w-1.5 rounded-full bg-danger"
-            aria-hidden="true"
-          />
-          {conPlazo} plazo{conPlazo === 1 ? "" : "s"} crítico
-          {conPlazo === 1 ? "" : "s"}
-        </p>
-      )}
-    </KpiTile>
-  );
-}
-
 // ─── KPI: Salud documental (M2) ─────────────────────────────────────────────
 
 function KpiSaludDocumental({
@@ -333,6 +303,7 @@ function KpiSaludDocumental({
   const vigentes = data?.vigentes ?? 0;
   const aCaducar = data?.a_caducar ?? 0;
   const caducados = data?.caducados ?? 0;
+  const noVigentes = aCaducar + caducados;
   const pct = total === 0 ? null : Math.round((vigentes / total) * 100);
 
   return (
@@ -354,27 +325,21 @@ function KpiSaludDocumental({
           <p className="mt-3 text-xs tabular-nums text-muted-foreground">
             {vigentes} vigente{vigentes === 1 ? "" : "s"} de {total}
           </p>
-          {(aCaducar > 0 || caducados > 0) && (
-            <div className="mt-2 flex items-center gap-3 text-xs">
-              {aCaducar > 0 && (
-                <span className="flex items-center gap-1.5 text-warning">
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-warning"
-                    aria-hidden="true"
-                  />
-                  {aCaducar}
-                </span>
-              )}
+          {noVigentes > 0 && (
+            <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+              <span className="flex items-center gap-1.5 font-semibold text-danger">
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-danger"
+                  aria-hidden="true"
+                />
+                {noVigentes} requier{noVigentes === 1 ? "e" : "en"} acción
+              </span>
               {caducados > 0 && (
-                <span className="flex items-center gap-1.5 text-danger">
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-danger"
-                    aria-hidden="true"
-                  />
-                  {caducados}
+                <span className="text-muted-foreground">
+                  · {caducados} caducad{caducados === 1 ? "o" : "os"}
                 </span>
               )}
-            </div>
+            </p>
           )}
         </>
       )}
@@ -393,91 +358,96 @@ function PlazosCriticos({
 }) {
   if (loading) {
     return (
-      <div className="card p-5">
-        <div className="skeleton h-3 w-32 rounded" />
-        <div className="mt-3 space-y-1.5">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="skeleton h-9 rounded-lg" />
-          ))}
-        </div>
-      </div>
+      <section className="mb-8">
+        <div className="skeleton h-24 rounded-2xl" />
+      </section>
     );
   }
 
   const items = data?.deadlines_semana ?? [];
 
-  return (
-    <div className="card p-5">
-      <header className="mb-3 flex items-baseline justify-between gap-4">
-        <h2 className="font-display text-base font-bold tracking-tight">
-          {items.length === 0
-            ? "Sin plazos críticos esta semana"
-            : `${items.length} plazo${items.length === 1 ? "" : "s"} crítico${items.length === 1 ? "" : "s"} esta semana`}
-        </h2>
-        <Link
-          href="/tracker"
-          className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-        >
-          Ver seguimiento →
-        </Link>
-      </header>
-
-      {items.length === 0 ? (
-        <p className="flex items-center gap-2 text-sm text-success">
-          <span
-            className="h-1.5 w-1.5 rounded-full bg-success"
-            aria-hidden="true"
-          />
-          Estás al día. Ninguna licitación tiene reloj legal corriendo.
+  // Empty: línea slim con dot verde — no roba protagonismo.
+  if (items.length === 0) {
+    return (
+      <section className="mb-10 flex items-center gap-2.5 border-y border-border/60 px-1 py-3">
+        <span
+          className="h-1.5 w-1.5 rounded-full bg-success"
+          aria-hidden="true"
+        />
+        <p className="text-sm text-muted-foreground">
+          Estás al día.{" "}
+          <span className="text-foreground">Ningún reloj legal corriendo.</span>
         </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {items.slice(0, 3).map((item) => {
+      </section>
+    );
+  }
+
+  // Active: card con borde rojo izquierdo. Grita.
+  return (
+    <section className="mb-10 animate-fade-up">
+      <article className="overflow-hidden rounded-2xl border-l-[3px] border-danger bg-surface-raised shadow-card ring-1 ring-border">
+        <header className="flex items-baseline justify-between gap-4 border-b border-border px-6 py-4">
+          <div className="flex items-baseline gap-3">
+            <span
+              className="h-2 w-2 translate-y-[-2px] rounded-full bg-danger"
+              aria-hidden="true"
+            />
+            <h2 className="font-display text-base font-bold tracking-tight text-danger">
+              {items.length} reloj{items.length === 1 ? "" : "es"} legal
+              {items.length === 1 ? "" : "es"} corriendo
+            </h2>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Próximos 7 días
+            </span>
+          </div>
+          <Link
+            href="/tracker"
+            className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            Ver seguimiento →
+          </Link>
+        </header>
+        <ul className="divide-y divide-border">
+          {items.slice(0, 4).map((item) => {
             const dias = diasHasta(item.deadline_actual);
-            const urgente = dias != null && dias <= 2;
             return (
               <li key={item.id}>
                 <Link
                   href={`/radar/${encodeURIComponent(item.expediente)}`}
-                  className="card-interactive flex items-center justify-between gap-3 px-3 py-2"
+                  className="flex items-center justify-between gap-4 px-6 py-3.5 transition-colors hover:bg-muted/30"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-1 text-sm font-medium leading-snug">
                       {item.titulo ?? "(sin título)"}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {ESTADO_LABELS[item.estado as EstadoTracker] ?? item.estado}
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {ESTADO_LABELS[item.estado as EstadoTracker] ??
+                        item.estado}
                       {item.organismo ? ` · ${item.organismo}` : ""}
                     </p>
                   </div>
-                  <DeadlinePill dias={dias} urgente={urgente} />
+                  <DeadlinePill dias={dias} />
                 </Link>
               </li>
             );
           })}
-          {items.length > 3 && (
-            <li className="pt-1">
+          {items.length > 4 && (
+            <li className="border-t border-border bg-muted/20 px-6 py-2.5 text-center">
               <Link
                 href="/tracker"
                 className="text-[11px] font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
               >
-                +{items.length - 3} más en seguimiento →
+                +{items.length - 4} más en seguimiento →
               </Link>
             </li>
           )}
         </ul>
-      )}
-    </div>
+      </article>
+    </section>
   );
 }
 
-function DeadlinePill({
-  dias,
-  urgente,
-}: {
-  dias: number | null;
-  urgente: boolean;
-}) {
+function DeadlinePill({ dias }: { dias: number | null }) {
   if (dias == null) {
     return (
       <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
@@ -489,35 +459,29 @@ function DeadlinePill({
     dias < 0
       ? `−${Math.abs(dias)} d`
       : dias === 0
-      ? "hoy"
-      : dias === 1
-      ? "mañana"
-      : `${dias} d`;
+        ? "hoy"
+        : dias === 1
+          ? "mañana"
+          : `${dias} d`;
+  // Sin amber: ≤2d sólido rojo, ≤7d soft red, resto neutro.
+  const cls =
+    dias <= 2
+      ? "bg-danger text-surface"
+      : dias <= 7
+        ? "bg-danger/10 text-danger"
+        : "bg-muted text-muted-foreground";
   return (
     <span
-      className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold tabular-nums ${
-        dias < 0 || urgente
-          ? "bg-danger text-surface"
-          : dias <= 7
-          ? "bg-warning/15 text-warning"
-          : "bg-muted text-muted-foreground"
-      }`}
+      className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold tabular-nums ${cls}`}
     >
       {label}
     </span>
   );
 }
 
-// ─── Mini-pipeline ──────────────────────────────────────────────────────────
+// ─── Pipeline heroína ───────────────────────────────────────────────────────
 
-const MINI_PIPELINE_ESTADOS: EstadoTracker[] = [
-  "en_preparacion",
-  "presentada",
-  "en_subsanacion",
-  "documentacion_previa",
-];
-
-function MiniPipeline({
+function PipelineHeroina({
   items,
   loading,
 }: {
@@ -526,175 +490,207 @@ function MiniPipeline({
 }) {
   if (loading) {
     return (
-      <div className="card p-6">
-        <div className="skeleton h-3 w-40 rounded" />
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="space-y-2">
-              <div className="skeleton h-3 w-24 rounded" />
-              <div className="skeleton h-16 rounded-lg" />
-              <div className="skeleton h-16 rounded-lg" />
+      <section className="mb-10">
+        <div className="card p-8">
+          <div className="skeleton h-3 w-32 rounded" />
+          <div className="mt-7 grid grid-cols-1 gap-10 lg:grid-cols-[auto_1fr] lg:gap-12">
+            <div className="space-y-3">
+              <div className="skeleton h-20 w-32 rounded" />
+              <div className="skeleton h-3 w-40 rounded" />
             </div>
-          ))}
+            <div className="space-y-5">
+              <div className="skeleton h-3 rounded-full" />
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <div className="skeleton h-2.5 w-16 rounded" />
+                    <div className="skeleton h-6 w-8 rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
     );
   }
 
-  const grouped: Record<EstadoTracker, TrackerFeedItem[]> = {
-    en_preparacion: [],
-    presentada: [],
-    en_subsanacion: [],
-    apertura_sobres: [],
-    adjudicacion_provisional: [],
-    documentacion_previa: [],
-    adjudicada: [],
-    formalizada: [],
-    perdida: [],
-    rechazada: [],
-  };
+  const counts = ACTIVE_STATES.reduce(
+    (acc, s) => {
+      acc[s] = 0;
+      return acc;
+    },
+    {} as Record<EstadoTracker, number>,
+  );
+
   for (const item of items ?? []) {
     const e = item.estado as EstadoTracker;
-    if (grouped[e]) grouped[e].push(item);
+    if (e in counts) counts[e] += 1;
   }
 
-  const total = MINI_PIPELINE_ESTADOS.reduce(
-    (acc, e) => acc + grouped[e].length,
+  const total = ACTIVE_STATES.reduce((acc, s) => acc + counts[s], 0);
+  const conReloj = ACTIVE_STATES.reduce(
+    (acc, s) => acc + (ESTADOS_RELOJ_LEGAL.has(s) ? counts[s] : 0),
     0,
   );
 
   if (total === 0) {
     return (
-      <div className="card p-6">
-        <header className="mb-3 flex items-baseline justify-between gap-4">
-          <h2 className="font-display text-base font-bold tracking-tight">
-            Sin licitaciones en seguimiento
-          </h2>
-          <Link
-            href="/tracker"
-            className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-          >
-            Ver seguimiento →
-          </Link>
-        </header>
-        <p className="text-sm text-muted-foreground">
-          Aún no has añadido ninguna licitación al seguimiento. Desde el{" "}
-          <Link
-            href="/radar"
-            className="font-medium text-foreground underline-offset-4 hover:underline"
-          >
-            Radar
-          </Link>
-          , abre una oportunidad y pulsa{" "}
-          <strong>Añadir al seguimiento</strong>.
-        </p>
-      </div>
+      <section className="mb-10 animate-fade-up">
+        <article className="card p-8">
+          <header className="mb-4 flex items-baseline justify-between gap-4">
+            <h2 className="font-display text-2xl font-bold tracking-tight">
+              Aún no hay licitaciones en marcha.
+            </h2>
+            <Link
+              href="/tracker"
+              className="text-sm font-semibold text-[#f56930] underline-offset-4 transition-all hover:underline"
+            >
+              Ver tracker →
+            </Link>
+          </header>
+          <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Desde el{" "}
+            <Link
+              href="/radar"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              Radar
+            </Link>
+            , abre una oportunidad y pulsa{" "}
+            <strong className="font-semibold text-foreground">
+              añadir al seguimiento
+            </strong>{" "}
+            para verla aquí.
+          </p>
+        </article>
+      </section>
     );
   }
 
   return (
-    <div className="card p-6">
-      <header className="mb-5 flex items-baseline justify-between gap-4">
-        <h2 className="font-display text-2xl font-bold tracking-tight">
-          {total} licitaci{total === 1 ? "ón" : "ones"} en seguimiento
-        </h2>
-        <Link
-          href="/tracker"
-          className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-        >
-          Ver todo el seguimiento →
-        </Link>
-      </header>
-
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {MINI_PIPELINE_ESTADOS.map((estado) => (
-          <MiniColumn
-            key={estado}
-            estado={estado}
-            items={grouped[estado]}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function MiniColumn({
-  estado,
-  items,
-}: {
-  estado: EstadoTracker;
-  items: TrackerFeedItem[];
-}) {
-  const conReloj = ESTADOS_RELOJ_LEGAL.has(estado);
-  const visibles = items.slice(0, 3);
-  const restantes = items.length - visibles.length;
-
-  return (
-    <div className="flex flex-col gap-2.5">
-      <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          {conReloj && (
-            <span
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger"
-              aria-label="Reloj legal"
-            />
-          )}
-          <h3
-            className={`truncate text-[11px] font-semibold uppercase tracking-wider ${
-              conReloj ? "text-danger" : "text-foreground"
-            }`}
+    <section className="mb-10 animate-fade-up">
+      <article className="card p-8">
+        <header className="mb-7 flex items-baseline justify-between gap-4">
+          <p className="eyebrow">En seguimiento</p>
+          <Link
+            href="/tracker"
+            className="text-sm font-semibold text-[#f56930] underline-offset-4 transition-all hover:underline"
           >
-            {ESTADO_LABELS[estado]}
-          </h3>
-        </div>
-        <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-          {items.length}
-        </span>
-      </div>
+            Ver tracker →
+          </Link>
+        </header>
 
-      {items.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border px-3 py-5 text-center text-[11px] text-muted-foreground/50">
-          —
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[auto_1fr] lg:items-center lg:gap-14">
+          {/* Columna izquierda — número heroína */}
+          <div>
+            <p className="display-num text-[5.5rem] leading-[0.9] text-foreground sm:text-[6.5rem]">
+              {total}
+            </p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              licitaci{total === 1 ? "ón" : "ones"} en marcha
+            </p>
+            {conReloj > 0 && (
+              <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-danger">
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-danger"
+                  aria-hidden="true"
+                />
+                {conReloj} con reloj legal corriendo
+              </p>
+            )}
+          </div>
+
+          {/* Columna derecha — bar + legend */}
+          <div>
+            <PipelineBar counts={counts} total={total} />
+            <PipelineLegend counts={counts} />
+          </div>
         </div>
-      ) : (
-        <div className="flex flex-col gap-1.5">
-          {visibles.map((item) => (
-            <MiniCard key={item.id} item={item} />
-          ))}
-          {restantes > 0 && (
-            <Link
-              href="/tracker"
-              className="px-1 pt-0.5 text-[11px] font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-            >
-              +{restantes} más
-            </Link>
-          )}
-        </div>
-      )}
+      </article>
+    </section>
+  );
+}
+
+function PipelineBar({
+  counts,
+  total,
+}: {
+  counts: Record<EstadoTracker, number>;
+  total: number;
+}) {
+  return (
+    <div
+      className="flex h-3 w-full overflow-hidden rounded-full bg-muted shadow-inset-soft"
+      role="img"
+      aria-label="Distribución de licitaciones por estado"
+    >
+      {ACTIVE_STATES.map((estado) => {
+        const value = counts[estado];
+        if (value === 0) return null;
+        const pct = (value / total) * 100;
+        return (
+          <div
+            key={estado}
+            className={`h-full transition-all duration-700 ease-out-soft ${STATE_BAR_CLASS[estado] ?? "bg-foreground/40"}`}
+            style={{ width: `${pct}%` }}
+            title={`${ESTADO_LABELS[estado]}: ${value}`}
+          />
+        );
+      })}
     </div>
   );
 }
 
-function MiniCard({ item }: { item: TrackerFeedItem }) {
-  const dias = diasHasta(item.deadline_actual);
-  const urgente = dias != null && dias <= 2;
-
+function PipelineLegend({
+  counts,
+}: {
+  counts: Record<EstadoTracker, number>;
+}) {
   return (
-    <Link
-      href={`/radar/${encodeURIComponent(item.expediente)}`}
-      className="block rounded-lg bg-surface-raised px-3 py-2.5 ring-1 ring-border transition-colors hover:bg-muted/30"
-    >
-      <p className="line-clamp-2 text-xs font-medium leading-snug">
-        {item.titulo ?? "(sin título)"}
-      </p>
-      <div className="mt-1.5 flex items-center justify-between gap-2">
-        <p className="line-clamp-1 text-[10px] text-muted-foreground">
-          {item.organismo ?? "—"}
-        </p>
-        {dias != null && <DeadlinePill dias={dias} urgente={urgente} />}
-      </div>
-    </Link>
+    <ul className="mt-7 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+      {ACTIVE_STATES.map((estado) => {
+        const value = counts[estado];
+        const reloj = ESTADOS_RELOJ_LEGAL.has(estado);
+        const tieneItems = value > 0;
+        return (
+          <li key={estado}>
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                  reloj
+                    ? "bg-danger"
+                    : tieneItems
+                      ? "bg-foreground/55"
+                      : "bg-border"
+                }`}
+                aria-hidden="true"
+              />
+              <p
+                className={`truncate text-[10px] font-semibold uppercase tracking-wider ${
+                  reloj && tieneItems
+                    ? "text-danger"
+                    : "text-muted-foreground"
+                }`}
+              >
+                {ESTADO_LABELS[estado]}
+              </p>
+            </div>
+            <p
+              className={`mt-1 font-display text-2xl font-bold tabular-nums tracking-tight ${
+                reloj && tieneItems
+                  ? "text-danger"
+                  : tieneItems
+                    ? "text-foreground"
+                    : "text-muted-foreground/40"
+              }`}
+            >
+              {value}
+            </p>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
