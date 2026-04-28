@@ -45,6 +45,7 @@ from app.intel.scoring.composite import (
     signal_encaje_tecnico,
     signal_preferencias_match,
 )
+from app.intel.scoring.lcsp import TemerariaEstimate, estimar_baja_temeraria
 
 
 # ----------------------------------------------------------------------------
@@ -290,9 +291,17 @@ async def score_licitacion(
         cpv_division=licitacion.codi_cpv_2,
         pref_cpv_prioridad=cpv_pref,
     )
+    # ── LCSP baja temeraria threshold ───────────────────────────────
+    baja_media_para_lcsp = baja_exact_avg if baja_exact_avg is not None else baja_cpv4_avg
+    temeraria = estimar_baja_temeraria(
+        ofertes_esperadas=competencia_post.posterior_mean,
+        baja_media_historica=baja_media_para_lcsp,
+    )
+
     sig_baja = signal_baja_factible(
         baja_necesaria_estimada=baja_estimada,
         margen_minimo_empresa=empresa.margen_minimo_baja,
+        baja_temeraria_threshold=temeraria.threshold_pct,
         n_obs_baja=n_obs_principal,
     )
 

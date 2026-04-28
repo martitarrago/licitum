@@ -100,13 +100,15 @@ async def get_competencia(
     return {k: float(v) if v is not None else None for k, v in m.items()}
 
 
-@router.get("/baja", summary="Distribución de baja histórica")
+@router.get("/baja", summary="Distribución de baja histórica + threshold temerario LCSP")
 async def get_baja(
     db: Annotated[AsyncSession, Depends(get_db)],
     codi_organ: str | None = Query(None),
     codi_cpv_4: str | None = Query(None),
     tipus_contracte: str = Query("Obres"),
 ) -> dict[str, Any]:
+    from app.intel.scoring.lcsp import estimar_baja_temeraria
+
     where = ["tipus_contracte = :t"]
     params: dict[str, Any] = {"t": tipus_contracte}
     if codi_organ:
@@ -120,18 +122,35 @@ async def get_baja(
         "SELECT SUM(n_obs) AS n_obs, "
         "       SUM(baja_avg * n_obs) / NULLIF(SUM(n_obs), 0) AS baja_avg, "
         "       AVG(baja_median) AS baja_median_approx, "
-        "       AVG(baja_p90) AS baja_p90_approx "
+        "       AVG(baja_p90) AS baja_p90_approx, "
+        "       SUM(ofertes_avg * n_obs) / NULLIF(SUM(n_obs), 0) AS ofertes_avg "
         "FROM agg_competencia_organ_cpv WHERE " + " AND ".join(where)
     )
     r = await db.execute(text(sql), params)
     row = r.first()
     if not row or row[0] is None:
         return {"n_obs": 0}
+
+    baja_avg = float(row[1]) if row[1] is not None else None
+    ofertes_avg = float(row[4]) if row[4] is not None else None
+
+    temeraria = estimar_baja_temeraria(
+        ofertes_esperadas=ofertes_avg,
+        baja_media_historica=baja_avg,
+    )
+
     return {
         "n_obs": int(row[0]),
-        "baja_avg": float(row[1]) if row[1] is not None else None,
+        "baja_avg": baja_avg,
         "baja_median_approx": float(row[2]) if row[2] is not None else None,
         "baja_p90_approx": float(row[3]) if row[3] is not None else None,
+        "ofertes_avg": ofertes_avg,
+        "baja_temeraria_estimada": {
+            "threshold_pct": temeraria.threshold_pct,
+            "metodo": temeraria.metodo,
+            "confianza": temeraria.confianza,
+            "n_ofertas_supuesto": temeraria.n_ofertas_supuesto,
+        },
     }
 
 

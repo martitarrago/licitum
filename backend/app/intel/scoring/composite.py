@@ -20,13 +20,21 @@ from typing import Any
 
 @dataclass(frozen=True)
 class SignalBreakdown:
-    """Contribución de una señal al score compuesto."""
+    """Contribución de una señal al score compuesto.
+
+    `data_quality`:
+      - 'completa' = todos los inputs están presentes y son fiables.
+      - 'parcial'  = se calculó con uno o más fallbacks (defaults o muestras pequeñas).
+      - 'faltante' = no había información — la señal devuelve un valor neutro
+                     y el peso debería verse como ruido. La UI puede atenuarla.
+    """
 
     name: str
     value_normalized: float  # 0-1
     weight: float  # 0-1
     explanation: str
     data_points: dict[str, Any] = field(default_factory=dict)
+    data_quality: str = "completa"
 
     @property
     def contribution(self) -> float:
@@ -50,14 +58,20 @@ class GanabilidadScore:
     Si `descartada=True`, score=0 y `reason_descarte` explica por qué.
     Las señales blandas se calculan igualmente (informativo) pero no
     contribuyen al score final.
+
+    `data_completeness_pct` resume cuántas señales tenían info completa,
+    para que la UI muestre algo como "precisión 67% — completa tu perfil
+    para subirla". El umbral por señal: completa=1.0, parcial=0.5,
+    faltante=0.
     """
 
     score: int
-    confidence: str  # 'alta' | 'media' | 'baja'
+    confidence: str  # 'alta' | 'media' | 'baja' | 'n/a'
     descartada: bool
     reason_descarte: str | None
     hard_filters: list[HardFilterResult]
     breakdown: list[SignalBreakdown]
+    data_completeness_pct: int  # 0-100
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -65,6 +79,7 @@ class GanabilidadScore:
             "confidence": self.confidence,
             "descartada": self.descartada,
             "reason_descarte": self.reason_descarte,
+            "data_completeness_pct": self.data_completeness_pct,
             "hard_filters": [
                 {"name": f.name, "fail": f.fail, "reason": f.reason}
                 for f in self.hard_filters
@@ -76,6 +91,7 @@ class GanabilidadScore:
                     "weight": b.weight,
                     "contribution": round(b.contribution, 2),
                     "explanation": b.explanation,
+                    "data_quality": b.data_quality,
                     "data": b.data_points,
                 }
                 for b in self.breakdown
@@ -128,6 +144,14 @@ def signal_competencia_esperada(
     explanation = (
         f"Competencia esperada: ~{ofertes_posterior:.1f} ofertas (n={n_obs} hist){pct_str}."
     )
+
+    if n_obs >= 30:
+        dq = "completa"
+    elif n_obs >= 5:
+        dq = "parcial"
+    else:
+        dq = "faltante"
+
     return SignalBreakdown(
         name="competencia_esperada",
         value_normalized=value,
@@ -138,6 +162,7 @@ def signal_competencia_esperada(
             "pct_oferta_unica": pct_oferta_unica,
             "n_obs": n_obs,
         },
+        data_quality=dq,
     )
 
 
@@ -159,6 +184,7 @@ def signal_concentracion_organo(
             weight=WEIGHTS["concentracion_organo"],
             explanation="Sin histórico suficiente del órgano para evaluar concentración.",
             data_points={"hhi": hhi, "n_adjudicaciones": n_adjudicaciones, "tu_eres_top": empresa_es_top},
+            data_quality="faltante",
         )
 
     if empresa_es_top:
@@ -194,6 +220,7 @@ def signal_concentracion_organo(
             "n_adjudicaciones": n_adjudicaciones,
             "tu_eres_top": empresa_es_top,
         },
+        data_quality="completa" if n_adjudicaciones >= 20 else "parcial",
     )
 
 
@@ -222,6 +249,7 @@ def signal_encaje_tecnico(
         value = 0.8
         explanation = "Cumples clasificación y solvencia justas pero sin holgura."
 
+    dq = "completa" if nivel_clasificacion_holgura is not None else "parcial"
     return SignalBreakdown(
         name="encaje_tecnico",
         value_normalized=value,
@@ -232,6 +260,7 @@ def signal_encaje_tecnico(
             "cumple_solvencia": cumple_solvencia,
             "holgura": nivel_clasificacion_holgura,
         },
+        data_quality=dq,
     )
 
 
@@ -260,6 +289,7 @@ def signal_encaje_geografico(
         value = 0.2
         explanation = f"Obra lejana ({distancia_km:.0f} km) — coste logístico alto."
 
+    dq = "completa" if distancia_km is not None else "parcial"
     return SignalBreakdown(
         name="encaje_geografico",
         value_normalized=value,
@@ -270,56 +300,104 @@ def signal_encaje_geografico(
             "misma_provincia": es_misma_provincia,
             "mismo_nuts3": es_mismo_nuts3,
         },
+        data_quality=dq,
     )
 
 
 def signal_baja_factible(
     baja_necesaria_estimada: float | None,
     margen_minimo_empresa: float | None,
+    baja_temeraria_threshold: float | None,
     n_obs_baja: int,
 ) -> SignalBreakdown:
-    """¿Es factible ofrecer la baja necesaria sin entrar en pérdidas?
+    """¿Es factible ofrecer la baja necesaria SIN entrar en pérdidas Y sin caer en temeraria?
 
-    `baja_necesaria_estimada` es la baja mediana histórica (estimación)
-    necesaria para ganar en este (organ, cpv4).
-    `margen_minimo_empresa` es la baja máxima que la empresa puede aceptar
-    antes de entrar en pérdidas. Diferencia → margen real para ofertar.
+    Tres dimensiones:
+      1. baja_necesaria_estimada (PSCP)  = la mediana histórica para ganar
+      2. margen_minimo_empresa (M2)      = umbral estructural sin pérdidas
+      3. baja_temeraria_threshold (LCSP) = límite de oferta anormal
 
-    Si margen_minimo_empresa is None (no calculado), valor neutro.
+    Producto: factible_normal / al_limite_margen / supera_margen / zona_temeraria.
+
+    Si faltan datos, degrada a neutro con data_quality='faltante'.
     """
     if baja_necesaria_estimada is None:
         return SignalBreakdown(
             name="baja_factible",
             value_normalized=0.5,
             weight=WEIGHTS["baja_factible"],
-            explanation="Sin histórico de baja para este (órgano, CPV).",
-            data_points={"baja_necesaria": None, "margen_minimo": margen_minimo_empresa},
+            explanation="Sin histórico de baja para este (órgano, CPV) — precisión limitada.",
+            data_points={
+                "baja_necesaria": None,
+                "margen_minimo": margen_minimo_empresa,
+                "baja_temeraria_threshold": baja_temeraria_threshold,
+            },
+            data_quality="faltante",
         )
 
-    if margen_minimo_empresa is None:
-        # Sin info de margen: asumimos margen estándar 8% para PYME construcción.
-        margen_minimo_empresa = 8.0
+    margen_declarado = margen_minimo_empresa is not None
+    margen_efectivo = margen_minimo_empresa if margen_declarado else 8.0  # default rudo PYME
 
-    diff = margen_minimo_empresa - baja_necesaria_estimada
-
+    # Estado vs margen empresa
+    diff = margen_efectivo - baja_necesaria_estimada
     if diff >= 5:
-        value = 1.0
-        explanation = (
-            f"Baja necesaria ~{baja_necesaria_estimada:.1f}% está cómoda (tu margen "
-            f"permite hasta {margen_minimo_empresa:.0f}%, holgura {diff:.0f} pp)."
-        )
+        margen_status = "comoda"
     elif diff >= 0:
-        value = 0.6
-        explanation = (
-            f"Baja necesaria ~{baja_necesaria_estimada:.1f}% está al límite de tu "
-            f"margen ({margen_minimo_empresa:.0f}%). Sin margen para sorpresas."
-        )
+        margen_status = "al_limite"
     else:
+        margen_status = "supera"
+
+    # Estado vs threshold temerario
+    temeraria_status = "fuera_zona"
+    if baja_temeraria_threshold is not None:
+        if baja_necesaria_estimada > baja_temeraria_threshold:
+            temeraria_status = "supera_temeraria"
+        elif baja_necesaria_estimada >= baja_temeraria_threshold * 0.9:
+            temeraria_status = "borde_temeraria"
+
+    # Combinar — la peor señal manda
+    if temeraria_status == "supera_temeraria":
+        value = 0.10
+        marker = "🛑"
+        explanation = (
+            f"{marker} Ganar exigiría baja > {baja_temeraria_threshold:.1f}% (umbral temerario LCSP). "
+            f"Tendrías que justificar ante mesa expediente de baja anormal."
+        )
+    elif margen_status == "supera":
         value = 0.15
         explanation = (
             f"Baja necesaria ~{baja_necesaria_estimada:.1f}% supera tu margen mínimo "
-            f"({margen_minimo_empresa:.0f}%). Riesgo de pérdidas si ganas."
+            f"({margen_efectivo:.0f}%). Riesgo de pérdidas si ganas."
         )
+    elif temeraria_status == "borde_temeraria":
+        value = 0.40
+        marker = "⚠"
+        explanation = (
+            f"{marker} Baja necesaria ~{baja_necesaria_estimada:.1f}% está al borde del umbral "
+            f"temerario ({baja_temeraria_threshold:.1f}%). Ganar con margen exigirá defensa robusta."
+        )
+    elif margen_status == "al_limite":
+        value = 0.60
+        explanation = (
+            f"Baja necesaria ~{baja_necesaria_estimada:.1f}% al límite de tu margen "
+            f"({margen_efectivo:.0f}%). Sin margen para sorpresas."
+        )
+    else:  # comoda
+        value = 1.0
+        explanation = (
+            f"Baja necesaria ~{baja_necesaria_estimada:.1f}% está cómoda "
+            f"(tu margen permite hasta {margen_efectivo:.0f}%, holgura {diff:.0f} pp)."
+        )
+
+    # data_quality
+    if not margen_declarado:
+        dq = "parcial"  # asumimos default 8%
+    elif baja_temeraria_threshold is None:
+        dq = "parcial"  # no pudimos estimar threshold
+    elif n_obs_baja < 5:
+        dq = "parcial"  # baja histórica con muestra pequeña
+    else:
+        dq = "completa"
 
     return SignalBreakdown(
         name="baja_factible",
@@ -328,10 +406,17 @@ def signal_baja_factible(
         explanation=explanation,
         data_points={
             "baja_necesaria": round(baja_necesaria_estimada, 2),
-            "margen_minimo": margen_minimo_empresa,
-            "diff": round(diff, 2),
+            "baja_temeraria_threshold": (
+                round(baja_temeraria_threshold, 2) if baja_temeraria_threshold is not None else None
+            ),
+            "margen_minimo": margen_efectivo,
+            "margen_declarado": margen_declarado,
+            "margen_status": margen_status,
+            "temeraria_status": temeraria_status,
+            "diff_margen_pp": round(diff, 2),
             "n_obs": n_obs_baja,
         },
+        data_quality=dq,
     )
 
 
@@ -357,12 +442,14 @@ def signal_preferencias_match(
         value = 0.5
         explanation = "Sin preferencia declarada para este CPV — neutro."
 
+    dq = "completa" if pref_cpv_prioridad is not None else "faltante"
     return SignalBreakdown(
         name="preferencias_match",
         value_normalized=value,
         weight=WEIGHTS["preferencias_match"],
         explanation=explanation,
         data_points={"cpv_division": cpv_division, "prioridad": pref_cpv_prioridad},
+        data_quality=dq,
     )
 
 
@@ -463,6 +550,20 @@ def hard_filter_preferencia_no_interesa(pref_cpv_prioridad: str | None) -> HardF
 # ----------------------------------------------------------------------------
 
 
+_DQ_WEIGHTS = {"completa": 1.0, "parcial": 0.5, "faltante": 0.0}
+
+
+def _data_completeness_pct(breakdown: list[SignalBreakdown]) -> int:
+    """Promedio ponderado por peso de la señal."""
+    if not breakdown:
+        return 0
+    total_w = sum(s.weight for s in breakdown)
+    if total_w <= 0:
+        return 0
+    weighted = sum(_DQ_WEIGHTS.get(s.data_quality, 0.0) * s.weight for s in breakdown)
+    return int(round(weighted / total_w * 100))
+
+
 def compute_composite_score(
     hard_filters: list[HardFilterResult],
     competencia: SignalBreakdown,
@@ -480,6 +581,7 @@ def compute_composite_score(
     """
     failed = [f for f in hard_filters if f.fail]
     breakdown = [competencia, concentracion, encaje_tecnico, encaje_geografico, preferencias, baja]
+    completeness = _data_completeness_pct(breakdown)
 
     if failed:
         return GanabilidadScore(
@@ -489,14 +591,16 @@ def compute_composite_score(
             reason_descarte=" + ".join(f.reason for f in failed),
             hard_filters=hard_filters,
             breakdown=breakdown,  # informativo aún descartada
+            data_completeness_pct=completeness,
         )
 
     score_raw = sum(s.contribution for s in breakdown)
     score = int(round(score_raw))
 
-    if n_obs_principal >= 30:
+    # Confianza combina n_obs principal + completeness (ambas tienen que ser razonables)
+    if n_obs_principal >= 30 and completeness >= 75:
         confidence = "alta"
-    elif n_obs_principal >= 10:
+    elif n_obs_principal >= 10 and completeness >= 50:
         confidence = "media"
     else:
         confidence = "baja"
@@ -508,4 +612,5 @@ def compute_composite_score(
         reason_descarte=None,
         hard_filters=hard_filters,
         breakdown=breakdown,
+        data_completeness_pct=completeness,
     )

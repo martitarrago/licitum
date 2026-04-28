@@ -25,15 +25,18 @@ from app.intel.scoring.composite import (
     signal_encaje_tecnico,
     signal_preferencias_match,
 )
+from app.intel.scoring.lcsp import TemerariaEstimate, estimar_baja_temeraria
 
 __all__ = [
     "BayesianAggregate",
     "GanabilidadScore",
     "HardFilterResult",
     "SignalBreakdown",
+    "TemerariaEstimate",
     "bayesian_shrinkage",
     "competencia_posterior",
     "compute_composite_score",
+    "estimar_baja_temeraria",
     "hard_filter_capacidad",
     "hard_filter_clasificacion",
     "hard_filter_estado_aceptacion",
