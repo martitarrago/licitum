@@ -1,307 +1,357 @@
-# M2 — Empresa (caja fuerte de documentos vivos)
+# M2 — Empresa (perfil único que alimenta match + Sobres)
 
 ## Propósito
-La caja fuerte donde están **todos** los documentos que cualquier licitación pública puede pedir, con fecha de caducidad, avisos y un semáforo de salud documental. No es solo "datos de solvencia" — es la fuente única de verdad que alimenta:
 
-- El **semáforo multi-eje del M1** (clasificación, volumen de negocio, certificados)
-- La **recomendación ir/no ir del M3** (cruce con la solvencia exigida del PCAP)
-- El **DEUC ultra-simplificado del M4** (con RELIC) y la declaración responsable
-- Los **avisos del M6** cuando un documento está a punto de caducar y el cliente acaba de ganar provisionalmente
+M2 es el **archivo único** del que tira Licitum cuando:
 
-**Por qué importa más de lo que parece.** Cuando el cliente gana una adjudicación provisional, tiene **10 días hábiles** para presentar Hacienda + SS al corriente + pólizas + garantía definitiva. Si no llega, pierde la obra y le penalizan con el 3% del presupuesto base (LCSP). M2 al día = obra ganada se queda ganada.
+1. **Filtra y rankea licitaciones** en el motor de match (Top 5 ganables vs N compatibles).
+2. **Genera el Sobre A** (DEUC, declaración responsable, compromiso UTE).
+3. **Redacta el Sobre B** (memoria técnica con personal, maquinaria, obras de referencia, sistemas de gestión).
+4. **Firma el Sobre C** (cabecera de oferta económica).
 
-Dos partes implementadas hoy:
+La regla que decide si un dato entra o no: **¿alimenta el match o alguno de los tres sobres?** Si la respuesta es no, fuera.
 
-1. **Repositorio de certificados de obra** ✅ — documentos que acreditan lo que has construido. La IA extrae los datos y los indexa.
-2. **Clasificaciones ROLECE** ✅ — grupos y subgrupos oficiales con caducidad y avisos.
+## Por qué importa más de lo que parece
 
-Ampliación MVP planificada (ver sección abajo): RELIC, datos básicos de empresa, certificados Hacienda/SS, pólizas, ISOs, semáforo de salud documental.
-
-## Estado — base EN PRODUCCIÓN ✅
-- Backend ✅ — Railway (API + worker Celery)
-- Frontend ✅ — Vercel (rutas `/empresa/*`)
-- Funcional end-to-end para certificados + clasificaciones
+- **Match malo = dolor cliente.** Si volumen, clasificación, capacidad simultánea o preferencias están vacíos o mal, el motor recomienda licitaciones que la empresa no puede o no quiere ejecutar. Pierde confianza inmediatamente.
+- **Sobre A incompleto = oferta inválida.** Sin representante legal con cargo + datos del poder, el DEUC no se puede firmar.
+- **Sobre B genérico = pricing premium imposible.** El killer feature del producto es generar memoria técnica adaptada al pliego usando personal + maquinaria + obras propias. Sin esos datos, la IA escupe boilerplate.
+- **10 días post-adjudicación.** Si Hacienda/SS/pólizas están caducados, la empresa pierde la obra ya ganada con penalización del 3% del presupuesto base (LCSP). M2 al día = obra ganada se queda ganada.
 
 ---
 
-## Backend (implementado)
+## Matriz cruzada — qué dato sirve a qué uso
 
-### Modelos y BBDD
-- SQLAlchemy: `empresas`, `certificados_obra`, `clasificaciones_rolece`
-- Migraciones Alembic: `0001` a `0006` (la última hace `pdf_url` nullable para entrada manual)
-- Empresa demo sembrada: `id=00000000-0000-0000-0000-000000000001`
+Esta tabla es la fuente de verdad. Antes de añadir un campo a M2, debe encajar en alguna columna útil.
 
-### Endpoints
+| Dato | Match | Sobre A | Sobre B | Sobre C |
+|---|:-:|:-:|:-:|:-:|
+| Razón social, CIF, email, teléfono, dirección | – | ✓ | cabecera | cabecera |
+| IAE + CNAE | – | DEUC | – | – |
+| Tamaño PYME | filtro reservados | DEUC II.A | – | – |
+| Representante + cargo + datos del poder | – | DEUC II.B + firma | firma | firma |
+| CCC Seguridad Social | – | algunos pliegos | – | – |
+| Volumen negocio últimos 3 ejercicios | **filtro hard** | DEUC IV.B.1a | – | – |
+| Plantilla media | filtro suave | si solv. téc. lo pide | recursos humanos | – |
+| Certificados de obra | **core** — anualidad media + CPVs + territorios | relación obras IV.C.1a | obras de referencia narradas | – |
+| Clasificación ROLECE + RELIC | **filtro hard** | atajo solvencia | – | – |
+| Hacienda + SS + pólizas vigentes | – | declaración + post-adj. | – | – |
+| Personal técnico (jefes obra, técnicos PRL…) | match suave | – | **core** | – |
+| Maquinaria propia/vinculada | match suave | – | **core** | – |
+| Sistemas de gestión (ISOs + planes propios) | match suave | si solv. téc. lo pide | memoria | – |
+| Capacidad operativa simultánea | **filtro hard** | – | disponibilidad | – |
+| Preferencias (territorio, CPV, presupuesto, UTE) | **ranking** | – | – | – |
 
-**`/api/v1/empresa/certificados`:**
-- `POST` — sube PDF + encola extracción
-- `POST /manual` — crea certificado con datos manuales (sin PDF, sin worker)
-- `GET`, `GET/{id}`, `PATCH`, `DELETE`, `DELETE /batch`
-- `/{id}/validar`, `/{id}/rechazar`, `/{id}/reextraer`, `/{id}/revertir`
-- `/{id}/pdf` — proxy del PDF desde R2 (same-origin para iframe)
-- `/resumen-solvencia` — agregado de solvencia por grupo ROLECE
-
-**`/api/v1/empresa/clasificaciones`:**
-- `POST`, `GET`, `PATCH/{id}`, `DELETE/{id}`
-
-### Worker Celery — `workers/extraccion_pdf.py`
-Flujo: descarga PDF de R2 → `pdfplumber` nativo → OCR fallback (Tesseract + poppler) → Claude `tool_use`.
-
-- Modelo: `claude-sonnet-4-6`, temperatura 0, prompt cacheado (`cache_control: ephemeral`)
-- Clasifica el documento ANTES de extraer (8 tipos: `cert_buena_ejecucion`, `acta_recepcion`, `cert_rolece` válidos; 5 inválidos)
-- Valida output con `ClaudeOutput(BaseModel)` — campos extra ignorados con `extra='ignore'`
-- Confianza como campo explícito (0.0–1.0); tipo e invalidez guardados en el modelo
-
-### Fixes críticos del worker (NO REVERTIR)
-
-1. **`NullPool` en el engine SQLAlchemy**: cada tarea Celery crea su propio event loop con `asyncio.run()`. Sin NullPool, el pool global queda atado al loop anterior (cerrado) y hace hang.
-2. **`_descargar_pdf` con `httpx.Client` síncrono**: `AsyncClient` deja cleanup tasks de `anyio` que fallan con "Event loop is closed" al cerrar el loop. La descarga es I/O único, no necesita async.
-3. **`AsyncAnthropic` como context manager**: `async with AsyncAnthropic(...) as client:` cierra el `httpx.AsyncClient` interno antes de que termine `asyncio.run()`. Sin esto se ve "Event loop is closed" en los logs del worker (cleanup del GC tras cerrar el loop).
-4. **`--pool=solo` en Celery**: evita fork/spawn de subprocesos en Windows; necesario para que `asyncio.run()` funcione dentro de tareas.
-5. **`EstadoCertificadoType` (TypeDecorator con `impl=PGEnum`)** en `certificado_obra.py`: asyncpg no castea VARCHAR→enum implícitamente.
-
-### Config — fallback Redis
-```python
-@property
-def broker_url(self) -> str:
-    return self.celery_broker_url or self.redis_url or "redis://localhost:6379/0"
-```
-Railway inyecta `REDIS_URL`; el código acepta también `CELERY_BROKER_URL` por compatibilidad.
-
-### Deploy Railway
-- **API**: `Dockerfile` + `start.sh`. Sin `SERVICE_TYPE` → alembic upgrade + uvicorn. Healthcheck `/health` configurado en el dashboard.
-- **Worker**: `Dockerfile.worker` (o `Dockerfile` + `SERVICE_TYPE=worker`) → celery `--pool=solo`. Sin healthcheck (no es HTTP).
-- Variables de entorno necesarias en el worker: `ANTHROPIC_API_KEY`, `DATABASE_URL`, `REDIS_URL`, `R2_BUCKET_NAME`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT_URL`
-- Ambos Dockerfiles instalan `tesseract-ocr`, `tesseract-ocr-spa` y `poppler-utils`
+Tres tipos de dato:
+- **Filtros hard** (binarios) — si fallan, fuera del match
+- **Match suave** (ranking) — empujan score arriba o abajo
+- **Generación de sobre** — alimentan la redacción IA
 
 ---
 
-## Frontend (implementado)
+## Estructura del módulo — 5 pestañas
 
-### Páginas
-- `/empresa/certificados` — lista con filtros, polling cada 3s, modal con dos pestañas (Subir PDF / Entrada manual), ordenación por cabeceras de columna clicables
-- `/empresa/certificados/[id]/revisar` — two-column: PdfViewer (izquierda, oculto si es entrada manual) + ReviewForm + ConfirmModal (derecha)
-- `/empresa/clasificaciones` — tabla con edición inline (EditRow como fila colapsada `colSpan=7` con grid 2 filas)
+```
+empresa/
+├── identidad        → Sobre A (quién firma)
+├── solvencia        → Sobre A + filtro hard del match
+├── recursos         → Sobre B + match suave           [NUEVO]
+├── documentación    → vivo, lo que caduca y tira la obra
+└── preferencias     → ranking del match               [NUEVO]
+```
 
-### Componentes UI clave
-- `src/components/ui/CustomSelect.tsx` — dropdown portal-based con `getBoundingClientRect()`, sin scroll, `width: rect.width`, detecta espacio arriba/abajo. Reemplaza `<select>` nativo en toda la app.
-- `src/components/ui/DatePicker.tsx` — calendario mensual portal-based, lunes primero, locale `es-ES`, icono `CalendarDays`, formato ISO `yyyy-mm-dd`.
-- `src/components/empresa/ClasificacionesTabla.tsx` — EditRow usa `CustomSelect` para Grupo/Subgrupo/Categoría y `DatePicker` para fechas.
-- `src/components/empresa/CertificadoRevision.tsx` — ReviewForm usa `DatePicker` para `fecha_inicio` y `fecha_fin`.
-- `src/components/empresa/UploadModal.tsx` — dos pestañas (PDF / Manual)
+Cada pestaña responde a una pregunta única del usuario. Si una pestaña responde a dos preguntas distintas, mal partido.
 
-### Comportamiento clave
-- **Rechazar certificado**: hace soft delete (no lo guarda como `rechazado`). El botón está en la página de revisión.
-- **Entrada manual**: crea certificado en `pendiente_revision` con `pdf_url=null`; la IA no entra. El PdfViewer se oculta cuando `pdf_url` es null.
-- **Ordenación**: las cabeceras de columna (Certificado, Período, Importe, Grupo, Estado) son clicables con flecha. Primera pulsación activa columna (desc); segunda invierte dirección. No hay dropdown de ordenar.
-- **IVA**: el sistema trabaja siempre con importe sin IVA (base imponible). El prompt de Claude prefiere "sin IVA" y divide entre 1,21 si solo aparece con IVA. El formulario manual lo indica explícitamente ("€ sin IVA").
+### 1. Identidad — *quién firma*
 
-### Infraestructura frontend
-- `src/lib/jccpe.ts` — 11 grupos, 68 subgrupos, 6 categorías ROLECE con rangos de anualidad
-- `src/lib/api/certificados.ts` + `clasificaciones.ts`
-- Proxy Next.js → backend en `next.config.mjs`
-- SolvenciaResumen: 2 KPI tiles (anualidad media + obras) + desglose ROLECE
-- PdfViewer con `react-pdf` (client-side); worker en `/public/pdf.worker.min.mjs`
-- Detección de duplicados: banner + modal de confirmación; helpers `esDuplicadoPar`, `calcularEliminables`
+- **Identificación:** razón social, CIF, email, teléfono, IAE, CNAE, tamaño PYME
+- **Dirección fiscal:** calle, CP, ciudad, provincia (país siempre ES en el MVP)
+- **Representante legal:** nombre, NIF, cargo
+- **Datos del poder** (NUEVO): notario otorgante, fecha de escritura, número de protocolo, registro mercantil donde se inscribió. Sin esto, el DEUC sale incompleto.
+- **CCC Seguridad Social** (NUEVO): código de cuenta de cotización principal. Algunos pliegos lo piden.
+
+### 2. Solvencia — *qué he hecho y cuánto facturo*
+
+- **Solvencia económica declarada:** volumen de negocio últimos 3 ejercicios. Editable. Tooltip: *"esto NO se calcula con tus certificados de obra; es la facturación total de cuentas anuales"*. Botón futuro **autocompletar desde CIF (Insight View)**.
+- **Solvencia técnica calculada** (NUEVO en UI, ya hay endpoint): KPI grande con `anualidad_media` derivada de los certificados, desglose por grupo ROLECE, mejor año, total obras. Cuando exista M3 (analizador pliegos), cruzar contra exigencia del PCAP.
+- **Clasificación oficial:**
+  - ROLECE manual (ya implementado)
+  - RELIC sincronizado (ya implementado, sync diario por `n_registral`)
+- **Certificados de obra** (ya implementado): listado con filtros, IA de extracción, entrada manual, marca de obras de referencia destacadas.
+
+### 3. Recursos — *qué llevo a la obra*  [NUEVO]
+
+Sin esta pestaña, el Sobre B se redacta a mano. Es la pieza que habilita el killer feature.
+
+#### 3.1 Personal técnico
+
+```
+personal_empresa
+  id, empresa_id, nombre_completo, dni
+  rol enum (jefe_obra, encargado, tecnico_prl, tecnico_calidad,
+            tecnico_ma, ingeniero, arquitecto, otros)
+  titulacion varchar
+  anios_experiencia int
+  cv_pdf_url varchar opcional
+  certificados_formacion jsonb     -- "PRL 60h", "recurso preventivo", etc.
+  obras_participadas uuid[]        -- FK a certificados_obra
+  activo bool
+  + TimestampMixin + SoftDeleteMixin
+```
+
+UI: tabla con CRUD, modal de alta. Worker IA opcional para extraer titulación + años + cursos desde CV en PDF (reusa pipeline `workers/extraccion_pdf.py`).
+
+#### 3.2 Maquinaria
+
+```
+maquinaria_empresa
+  id, empresa_id, tipo, marca, modelo, anio
+  matricula varchar opcional
+  propiedad enum (propia, leasing, alquiler_largo_plazo)
+  itv_caducidad date opcional
+  notas text opcional
+  + TimestampMixin + SoftDeleteMixin
+```
+
+UI: tabla simple con CRUD. Sin IA (el inventario lo escribe el cliente, está en su contabilidad).
+
+#### 3.3 Sistemas de gestión
+
+```
+sistemas_gestion_empresa
+  id, empresa_id
+  tipo enum (iso_9001, iso_14001, iso_45001, ehs_propio,
+             plan_calidad_propio, plan_ma_propio, plan_seguridad_propio,
+             cae_construccion, otros)
+  pdf_url varchar opcional
+  fecha_emision date opcional
+  fecha_caducidad date opcional        -- ISOs caducan, planes propios no
+  entidad_certificadora varchar
+  alcance text
+  + TimestampMixin + SoftDeleteMixin
+```
+
+Convive con `documentos_empresa` pero es entidad separada porque el Sobre B necesita *describir* el sistema (alcance, certificadora) además de presentarlo. Si se acabara fusionando, mejor en v2.
+
+#### 3.4 Obras de referencia narradas
+
+No es tabla nueva. Reutiliza `certificados_obra` añadiendo dos columnas:
+
+```
+ALTER TABLE certificados_obra ADD COLUMN destacado_sobre_b BOOLEAN DEFAULT FALSE;
+ALTER TABLE certificados_obra ADD COLUMN narrativa TEXT;  -- 200-500 palabras
+```
+
+UI: en `/empresa/recursos` un bloque "Obras de referencia destacadas" muestra los certificados con `destacado_sobre_b = true`. Botón "redactar narrativa" abre editor con prompt asistido (qué hiciste / retos / equipo / resultados / fotos opcionales).
+
+#### 3.5 Subcontratistas habituales (opcional, post-pilotos)
+
+Lo bloqueamos hasta validar. Si los pilotos lo piden, se añade.
+
+### 4. Documentación — *vivo, lo que caduca*
+
+Ya implementada. La dejamos como está, con la salvedad de que las pestañas anteriores (`certificados`, `clasificaciones`, `relic`) se mueven a `solvencia`.
+
+- Hacienda al corriente
+- SS al corriente
+- Pólizas RC + Todo Riesgo
+- ISOs + REA + TC2 (opcionales según pliego)
+- Semáforo de salud documental + countdown
+- Avisos M7 cuando una licitación entra en `documentación_previa`
+
+### 5. Preferencias — *qué me interesa*  [NUEVO]
+
+Esto **no se deduce** de los certificados ni de RELIC. Es metadata declarativa que el motor de match usa para rankear (no para filtrar).
+
+```
+empresa_preferencias                                 -- 1:1 con empresas
+  empresa_id uuid PK FK
+  obras_simultaneas_max smallint                     -- techo histórico (ej. 4)
+  obras_simultaneas_actual smallint                  -- vivo (ej. 2)
+  presupuesto_min_interes numeric(14,2)              -- por debajo no me interesa
+  presupuesto_max_interes numeric(14,2)              -- por encima no me cabe (ni en UTE)
+  apetito_ute boolean default false
+  estado_aceptacion enum (acepta, selectivo, no_acepta) default 'acepta'
+  notas text
+
+empresa_preferencias_territorio                      -- N por empresa
+  empresa_id uuid FK
+  comarca_codigo varchar(16) opcional                -- INE comarca (Catalunya)
+  provincia_codigo varchar(2) opcional               -- INE provincia (resto España)
+  prioridad enum (preferida, ok, evitar)
+  PRIMARY KEY (empresa_id, COALESCE(comarca_codigo, provincia_codigo))
+
+empresa_preferencias_cpv                             -- N por empresa
+  empresa_id uuid FK
+  cpv_division varchar(2)                            -- 2 dígitos (CPV division)
+  prioridad enum (core, secundario, no_interesa)
+  PRIMARY KEY (empresa_id, cpv_division)
+```
+
+UI: 5 preguntas en wizard de onboarding + página editable después.
+1. ¿Cuántas obras llevas en paralelo como máximo?
+2. ¿Cuántas tienes ahora mismo?
+3. ¿Presupuesto mínimo y máximo que te interesa por obra?
+4. ¿En qué comarcas/provincias quieres trabajar (preferidas/ok/evitar)?
+5. ¿Qué tipos de obra (CPV) son tu core, secundario, no interesa?
+6. ¿Aceptas UTE?
+7. Estado actual: ¿abierto a propuestas, selectivo, no aceptas nada nuevo?
+
+**Importante para el match.** El estado de aceptación es un toggle en la home — un cliente que cierra trimestre puede ponerlo en "selectivo" sin tocar el resto del perfil.
 
 ---
 
-## Ampliación MVP planificada
+## Cruce con el data layer PSCP — perfil derivado automático
 
-Lo que falta para que M2 sea la **caja fuerte completa** que alimenta el resto del MVP. Ordenado por prioridad estratégica.
+El data layer (Phase 1, ver `docs/data-science/architecture.md`) construye `agg_empresa_perfil`, una materialized view que agrega para cada CIF las adjudicaciones históricas en Catalunya:
 
-### 1. RELIC — Registre Electrònic d'Empreses Licitadores i Classificades de Catalunya ✅
-
-Diferenciador estratégico del producto. La inscripción RELIC contiene personalidad jurídica, capacidad de obrar, representación y solvencia económica/financiera y técnica/profesional. Para empresas inscritas, el M4 Sobre A se reduce a "consta en RELIC nº X" + firma. Esa simplificación no la replica un competidor nacional sin equipo regional dedicado.
-
-**Acceso programático validado ✅** (2026-04-27)
-
-- **Dataset Socrata:** `t3wj-j4pu` en `analisi.transparenciacatalunya.cat` — sin autenticación, actualización diaria
-- **26.272 empresas registradas, 9.560 clasificadas**
-- **Endpoint:** `GET https://analisi.transparenciacatalunya.cat/resource/t3wj-j4pu.json?n_registral={N}`
-- Devuelve **una fila por clasificación**: una empresa con N clasificaciones devuelve N filas con el mismo `n_registral`
-- Schema relevante (todos `text` salvo donde se indica):
-  - `n_registral` — ID RELIC (formatos: "NB1325817" antiguo, "2026007542" numérico nuevo)
-  - `nom_empresa`
-  - `data_actualitzacio` (calendar_date)
-  - `prohibicio` (bool) + campos `ambit_pr`, `data_res_pr`, `data_inici_pr`, `data_fi_pr`, `causa_legal_pr`
-  - `classificacio` (bool) + `suspensio_cl` (bool)
-  - `tipus_cl` — "OBRES" o "SERVEIS"
-  - `sigles_cl` — clave de oro: `"C4"`, `"B1"`, `"I9"`, etc. (letra grupo + dígito subgrupo). A nivel grupo es solo letra (`"C"`).
-  - `grup_cl` — nombre legible del grupo cuando la clasificación es a nivel grupo
-  - `subgrup_cl` — nombre legible del subgrupo
-  - `categoria_cl` — texto: `"Categoria 6, si la seva quantia és superior a cinc milions d'euros."` (parsear el dígito)
-  - `data_atorgament_cl` (calendar_date)
-
-**Gap crítico — el dataset NO incluye CIF/NIF.** Solo `n_registral`. Implicación UX:
-
-- En onboarding pedir al cliente **CIF + Nº registral RELIC**. Ambos están en su tarjeta de inscripción.
-- Si la empresa no está en RELIC, saltar el paso; M4 generará DEUC completo en lugar del simplificado.
-- (Opcional v2) buscador por nombre con confirmación manual para empresas que no recuerdan su `n_registral`.
-
-**Modelo (planificado):**
-```
-empresas_relic:
-  empresa_id            uuid FK
-  n_registral           varchar          — clave de sincronización con Socrata
-  nom_empresa           varchar          — copia para mostrar / verificar match
-  prohibicio            bool
-  prohibicio_data       jsonb            — ambit_pr, data_res_pr, data_inici_pr, data_fi_pr, causa_legal_pr cuando aplique
-  data_actualitzacio    date             — última fecha de cambio según RELIC
-  ultima_sincronizacion timestamptz      — cuándo lo trajimos nosotros
-  + UniqueConstraint(empresa_id)
-
-clasificaciones_relic:
-  id                    uuid
-  empresa_relic_id      uuid FK
-  tipus_cl              enum (OBRES / SERVEIS)
-  sigles_cl             varchar          — "C4" o "C"
-  grupo                 varchar(1)       — extraído de sigles_cl
-  subgrupo              varchar(2)       — extraído de sigles_cl, null si nivel-grupo
-  categoria             smallint         — parseado de categoria_cl (1..6)
-  subgrup_cl_text       varchar          — descripción legible para mostrar
-  categoria_cl_text     varchar          — descripción legible para mostrar
-  suspensio             bool
-  data_atorgament       date
+```sql
+agg_empresa_perfil:
+  cif, denominacio_canonica
+  n_adjudicaciones, n_obres
+  baja_avg                     -- estilo de ofertar de la empresa
+  volumen_total                -- facturado al sector público
+  organs_freq                  -- órganos donde ha ganado
+  cpvs_freq                    -- CPVs trabajados oficialmente
+  primera_adj, ultima_adj
 ```
 
-**Worker de sincronización:** Celery beat diario al amanecer. Para cada empresa con `n_registral`, query a Socrata, parsea sigles + categoria, hace upsert. Si `data_actualitzacio` no cambió desde la última sync, skip (idempotencia barata).
+**Qué significa para M2:** cuando una empresa se registra en Licitum con su CIF, el sistema cruza automáticamente contra `pscp_empresa.cif`. Si hay match, **el perfil se enriquece sin pedir nada al cliente**:
 
-**UI:** panel "RELIC" en `/empresa` con:
-- Estado: inscrita / no inscrita / suspendida / con prohibición
-- `n_registral` editable
-- Botón "Sincronizar ahora" (manual sobre el daily auto)
-- Lista de clasificaciones RELIC junto a las clasificaciones manuales (M2 actual)
-- Banner si hay prohibición activa (rojo)
+- Ya sabemos en qué órganos compite (sin que lo declare en preferencias)
+- Ya sabemos su baja típica (entrada al M6 Calculadora)
+- Ya sabemos sus CPVs reales (no los que cree que son)
+- Ya sabemos su volumen adjudicado al sector público (≠ volumen total declarado)
 
-**Relación con clasificaciones manuales existentes:** las clasificaciones que ya tenemos (`clasificaciones_rolece`) son introducidas a mano por el cliente. Las RELIC son tiradas del registro oficial. Para el cálculo del semáforo del M1, **prioridad RELIC > manual** cuando existan ambas (RELIC es la fuente oficial). Se evalúa fusionar tablas v2 si los datos quedan duplicados sistemáticamente.
+Implementación M2:
+- Añadir endpoint `GET /api/v1/empresa/{empresa_id}/perfil-pscp` que cruza por CIF y devuelve el `agg_empresa_perfil` correspondiente, o `null` si no hay histórico.
+- En la UI de Solvencia, panel "Tu histórico en Catalunya" con KPIs derivados + lista de últimas 5 adjudicaciones.
+- En Recursos > Obras de referencia, **proponer al cliente importar como certificado** las obras adjudicadas que aparecen en PSCP pero no tiene en M2 (con preview de denominación + órgano + importe).
 
-### 2. Datos básicos de empresa (consolidación) ✅
-
-Hoy el modelo `Empresa` es minimal (nombre, CIF, email). Extender con todo lo que el DEUC y el M4 necesitan, **una sola vez**:
-
-```
-direccion_calle           varchar(255)
-direccion_codigo_postal   varchar(16)
-direccion_ciudad          varchar(128)
-direccion_provincia       varchar(64)
-direccion_pais            varchar(64) DEFAULT 'ES'
-representante_nombre      varchar(255)
-representante_nif         varchar(16)         — validar algoritmo español
-representante_cargo       varchar(128)
-telefono                  varchar(32)
-iae                       varchar(16)
-cnae                      varchar(16) opcional
-tamano_pyme               enum (micro / pequena / mediana / grande)
-volumen_negocio_n         numeric(14,2)       — último ejercicio
-volumen_negocio_n1        numeric(14,2)
-volumen_negocio_n2        numeric(14,2)
-plantilla_media           int opcional
-```
-
-UI: formulario en `/empresa/perfil` con secciones (Identificación / Dirección / Representante / Contacto / Volumen / Plantilla).
-
-### 3. Documentos administrativos con caducidad ✅
-
-**Tabla nueva** `documentos_empresa`:
-```
-id                   uuid
-empresa_id           uuid FK
-tipo                 enum (hacienda_corriente, ss_corriente, poliza_rc,
-                           poliza_todo_riesgo, iso_9001, iso_14001, iso_45001,
-                           rea_construccion, plantilla_tc2, otros)
-titulo               varchar(255)
-pdf_url              varchar(1024) opcional
-fecha_emision        date
-fecha_caducidad      date opcional       — null = sin caducidad explícita
-estado               enum (vigente / a_caducar / caducado)
-notas                text opcional
-+ TimestampMixin + SoftDeleteMixin
-UniqueConstraint(empresa_id, tipo, fecha_emision)
-```
-
-**Computed `estado`:**
-- `vigente` si `fecha_caducidad >= today + 30 días` o `fecha_caducidad is null`
-- `a_caducar` si `today <= fecha_caducidad < today + 30 días`
-- `caducado` si `fecha_caducidad < today`
-
-**UI:** página `/empresa/documentos` con tabla agrupada por tipo, badges de estado, modal de upload (reusa `UploadModal` con menos campos), avisos en `/empresa` (KPI "X documentos caducan este mes").
-
-**Avisos:** integración con M6 Tracker — cuando una licitación entra en "documentación previa adjudicación", el sistema lista qué documentos está a punto de pedir el órgano y los marca con su estado.
-
-### 4. Semáforo de salud documental — ✅ parcial / 🔲 pendiente la home
-
-Hecho: el KPI de salud documental vive en `/empresa/documentos` (banner superior con `% al día` + sub-KPIs vigentes/a caducar/caducados + lista de "atención inmediata" con countdown).
-
-Pendiente: convertir `/empresa` en home del módulo con un resumen agregado (perfil completitud + salud documental + estado RELIC + acción siguiente). Hoy el sidebar parent va a `/empresa/perfil`. Cuando se construya la home, modificar `Sidebar.tsx` para que el parent navegue a `/empresa` (router) y `/empresa/perfil` baje a child.
-
-### 5. Onboarding guiado 🔲 — bloqueado por auth real
-
-Asistente de 5 pasos al primer login:
-1. Datos básicos (formulario corto)
-2. Importar de RELIC por CIF (si aplica) — autorrellena lo importable
-3. Subir clasificación ROLECE (PDF o manual)
-4. Subir certificados de obra (puede saltarse — añadir después)
-5. Subir certificados Hacienda + SS al corriente
-
-Sin M2 mínimamente lleno el resto del producto no rinde. El onboarding debe sacar al cliente al M1 en menos de 30 minutos. Si tiene RELIC, en menos de 10.
-
-**Bloqueador:** "primer login" implica que existe auth. Hoy `EMPRESA_DEMO_ID` es hardcodeado. Implementar onboarding antes de auth real significaría disparar el wizard cada vez que se entra (o un flag manual). Esperar a tener Supabase Auth / Clerk en su sitio.
-
-### 6. Avisos automáticos por email 🔲 — depende de auth real + integración con M6 Tracker
-
-Tres trigger points donde el cliente debería recibir un email:
-
-1. **Documento caducando** — 30 días antes y 7 días antes de la `fecha_caducidad` de cualquier documento administrativo (Hacienda/SS/pólizas/ISOs). Worker Celery beat diario recorre `documentos_empresa` y dispara emails.
-2. **Adjudicación provisional ganada** — cuando una licitación pasa a estado `documentación_previa` en M6 Tracker (manualmente o vía scraping post-MVP), email con la lista de documentos de M2 que caducan en <14 días o están caducados, marcando los que el órgano va a pedir según LCSP. Es donde una PYME pierde obras ya ganadas — el aviso es el alto valor de M2 + M6 fusionados.
-3. **Resumen diario** (configurable) — N nuevas licitaciones encajan + deadlines críticos esta semana + documentos a caducar este mes. Engagement diario.
-
-**Implementación:**
-- Servicio `app/services/avisos_email.py` con `enviar_aviso_caducidad(documento)`, `enviar_aviso_adjudicacion(licitacion)`, `enviar_resumen_diario(empresa)`
-- Worker `workers/avisos_diarios.py` con beat al amanecer (después del M1 + M2 daily syncs)
-- Templates Jinja2 en `templates/email/*.html.j2`
-- Backend de email: Resend o Postmark (decidir cuando se aborde — Resend más barato, Postmark más reputación inbox)
-
-**Bloqueadores:**
-- Auth real (necesitamos email confirmado del usuario, no solo `email` actual de `empresas` que es info de la empresa)
-- M6 Tracker existir con estado `documentación_previa` y la transición que dispara el aviso
-
-### 7. Worker IA para extracción de fechas en documentos administrativos 🔲
-
-Hoy `/empresa/documentos` requiere que el cliente teclee `fecha_emision` y `fecha_caducidad` a mano. Para certificados Hacienda/SS y pólizas, las fechas están en el PDF y son fáciles de extraer.
-
-**Reusar el pipeline del worker M2 actual** (`workers/extraccion_pdf.py`):
-- Mismos 5 fixes críticos (NullPool, httpx síncrono, AsyncAnthropic context manager, --pool=solo, EstadoType TypeDecorator)
-- Prompt distinto: clasifica tipo de documento (hacienda/SS/póliza/ISO/REA/TC2) y extrae fechas + emisor
-- Tras extracción, `documentos_empresa.fecha_emision` y `fecha_caducidad` quedan en `pendiente_revision` hasta que el usuario confirma (regla CLAUDE.md de PDF extraction)
-
-**Por qué post-MVP:** la entrada manual del MVP funciona y es rápida (3 campos). El ahorro de tecleo no justifica el coste de API + complejidad antes de validar con pilotos que el feature de "documentos con caducidad" se usa de verdad. Documentado para saber que está pensado.
+Esto evita que el cliente teclee 50 obras a mano si ya están en PSCP.
 
 ---
 
-## Pendientes / ideas
+## Onboarding (cuando exista auth real)
 
-### Visor PDF — mejorar vista
-- Toolbar con controles de zoom (+/- y fit-to-width)
-- Thumbnail sidebar opcional para documentos largos
-- `renderTextLayer` para permitir selección/copiar texto
+4 pasos, ~30-45 min para una empresa con RELIC, ~60 min sin.
 
-### Animación de carga durante extracción
-- Animar el skeleton del formulario cuando `estado=procesando` (efecto "typing" o reveal progresivo)
-- Archivo: `ExtractionPending` en `CertificadoRevision.tsx`
+| Paso | Acción | Datos que entran | Tiempo |
+|---|---|---|---|
+| 1 | CIF → Insight View (cuando se integre) | identidad + dirección + administradores + volumen | 2 min |
+| 2 | Nº registral RELIC → Socrata sync | clasificaciones oficiales | 1 min |
+| 3 | Drag & drop ZIP de PDFs (certificados obra + Hacienda + SS + pólizas + CVs personal) | extracción IA en paralelo | 15-30 min revisión |
+| 4 | Wizard preferencias (7 preguntas) | match metadata | 5 min |
 
-### Importación masiva de certificados
-- ZIP con múltiples PDFs → endpoint `POST /certificados/batch-upload` → crea un certificado por PDF → encola un task Celery por cada uno
-- Costoso en UX: con 20 PDFs simultáneos el usuario necesita una bandeja de revisión masiva distinta al revisor individual
+El paso 3 es el cuello de botella. Mientras se procesa, el cliente puede pasar al 4. Al volver al 3, revisa con UX de revisor (ya existe para certificados, replicar para personal y documentos administrativos).
 
-### Varios
-- CRUD de empresas: endpoints GET/POST/PATCH (sin frontend aún para el formulario completo)
-- `extracted_data`: validar schema con Pydantic antes de guardar (actualmente JSONB libre)
-- CORS: añadir dominio de Vercel a `allow_origins` en `main.py`
+**Cruce automático con PSCP** ocurre en background tras el paso 1, sin acción del cliente. Cuando termina el onboarding, ya hay perfil enriquecido para el match.
 
 ---
 
-## Dependencias
-- **Stack base** ya cubierto (FastAPI + PG + Celery + Redis + R2 + Claude API)
-- **RELIC**: validar acceso programático antes de planificar
-- **Auth real** (sustituir `EMPRESA_DEMO_ID`): bloquea avisos email y multi-tenancy real, no bloquea la implementación de los datos
+## Estado actual
+
+### En producción ✅
+
+- Backend: Railway (API + worker Celery)
+- Frontend: Vercel (`/empresa/*`)
+- Modelos: `empresas`, `certificados_obra`, `clasificaciones_rolece`, `empresas_relic`, `clasificaciones_relic`, `documentos_empresa`
+- Migraciones: `0001` a `0017`
+- Empresa demo: `id=00000000-0000-0000-0000-000000000001`
+
+#### Endpoints implementados
+
+```
+/api/v1/empresa/certificados/*              CRUD + IA + resumen-solvencia
+/api/v1/empresa/clasificaciones/*           CRUD ROLECE manual
+/api/v1/empresa/relic/*                     sync RELIC + read-only de clasificaciones
+/api/v1/empresa/documentos/*                CRUD + resumen-salud
+/api/v1/empresa                             GET/PATCH datos básicos
+```
+
+#### Páginas frontend
+
+```
+/empresa/perfil          → datos identificativos + dirección + representante + volumen
+/empresa/certificados    → listado + revisor + entrada manual
+/empresa/clasificaciones → CRUD ROLECE
+/empresa/relic           → sync + listado
+/empresa/documentos      → CRUD + semáforo
+```
+
+### Cambios estructurales pendientes con esta redacción
+
+1. **Reorganizar a 5 pestañas:**
+   - `/empresa/perfil` → renombrar a `/empresa/identidad`
+   - `/empresa/clasificaciones` + `/empresa/relic` + `/empresa/certificados` → fusionar bajo `/empresa/solvencia` con sub-secciones
+   - Crear `/empresa/recursos` (stub, luego personal + maquinaria + sistemas + obras destacadas)
+   - `/empresa/documentos` → renombrar a `/empresa/documentacion`
+   - Crear `/empresa/preferencias` (stub, luego wizard + edición)
+
+2. **Modelos nuevos** (migración `0018_empresa_recursos_preferencias`):
+   - `personal_empresa`
+   - `maquinaria_empresa`
+   - `sistemas_gestion_empresa`
+   - `empresa_preferencias` (1:1 con `empresas`)
+   - `empresa_preferencias_territorio` (N:1)
+   - `empresa_preferencias_cpv` (N:1)
+   - Añadir a `certificados_obra`: `destacado_sobre_b BOOLEAN`, `narrativa TEXT`
+
+3. **Endpoints CRUD nuevos:**
+   - `/api/v1/empresa/personal/*`
+   - `/api/v1/empresa/maquinaria/*`
+   - `/api/v1/empresa/sistemas-gestion/*`
+   - `/api/v1/empresa/preferencias` (compuesto: GET/PATCH del bloque + listas anidadas)
+   - `/api/v1/empresa/{id}/perfil-pscp` (read-only, cruce con `agg_empresa_perfil`)
+
+4. **Datos del poder y CCC en `empresas`:**
+   ```
+   poder_notario varchar(255)
+   poder_fecha_escritura date
+   poder_protocolo varchar(64)
+   poder_registro_mercantil varchar(255)
+   ccc_seguridad_social varchar(32)
+   ```
+
+---
+
+## Roadmap por sprints
+
+| Sprint | Bloque | Justificación |
+|---|---|---|
+| 1 | Migración `0018` + reorganización a 5 pestañas + endpoints CRUD nuevos | scaffolding sin lógica IA — desbloquea todo lo demás |
+| 2 | KPI calculado de solvencia técnica visible en pestaña Solvencia + cruce con `agg_empresa_perfil` | aprovecha lo que ya existe en backend |
+| 3 | Wizard de preferencias (UX) + matching engine que las consume | sin esto el match es incompleto |
+| 4 | Personal técnico (CRUD + IA extracción CV) + Maquinaria (CRUD) + Sistemas (CRUD) | habilita Sobre B (M5) |
+| 5 | Datos del poder + CCC + Insight View autocompletar | completa Sobre A |
+| 6 | (opcional) Worker IA para fechas en documentos administrativos | nice to have, post-pilotos |
+
+**Bloqueo de pilotos antes del sprint 4:** mostrar a 3-5 PYMEs catalanas un Sobre B mock generado con perfil sintético y validar si justifican rellenar Personal + Maquinaria. Si no, repensamos granularidad antes de construir.
+
+---
+
+## Reglas de implementación
+
+- **Todo soft delete** con `deleted_at`. Las altas/bajas de personal y maquinaria son frecuentes.
+- **CRUD asíncrono** con `AsyncSession` y patrón de los endpoints existentes (`/empresa/documentos` como referencia).
+- **Pydantic v2** con `from_attributes=True` y `model_config`.
+- **No mockear el cruce con `agg_empresa_perfil`** — si todavía no hay datos, devolver `null` y dejar que el frontend pinte estado vacío. Lo peor sería sembrar fake data que después haya que limpiar.
+- **No tocar el endpoint `/empresa/certificados/resumen-solvencia`** — funciona y es la base del KPI calculado. Solo lo reusamos desde la nueva UI.
+- **Workers IA opcionales** (extracción de CV, extracción de fechas en docs administrativos) **no entran en el sprint 1**. Primero scaffold, luego IA.
+
+---
+
+## Decisiones cerradas
+
+- Pestañas son **5**, no 3. Cada una con propósito único, no overlap.
+- **Subcontratistas habituales** queda fuera del MVP, valida con pilotos.
+- **Plantilla media** y **país de dirección** se quedan en el modelo (los pliegos los piden) pero el form esconde país (hardcode ES) y plantilla pasa a ser opcional con tooltip "solo si el pliego lo exige".
+- **Datos del poder** entran al MVP — sin ellos el DEUC no se firma.
+- **CCC SS** entra al MVP — ahorra una vuelta cuando un pliego lo pide.
+- **Insight View** queda **post-pilotos**: bonito pero coste por consulta y no bloqueante.
+
+## Decisiones abiertas
+
+1. ¿`sistemas_gestion_empresa` se fusiona con `documentos_empresa` (mismo concepto: PDF + caducidad + tipo) o queda separado por tener `alcance` y `entidad_certificadora` propios? **Decisión actual: separado** (más datos descriptivos para Sobre B), revisar en v2.
+2. ¿`preferencias_territorio` usa comarca INE (Catalunya) o NUTS3? **Decisión actual: comarca + provincia, doble llave nullable** — acomoda Catalunya y resto España.
+3. ¿Cruce con `agg_empresa_perfil` se hace por CIF o por nombre+localidad cuando el CIF no aparece en PSCP? Phase 1 solo CIF; nombre+localidad post-piloto.

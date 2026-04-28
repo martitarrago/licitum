@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -42,6 +42,15 @@ class EmpresaUpdate(BaseModel):
     representante_nif: str | None = Field(default=None, max_length=16)
     representante_cargo: str | None = Field(default=None, max_length=128)
 
+    # Datos del poder notarial (DEUC II.B)
+    poder_notario: str | None = Field(default=None, max_length=255)
+    poder_fecha_escritura: date | None = None
+    poder_protocolo: str | None = Field(default=None, max_length=64)
+    poder_registro_mercantil: str | None = Field(default=None, max_length=255)
+
+    # Código de cuenta de cotización principal
+    ccc_seguridad_social: str | None = Field(default=None, max_length=32)
+
     # Volumen de negocio + plantilla
     volumen_negocio_n: Decimal | None = Field(default=None, ge=0)
     volumen_negocio_n1: Decimal | None = Field(default=None, ge=0)
@@ -68,6 +77,11 @@ class EmpresaRead(BaseModel):
     representante_nombre: str | None = None
     representante_nif: str | None = None
     representante_cargo: str | None = None
+    poder_notario: str | None = None
+    poder_fecha_escritura: date | None = None
+    poder_protocolo: str | None = None
+    poder_registro_mercantil: str | None = None
+    ccc_seguridad_social: str | None = None
     volumen_negocio_n: Decimal | None = None
     volumen_negocio_n1: Decimal | None = None
     volumen_negocio_n2: Decimal | None = None

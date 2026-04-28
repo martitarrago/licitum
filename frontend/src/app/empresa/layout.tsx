@@ -3,13 +3,35 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const TABS: { label: string; href: string }[] = [
-  { label: "Perfil", href: "/empresa/perfil" },
-  { label: "Documentos", href: "/empresa/documentos" },
-  { label: "Certificados", href: "/empresa/certificados" },
-  { label: "Clasificaciones", href: "/empresa/clasificaciones" },
-  { label: "RELIC", href: "/empresa/relic" },
+type Tab = {
+  label: string;
+  href: string;
+  matchPrefixes?: string[];
+};
+
+const TABS: Tab[] = [
+  { label: "Identidad", href: "/empresa/perfil" },
+  {
+    label: "Solvencia",
+    href: "/empresa/solvencia",
+    matchPrefixes: [
+      "/empresa/solvencia",
+      "/empresa/certificados",
+      "/empresa/clasificaciones",
+      "/empresa/relic",
+    ],
+  },
+  { label: "Recursos", href: "/empresa/recursos" },
+  { label: "Documentación", href: "/empresa/documentos" },
+  { label: "Preferencias", href: "/empresa/preferencias" },
 ];
+
+function isActive(pathname: string, tab: Tab): boolean {
+  const prefixes = tab.matchPrefixes ?? [tab.href];
+  return prefixes.some(
+    (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
+}
 
 export default function EmpresaLayout({
   children,
@@ -25,9 +47,9 @@ export default function EmpresaLayout({
           empresa
         </h1>
         <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-          Datos vivos de tu empresa: identificación, certificaciones y
-          documentos. Lo que aquí esté al día es lo que alimenta cada
-          licitación.
+          El archivo único del que tira Licitum cuando hace match y redacta
+          tus Sobres A, B y C. Lo que aquí esté completo y al día es lo que
+          alimenta cada licitación.
         </p>
       </header>
 
@@ -37,8 +59,7 @@ export default function EmpresaLayout({
       >
         <ul className="-mb-px flex flex-wrap gap-x-1 overflow-x-auto">
           {TABS.map((tab) => {
-            const active =
-              pathname === tab.href || pathname.startsWith(tab.href + "/");
+            const active = isActive(pathname, tab);
             return (
               <li key={tab.href}>
                 <Link

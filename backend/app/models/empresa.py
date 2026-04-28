@@ -3,7 +3,9 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Numeric, SmallInteger, String
+from datetime import date
+
+from sqlalchemy import Date, Numeric, SmallInteger, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
@@ -12,7 +14,11 @@ if TYPE_CHECKING:
     from app.models.certificado_obra import CertificadoObra
     from app.models.clasificacion_rolece import ClasificacionRolece
     from app.models.documento_empresa import DocumentoEmpresa
+    from app.models.empresa_preferencias import EmpresaPreferencias
     from app.models.empresa_relic import EmpresaRelic
+    from app.models.maquinaria_empresa import MaquinariaEmpresa
+    from app.models.personal_empresa import PersonalEmpresa
+    from app.models.sistema_gestion_empresa import SistemaGestionEmpresa
 
 
 class Empresa(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
@@ -41,6 +47,16 @@ class Empresa(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     representante_nif: Mapped[str | None] = mapped_column(String(16), nullable=True)
     representante_cargo: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
+    # Datos del poder notarial — necesarios para que el DEUC del Sobre A
+    # quede limpio (Parte II.B). Sin esto, el DEUC sale incompleto.
+    poder_notario: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    poder_fecha_escritura: Mapped[date | None] = mapped_column(Date, nullable=True)
+    poder_protocolo: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    poder_registro_mercantil: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Código de cuenta de cotización principal (SS) — algunos pliegos lo piden
+    ccc_seguridad_social: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
     # Volumen de negocio (3 últimos ejercicios) y plantilla — para acreditar
     # solvencia económica/técnica en pliegos sin clasificación obligatoria.
     volumen_negocio_n: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
@@ -65,4 +81,21 @@ class Empresa(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     documentos: Mapped[list[DocumentoEmpresa]] = relationship(
         back_populates="empresa",
         cascade="all, delete-orphan",
+    )
+    personal: Mapped[list[PersonalEmpresa]] = relationship(
+        back_populates="empresa",
+        cascade="all, delete-orphan",
+    )
+    maquinaria: Mapped[list[MaquinariaEmpresa]] = relationship(
+        back_populates="empresa",
+        cascade="all, delete-orphan",
+    )
+    sistemas_gestion: Mapped[list[SistemaGestionEmpresa]] = relationship(
+        back_populates="empresa",
+        cascade="all, delete-orphan",
+    )
+    preferencias: Mapped[EmpresaPreferencias | None] = relationship(
+        back_populates="empresa",
+        cascade="all, delete-orphan",
+        uselist=False,
     )

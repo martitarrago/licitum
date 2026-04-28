@@ -79,4 +79,12 @@ class CertificadoObra(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base
         Boolean, nullable=False, default=True, server_default="true"
     )
 
+    # Marca y narrativa para reuso en Sobre B (memoria técnica). Una empresa
+    # puede tener 100 certificados pero solo destaca 5-10 como referencias
+    # narradas para una memoria.
+    destacado_sobre_b: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    narrativa: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     empresa: Mapped[Empresa] = relationship(back_populates="certificados")
