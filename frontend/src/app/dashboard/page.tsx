@@ -14,7 +14,9 @@ import { documentosApi, type ResumenSaludDocumental } from "@/lib/api/documentos
 import {
   trackerApi,
   ESTADO_LABELS,
+  ESTADOS_RELOJ_LEGAL,
   type EstadoTracker,
+  type TrackerFeedItem,
   type TrackerResumen,
 } from "@/lib/api/tracker";
 import { LicitacionRow } from "@/components/ui/LicitacionRow";
@@ -120,16 +122,21 @@ export default function DashboardPage() {
     staleTime: 60_000,
   });
 
-  const distribucion = useQuery({
-    queryKey: ["dashboard-distribucion-semaforo"],
-    queryFn: async () => {
-      const [v, a, r] = await Promise.all([
-        licitacionesApi.list({ semaforo: "verde", page_size: 1 }),
-        licitacionesApi.list({ semaforo: "amarillo", page_size: 1 }),
-        licitacionesApi.list({ semaforo: "rojo", page_size: 1 }),
-      ]);
-      return { verde: v.total, amarillo: a.total, rojo: r.total };
-    },
+  const verdes = useQuery({
+    queryKey: ["dashboard-verdes"],
+    queryFn: () => licitacionesApi.list({ semaforo: "verde", page_size: 1 }),
+    staleTime: 60_000,
+  });
+
+  const pipelineActivo = useQuery({
+    queryKey: ["dashboard-pipeline-activo"],
+    queryFn: () =>
+      trackerApi.feed(EMPRESA_DEMO_ID, [
+        "en_preparacion",
+        "presentada",
+        "en_subsanacion",
+        "documentacion_previa",
+      ]),
     staleTime: 60_000,
   });
 
@@ -154,19 +161,23 @@ export default function DashboardPage() {
       >
         <KpiSolvencia data={solvencia.data} loading={solvencia.isLoading} />
         <KpiOportunidades
-          verde={distribucion.data?.verde ?? 0}
-          loading={distribucion.isLoading}
+          verde={verdes.data?.total ?? 0}
+          loading={verdes.isLoading}
         />
         <KpiPipeline data={tracker.data} loading={tracker.isLoading} />
         <KpiSaludDocumental data={saludDocs.data} loading={saludDocs.isLoading} />
       </section>
 
-      {/* Plazos críticos + Distribución */}
-      <section className="mb-12 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_minmax(0,360px)]">
+      {/* Plazos críticos — slim */}
+      <section className="mb-6">
         <PlazosCriticos data={tracker.data} loading={tracker.isLoading} />
-        <DistribucionSemaforo
-          data={distribucion.data}
-          loading={distribucion.isLoading}
+      </section>
+
+      {/* Mini-pipeline */}
+      <section className="mb-12">
+        <MiniPipeline
+          items={pipelineActivo.data}
+          loading={pipelineActivo.isLoading}
         />
       </section>
 
@@ -391,11 +402,11 @@ function PlazosCriticos({
 }) {
   if (loading) {
     return (
-      <div className="card p-6">
+      <div className="card p-5">
         <div className="skeleton h-3 w-32 rounded" />
-        <div className="mt-5 space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="skeleton h-12 rounded-lg" />
+        <div className="mt-3 space-y-1.5">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="skeleton h-9 rounded-lg" />
           ))}
         </div>
       </div>
@@ -405,15 +416,15 @@ function PlazosCriticos({
   const items = data?.deadlines_semana ?? [];
 
   return (
-    <div className="card p-6">
-      <header className="mb-5 flex items-baseline justify-between gap-4">
-        <div>
+    <div className="card p-5">
+      <header className="mb-3 flex items-baseline justify-between gap-4">
+        <div className="flex items-baseline gap-3">
           <p className="eyebrow">Plazos críticos · 7 días</p>
-          <h2 className="mt-2 font-display text-2xl font-bold tracking-tight">
+          <span className="font-display text-base font-bold tracking-tight">
             {items.length === 0
               ? "Sin plazos urgentes"
               : `${items.length} reloj${items.length === 1 ? "" : "es"} corriendo`}
-          </h2>
+          </span>
         </div>
         <Link
           href="/tracker"
@@ -424,28 +435,29 @@ function PlazosCriticos({
       </header>
 
       {items.length === 0 ? (
-        <div className="rounded-lg bg-success/5 px-4 py-6 ring-1 ring-success/15">
-          <p className="text-sm text-success">
-            Estás al día. Ninguna licitación tiene reloj legal corriendo en los
-            próximos 7 días.
-          </p>
-        </div>
+        <p className="flex items-center gap-2 text-sm text-success">
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-success"
+            aria-hidden="true"
+          />
+          Estás al día. Ninguna licitación tiene reloj legal corriendo.
+        </p>
       ) : (
-        <ul className="space-y-2">
-          {items.slice(0, 4).map((item) => {
+        <ul className="space-y-1.5">
+          {items.slice(0, 3).map((item) => {
             const dias = diasHasta(item.deadline_actual);
             const urgente = dias != null && dias <= 2;
             return (
               <li key={item.id}>
                 <Link
                   href={`/radar/${encodeURIComponent(item.expediente)}`}
-                  className="card-interactive flex items-center justify-between gap-3 px-4 py-3"
+                  className="card-interactive flex items-center justify-between gap-3 px-3 py-2"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="line-clamp-1 text-sm font-medium">
+                    <p className="line-clamp-1 text-sm font-medium leading-snug">
                       {item.titulo ?? "(sin título)"}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    <p className="text-[11px] text-muted-foreground">
                       {ESTADO_LABELS[item.estado as EstadoTracker] ?? item.estado}
                       {item.organismo ? ` · ${item.organismo}` : ""}
                     </p>
@@ -455,6 +467,16 @@ function PlazosCriticos({
               </li>
             );
           })}
+          {items.length > 3 && (
+            <li className="pt-1">
+              <Link
+                href="/tracker"
+                className="text-[11px] font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+              >
+                +{items.length - 3} más en el pipeline →
+              </Link>
+            </li>
+          )}
         </ul>
       )}
     </div>
@@ -498,159 +520,191 @@ function DeadlinePill({
   );
 }
 
-// ─── Distribución de semáforo ───────────────────────────────────────────────
+// ─── Mini-pipeline ──────────────────────────────────────────────────────────
 
-function DistribucionSemaforo({
-  data,
+const MINI_PIPELINE_ESTADOS: EstadoTracker[] = [
+  "en_preparacion",
+  "presentada",
+  "en_subsanacion",
+  "documentacion_previa",
+];
+
+function MiniPipeline({
+  items,
   loading,
 }: {
-  data: { verde: number; amarillo: number; rojo: number } | undefined;
+  items: TrackerFeedItem[] | undefined;
   loading: boolean;
 }) {
   if (loading) {
     return (
       <div className="card p-6">
-        <div className="skeleton h-3 w-32 rounded" />
-        <div className="skeleton mt-5 h-3 w-full rounded-full" />
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          <div className="skeleton h-12 rounded" />
-          <div className="skeleton h-12 rounded" />
-          <div className="skeleton h-12 rounded" />
+        <div className="skeleton h-3 w-40 rounded" />
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <div className="skeleton h-3 w-24 rounded" />
+              <div className="skeleton h-16 rounded-lg" />
+              <div className="skeleton h-16 rounded-lg" />
+            </div>
+          ))}
         </div>
       </div>
     );
   }
 
-  const verde = data?.verde ?? 0;
-  const amarillo = data?.amarillo ?? 0;
-  const rojo = data?.rojo ?? 0;
-  const total = verde + amarillo + rojo;
+  const grouped: Record<EstadoTracker, TrackerFeedItem[]> = {
+    en_preparacion: [],
+    presentada: [],
+    en_subsanacion: [],
+    apertura_sobres: [],
+    adjudicacion_provisional: [],
+    documentacion_previa: [],
+    adjudicada: [],
+    formalizada: [],
+    perdida: [],
+    rechazada: [],
+  };
+  for (const item of items ?? []) {
+    const e = item.estado as EstadoTracker;
+    if (grouped[e]) grouped[e].push(item);
+  }
+
+  const total = MINI_PIPELINE_ESTADOS.reduce(
+    (acc, e) => acc + grouped[e].length,
+    0,
+  );
 
   if (total === 0) {
     return (
       <div className="card p-6">
-        <p className="eyebrow">Reparto del Radar</p>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Aún no hay licitaciones cargadas. Lanza una ingestión desde{" "}
+        <header className="mb-3 flex items-baseline justify-between gap-4">
+          <p className="eyebrow">Pipeline activo</p>
+          <Link
+            href="/tracker"
+            className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            Pipeline →
+          </Link>
+        </header>
+        <p className="text-sm text-muted-foreground">
+          Aún no has añadido ninguna licitación al pipeline. Desde el{" "}
           <Link
             href="/radar"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
-            el Radar
+            Radar
           </Link>
-          .
+          , abre una oportunidad y pulsa <strong>Añadir al pipeline</strong>.
         </p>
       </div>
     );
   }
 
-  const pctVerde = (verde / total) * 100;
-  const pctAmarillo = (amarillo / total) * 100;
-  const pctRojo = (rojo / total) * 100;
-  const accesibles = pctVerde + pctAmarillo;
-
   return (
     <div className="card p-6">
-      <header className="mb-5">
-        <p className="eyebrow">Reparto del Radar</p>
-        <h2 className="mt-2 font-display text-2xl font-bold tracking-tight">
-          {accesibles.toFixed(0)}% accesibles
-        </h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          De {total.toLocaleString("es-ES")} abiertas, puedes optar a{" "}
-          <span className="font-semibold tabular-nums text-foreground">
-            {(verde + amarillo).toLocaleString("es-ES")}
-          </span>
-        </p>
+      <header className="mb-5 flex items-baseline justify-between gap-4">
+        <div>
+          <p className="eyebrow">Pipeline activo</p>
+          <h2 className="mt-2 font-display text-2xl font-bold tracking-tight">
+            {total} licitaci{total === 1 ? "ón" : "ones"} en marcha
+          </h2>
+        </div>
+        <Link
+          href="/tracker"
+          className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+        >
+          Ver pipeline completo →
+        </Link>
       </header>
 
-      <div
-        className="flex h-2 w-full overflow-hidden rounded-full bg-muted shadow-inset-soft"
-        role="img"
-        aria-label={`Verde ${verde}, amarillo ${amarillo}, rojo ${rojo}`}
-      >
-        {pctVerde > 0 && (
-          <div
-            className="h-full bg-success transition-all duration-700 ease-out-soft"
-            style={{ width: `${pctVerde}%` }}
-            title={`Verde — ${verde}`}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {MINI_PIPELINE_ESTADOS.map((estado) => (
+          <MiniColumn
+            key={estado}
+            estado={estado}
+            items={grouped[estado]}
           />
-        )}
-        {pctAmarillo > 0 && (
-          <div
-            className="h-full bg-warning transition-all duration-700 ease-out-soft"
-            style={{ width: `${pctAmarillo}%` }}
-            title={`Amarillo — ${amarillo}`}
-          />
-        )}
-        {pctRojo > 0 && (
-          <div
-            className="h-full bg-danger transition-all duration-700 ease-out-soft"
-            style={{ width: `${pctRojo}%` }}
-            title={`Rojo — ${rojo}`}
-          />
-        )}
-      </div>
-
-      <div className="mt-5 grid grid-cols-3 gap-3">
-        <Leyenda
-          dotClass="bg-success"
-          label="Cumples"
-          count={verde}
-          pct={pctVerde}
-          href="/radar?semaforo=verde"
-        />
-        <Leyenda
-          dotClass="bg-warning"
-          label="Ajustada"
-          count={amarillo}
-          pct={pctAmarillo}
-          href="/radar?semaforo=amarillo"
-        />
-        <Leyenda
-          dotClass="bg-danger"
-          label="No cumples"
-          count={rojo}
-          pct={pctRojo}
-          href="/radar?semaforo=rojo"
-        />
+        ))}
       </div>
     </div>
   );
 }
 
-function Leyenda({
-  dotClass,
-  label,
-  count,
-  pct,
-  href,
+function MiniColumn({
+  estado,
+  items,
 }: {
-  dotClass: string;
-  label: string;
-  count: number;
-  pct: number;
-  href: string;
+  estado: EstadoTracker;
+  items: TrackerFeedItem[];
 }) {
+  const conReloj = ESTADOS_RELOJ_LEGAL.has(estado);
+  const visibles = items.slice(0, 3);
+  const restantes = items.length - visibles.length;
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {conReloj && (
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger"
+              aria-label="Reloj legal"
+            />
+          )}
+          <h3
+            className={`truncate text-[11px] font-semibold uppercase tracking-wider ${
+              conReloj ? "text-danger" : "text-foreground"
+            }`}
+          >
+            {ESTADO_LABELS[estado]}
+          </h3>
+        </div>
+        <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+          {items.length}
+        </span>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border px-3 py-5 text-center text-[11px] text-muted-foreground/50">
+          —
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {visibles.map((item) => (
+            <MiniCard key={item.id} item={item} />
+          ))}
+          {restantes > 0 && (
+            <Link
+              href="/tracker"
+              className="px-1 pt-0.5 text-[11px] font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            >
+              +{restantes} más
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MiniCard({ item }: { item: TrackerFeedItem }) {
+  const dias = diasHasta(item.deadline_actual);
+  const urgente = dias != null && dias <= 2;
+
   return (
     <Link
-      href={href}
-      className="group flex flex-col gap-1 rounded-lg bg-surface px-3 py-2.5 ring-1 ring-border transition-all duration-200 ease-out-soft hover:-translate-y-px hover:shadow-elev-1 hover:ring-foreground/20"
+      href={`/radar/${encodeURIComponent(item.expediente)}`}
+      className="block rounded-lg bg-surface-raised px-3 py-2.5 ring-1 ring-border transition-colors hover:bg-muted/30"
     >
-      <div className="flex items-center gap-2">
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${dotClass}`}
-          aria-hidden="true"
-        />
-        <span className="text-[11px] text-muted-foreground">{label}</span>
-      </div>
-      <div className="flex items-baseline justify-between">
-        <span className="font-display text-xl font-bold tabular-nums">
-          {count.toLocaleString("es-ES")}
-        </span>
-        <span className="text-[11px] tabular-nums text-muted-foreground">
-          {pct.toFixed(0)}%
-        </span>
+      <p className="line-clamp-2 text-xs font-medium leading-snug">
+        {item.titulo ?? "(sin título)"}
+      </p>
+      <div className="mt-1.5 flex items-center justify-between gap-2">
+        <p className="line-clamp-1 text-[10px] text-muted-foreground">
+          {item.organismo ?? "—"}
+        </p>
+        {dias != null && <DeadlinePill dias={dias} urgente={urgente} />}
       </div>
     </Link>
   );
