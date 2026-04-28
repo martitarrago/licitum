@@ -14,6 +14,7 @@ import { EMPRESA_DEMO_ID } from "@/lib/constants";
 // ─── Estructura: 4 fases + relojes + cerradas ──────────────────────────────
 
 type Fase = "preparando" | "mesa" | "decidiendo";
+type ColorKey = Fase | "relojes" | "cerradas";
 
 const FASES_ESTADOS: Record<Fase, EstadoTracker[]> = {
   preparando: ["en_preparacion"],
@@ -44,6 +45,13 @@ const FASE_DESC: Record<Fase, string> = {
   decidiendo: "Adjudicación en curso.",
 };
 
+const FASE_EMPTY_COPY: Record<Fase, string> = {
+  preparando:
+    "Nada en preparación. Cuando guardes una licitación desde el Radar aparecerá aquí.",
+  mesa: "Ninguna propuesta presentada todavía.",
+  decidiendo: "Sin adjudicaciones en curso.",
+};
+
 const RELOJ_PLAZO: Record<string, { label: string; habiles: string }> = {
   en_subsanacion: { label: "Subsanación Sobre A", habiles: "3 días hábiles" },
   documentacion_previa: {
@@ -51,6 +59,69 @@ const RELOJ_PLAZO: Record<string, { label: string; habiles: string }> = {
     habiles: "10 días hábiles",
   },
 };
+
+// Paleta cromática por fase. Cyan/amber/rose para identidad visual,
+// neutro zinc para "esperando". Verde solo para formalizadas.
+const COLORS: Record<
+  ColorKey,
+  {
+    dot: string;
+    text: string;
+    stripe: string;
+    chip: string;
+    ringSoft: string;
+    bgSoft: string;
+  }
+> = {
+  relojes: {
+    dot: "bg-rose-500",
+    text: "text-rose-600 dark:text-rose-400",
+    stripe: "bg-rose-500",
+    chip: "bg-rose-500/15 text-rose-600 dark:text-rose-300",
+    ringSoft: "ring-rose-500/30",
+    bgSoft: "bg-rose-500/[0.04]",
+  },
+  preparando: {
+    dot: "bg-cyan-500",
+    text: "text-cyan-600 dark:text-cyan-400",
+    stripe: "bg-cyan-500",
+    chip: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
+    ringSoft: "ring-cyan-500/25",
+    bgSoft: "bg-cyan-500/[0.04]",
+  },
+  mesa: {
+    dot: "bg-zinc-400",
+    text: "text-zinc-600 dark:text-zinc-300",
+    stripe: "bg-zinc-400",
+    chip: "bg-zinc-200/60 text-zinc-700 dark:bg-zinc-700/40 dark:text-zinc-200",
+    ringSoft: "ring-border",
+    bgSoft: "bg-zinc-500/[0.03]",
+  },
+  decidiendo: {
+    dot: "bg-amber-500",
+    text: "text-amber-700 dark:text-amber-400",
+    stripe: "bg-amber-500",
+    chip: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+    ringSoft: "ring-amber-500/25",
+    bgSoft: "bg-amber-500/[0.04]",
+  },
+  cerradas: {
+    dot: "bg-zinc-400",
+    text: "text-muted-foreground",
+    stripe: "bg-zinc-300 dark:bg-zinc-700",
+    chip: "bg-muted text-muted-foreground",
+    ringSoft: "ring-border",
+    bgSoft: "bg-zinc-500/[0.02]",
+  },
+};
+
+function colorForEstado(estado: EstadoTracker): ColorKey {
+  if (RELOJES_ESTADOS.includes(estado)) return "relojes";
+  if (FASES_ESTADOS.preparando.includes(estado)) return "preparando";
+  if (FASES_ESTADOS.mesa.includes(estado)) return "mesa";
+  if (FASES_ESTADOS.decidiendo.includes(estado)) return "decidiendo";
+  return "cerradas";
+}
 
 // ─── Página ────────────────────────────────────────────────────────────────
 
@@ -83,6 +154,10 @@ export default function TrackerPage() {
         <EmptyState />
       ) : (
         <>
+          <section className="mb-10">
+            <KpiStrip grouped={grouped} />
+          </section>
+
           {grouped.relojes.length > 0 && (
             <section className="mb-10 animate-fade-up">
               <BandaRelojes items={grouped.relojes} />
@@ -90,7 +165,7 @@ export default function TrackerPage() {
           )}
 
           {totalActivos > 0 && (
-            <section className="space-y-8">
+            <section className="space-y-10">
               <Rail fase="preparando" items={grouped.preparando} />
               <Rail fase="mesa" items={grouped.mesa} />
               <Rail fase="decidiendo" items={grouped.decidiendo} />
@@ -205,7 +280,6 @@ function NarrativaEstado({ grouped }: { grouped: GroupedFeed }) {
   }
 
   if (partes.length === 0) {
-    // Solo cerradas
     return (
       <p className="text-base leading-relaxed text-muted-foreground">
         Sin licitaciones activas. El histórico está más abajo.
@@ -215,7 +289,7 @@ function NarrativaEstado({ grouped }: { grouped: GroupedFeed }) {
 
   return (
     <>
-      <p className="text-base leading-relaxed text-muted-foreground">
+      <p className="text-base leading-relaxed text-foreground/80">
         Hoy tienes{" "}
         {partes.map((p, i) => (
           <Fragment key={i}>
@@ -230,16 +304,27 @@ function NarrativaEstado({ grouped }: { grouped: GroupedFeed }) {
       </p>
       {subline && (
         <p
-          className={`mt-2 flex items-center gap-2 text-sm font-medium ${
-            subline.tono === "danger" ? "text-danger" : "text-success"
+          className={`mt-2.5 flex items-center gap-2 text-sm font-medium ${
+            subline.tono === "danger"
+              ? "text-rose-600 dark:text-rose-400"
+              : "text-emerald-600 dark:text-emerald-400"
           }`}
         >
           <span
-            className={`h-1.5 w-1.5 rounded-full ${
-              subline.tono === "danger" ? "bg-danger" : "bg-success"
+            className={`relative flex h-2 w-2 ${
+              subline.tono === "danger" ? "" : ""
             }`}
-            aria-hidden="true"
-          />
+            aria-hidden
+          >
+            {subline.tono === "danger" && (
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-60" />
+            )}
+            <span
+              className={`relative inline-flex h-2 w-2 rounded-full ${
+                subline.tono === "danger" ? "bg-rose-500" : "bg-emerald-500"
+              }`}
+            />
+          </span>
           {subline.texto}
         </p>
       )}
@@ -247,24 +332,138 @@ function NarrativaEstado({ grouped }: { grouped: GroupedFeed }) {
   );
 }
 
+// ─── KPI strip ─────────────────────────────────────────────────────────────
+
+function KpiStrip({ grouped }: { grouped: GroupedFeed }) {
+  const tiles: Array<{
+    color: ColorKey;
+    label: string;
+    n: number;
+    sublabel: string;
+  }> = [
+    {
+      color: "relojes",
+      label: "relojes legales",
+      n: grouped.relojes.length,
+      sublabel:
+        grouped.relojes.length === 0
+          ? "ninguno corriendo"
+          : grouped.relojes.length === 1
+          ? "vencimiento crítico"
+          : "vencimientos críticos",
+    },
+    {
+      color: "preparando",
+      label: "preparando",
+      n: grouped.preparando.length,
+      sublabel: "Sobre A + C abiertos",
+    },
+    {
+      color: "mesa",
+      label: "en mesa",
+      n: grouped.mesa.length,
+      sublabel: "esperando decisión",
+    },
+    {
+      color: "decidiendo",
+      label: "decidiendo",
+      n: grouped.decidiendo.length,
+      sublabel: "adjudicación en curso",
+    },
+  ];
+
+  return (
+    <div className="stagger grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {tiles.map((t) => (
+        <KpiTile key={t.color} {...t} />
+      ))}
+    </div>
+  );
+}
+
+function KpiTile({
+  color,
+  label,
+  n,
+  sublabel,
+}: {
+  color: ColorKey;
+  label: string;
+  n: number;
+  sublabel: string;
+}) {
+  const c = COLORS[color];
+  const active = n > 0;
+  return (
+    <div
+      className={`card relative overflow-hidden p-5 transition-all duration-200 ease-out-soft ${
+        active ? "" : "opacity-90"
+      }`}
+    >
+      {active && (
+        <div
+          className={`pointer-events-none absolute inset-0 ${c.bgSoft}`}
+          aria-hidden
+        />
+      )}
+      <div className="relative">
+        <div className="flex items-center gap-2">
+          <span
+            className={`relative flex h-2 w-2`}
+            aria-hidden
+          >
+            {color === "relojes" && active && (
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-60" />
+            )}
+            <span
+              className={`relative inline-flex h-2 w-2 rounded-full ${
+                active ? c.dot : "bg-zinc-300 dark:bg-zinc-700"
+              }`}
+            />
+          </span>
+          <p
+            className={`eyebrow ${active ? c.text : "text-muted-foreground/70"}`}
+          >
+            {label}
+          </p>
+        </div>
+        <p
+          className={`display-num mt-4 text-[2.25rem] leading-none ${
+            active ? "text-foreground" : "text-muted-foreground/40"
+          }`}
+        >
+          {n}
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">{sublabel}</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Banda de relojes legales ──────────────────────────────────────────────
 
 function BandaRelojes({ items }: { items: TrackerFeedItem[] }) {
   return (
-    <div className="card p-6 ring-1 ring-danger/35">
-      <header className="mb-4 flex items-center justify-between gap-4">
-        <p className="eyebrow flex items-center gap-2 text-danger">
-          <span
-            className="h-1.5 w-1.5 rounded-full bg-danger"
-            aria-hidden="true"
-          />
-          relojes legales · {items.length} corriendo
-        </p>
+    <div className="card relative overflow-hidden p-6 ring-2 ring-rose-500/40 shadow-card-hover">
+      <div
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-rose-500/[0.06] via-transparent to-transparent"
+        aria-hidden
+      />
+      <header className="relative mb-5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <span className="relative flex h-2.5 w-2.5" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-70" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
+          </span>
+          <p className="font-display text-sm font-bold uppercase tracking-[0.1em] text-rose-600 dark:text-rose-400">
+            relojes legales · {items.length} corriendo
+          </p>
+        </div>
         <p className="hidden text-[11px] text-muted-foreground sm:block">
           Perderlos significa perder obras ya ganadas (LCSP art. 150).
         </p>
       </header>
-      <ul className="grid gap-3 sm:grid-cols-2">
+      <ul className="relative grid gap-3 sm:grid-cols-2">
         {items.map((item) => (
           <RelojItem key={item.id} item={item} />
         ))}
@@ -281,16 +480,22 @@ function RelojItem({ item }: { item: TrackerFeedItem }) {
   return (
     <Link
       href={`/radar/${encodeURIComponent(item.expediente)}`}
-      className="group flex items-stretch gap-4 rounded-lg bg-surface-raised p-4 ring-1 ring-border transition-all hover:-translate-y-px hover:bg-muted/20 hover:ring-danger/40"
+      className="group relative flex items-stretch gap-4 overflow-hidden rounded-xl bg-surface-raised p-4 pl-5 ring-1 ring-rose-500/30 transition-all duration-200 ease-out-soft hover:-translate-y-0.5 hover:ring-rose-500/60 hover:shadow-card-hover"
     >
+      <span
+        className="absolute left-0 top-0 h-full w-1 bg-rose-500"
+        aria-hidden
+      />
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-danger">
+        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-rose-600 dark:text-rose-400">
           {plazo?.label ?? ESTADO_LABELS[item.estado as EstadoTracker]}
-          {plazo && (
-            <span className="text-danger/60"> · {plazo.habiles}</span>
-          )}
         </p>
-        <h3 className="mt-1.5 line-clamp-2 text-sm font-semibold leading-snug text-foreground">
+        {plazo && (
+          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-rose-500/70 dark:text-rose-400/70">
+            {plazo.habiles}
+          </p>
+        )}
+        <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-foreground">
           {item.titulo ?? "(sin título)"}
         </h3>
         {item.organismo && (
@@ -299,13 +504,13 @@ function RelojItem({ item }: { item: TrackerFeedItem }) {
           </p>
         )}
       </div>
-      <div className="flex min-w-[64px] flex-col items-end justify-center pl-1 text-right">
+      <div className="flex min-w-[72px] flex-col items-end justify-center pl-1 text-right">
         {dias != null ? (
           <>
-            <p className="display-num text-[2.25rem] leading-none text-danger">
+            <p className="display-num text-[2.5rem] leading-none text-rose-600 dark:text-rose-400">
               {vencido ? `−${Math.abs(dias)}` : dias}
             </p>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-danger/70">
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-rose-500/80 dark:text-rose-400/80">
               {vencido ? "vencido" : Math.abs(dias) === 1 ? "día" : "días"}
             </p>
           </>
@@ -320,26 +525,37 @@ function RelojItem({ item }: { item: TrackerFeedItem }) {
 // ─── Rail de fase ──────────────────────────────────────────────────────────
 
 function Rail({ fase, items }: { fase: Fase; items: TrackerFeedItem[] }) {
+  const c = COLORS[fase];
+
   return (
     <div className="animate-fade-up">
-      <header className="mb-3 flex items-baseline gap-3 border-b border-border pb-2">
-        <p className="eyebrow">{FASE_LABEL[fase]}</p>
-        <span className="font-mono text-[11px] tabular-nums text-muted-foreground/80">
+      <header className="mb-4 flex items-center gap-3">
+        <span
+          className={`h-2 w-2 rounded-full ${c.dot}`}
+          aria-hidden
+        />
+        <p className={`eyebrow ${c.text}`}>{FASE_LABEL[fase]}</p>
+        <span
+          className={`rounded-md px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums ${
+            items.length === 0
+              ? "bg-muted/60 text-muted-foreground/70"
+              : c.chip
+          }`}
+        >
           {items.length}
         </span>
-        <p className="ml-auto truncate text-[11px] text-muted-foreground/70">
+        <div className="ml-2 hidden h-px flex-1 bg-border sm:block" aria-hidden />
+        <p className="ml-auto hidden truncate text-xs text-muted-foreground sm:ml-0 sm:block">
           {FASE_DESC[fase]}
         </p>
       </header>
 
       {items.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground/50">
-          —
-        </div>
+        <RailEmpty fase={fase} />
       ) : (
-        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {items.map((item) => (
-            <ItemCard key={item.id} item={item} />
+            <ItemCard key={item.id} item={item} fase={fase} />
           ))}
         </div>
       )}
@@ -347,19 +563,43 @@ function Rail({ fase, items }: { fase: Fase; items: TrackerFeedItem[] }) {
   );
 }
 
-function ItemCard({ item }: { item: TrackerFeedItem }) {
+function RailEmpty({ fase }: { fase: Fase }) {
+  const c = COLORS[fase];
+  return (
+    <div
+      className={`relative overflow-hidden rounded-xl border border-dashed border-border px-4 py-5 text-xs text-muted-foreground ${c.bgSoft}`}
+    >
+      {FASE_EMPTY_COPY[fase]}
+    </div>
+  );
+}
+
+function ItemCard({
+  item,
+  fase,
+}: {
+  item: TrackerFeedItem;
+  fase: ColorKey;
+}) {
+  const c = COLORS[fase];
   const dias = diasHasta(item.deadline_actual);
   const estado = item.estado as EstadoTracker;
 
   return (
     <Link
       href={`/radar/${encodeURIComponent(item.expediente)}`}
-      className="card-interactive flex flex-col p-4"
+      className="card-interactive group relative flex flex-col overflow-hidden p-4 pl-5"
     >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+      <span
+        className={`absolute left-0 top-0 h-full w-1 ${c.stripe}`}
+        aria-hidden
+      />
+      <p
+        className={`text-[10px] font-bold uppercase tracking-[0.08em] ${c.text}`}
+      >
         {ESTADO_LABELS[estado]}
       </p>
-      <h3 className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-foreground">
+      <h3 className="mt-1.5 line-clamp-2 text-sm font-semibold leading-snug text-foreground">
         {item.titulo ?? "(sin título)"}
       </h3>
       {item.organismo && (
@@ -367,13 +607,15 @@ function ItemCard({ item }: { item: TrackerFeedItem }) {
           {item.organismo}
         </p>
       )}
-      <div className="mt-3 flex items-end justify-between gap-2">
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-border/70 pt-2.5">
         {item.importe_licitacion ? (
-          <p className="text-xs font-medium tabular-nums text-foreground/80">
+          <p className="font-display text-sm font-bold tabular-nums text-foreground">
             {fmtEurCompact(item.importe_licitacion)}
           </p>
         ) : (
-          <span aria-hidden />
+          <span className="text-[11px] text-muted-foreground/60">
+            sin importe
+          </span>
         )}
         {dias != null && <DeadlineBadge dias={dias} />}
       </div>
@@ -384,11 +626,11 @@ function ItemCard({ item }: { item: TrackerFeedItem }) {
 function DeadlineBadge({ dias }: { dias: number }) {
   const cls =
     dias < 0
-      ? "bg-danger text-surface"
+      ? "bg-rose-500 text-white"
       : dias <= 3
-      ? "bg-danger/12 text-danger"
+      ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
       : dias <= 7
-      ? "bg-warning/15 text-warning"
+      ? "bg-amber-500/20 text-amber-700 dark:text-amber-400"
       : "bg-muted text-muted-foreground";
 
   const label =
@@ -402,7 +644,7 @@ function DeadlineBadge({ dias }: { dias: number }) {
 
   return (
     <span
-      className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-semibold tabular-nums ${cls}`}
+      className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold tabular-nums ${cls}`}
     >
       {label}
     </span>
@@ -423,11 +665,13 @@ function CerradasPlegadas({ items }: { items: TrackerFeedItem[] }) {
     {},
   );
 
-  const desglose = CERRADAS_ESTADOS.flatMap((e) => {
-    const n = counts[e] ?? 0;
-    if (n === 0) return [];
-    return [`${n} ${ESTADO_LABELS[e].toLowerCase()}${n === 1 ? "" : "s"}`];
-  }).join(" · ");
+  const ganadas = counts.formalizada ?? 0;
+  const adjudicadas = counts.adjudicada ?? 0;
+  const perdidas = counts.perdida ?? 0;
+  const rechazadas = counts.rechazada ?? 0;
+  const decididas = ganadas + perdidas;
+  const tasaWin =
+    decididas > 0 ? Math.round((ganadas / decididas) * 100) : null;
 
   return (
     <div className="card p-5">
@@ -435,17 +679,57 @@ function CerradasPlegadas({ items }: { items: TrackerFeedItem[] }) {
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between gap-4 text-left"
       >
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="eyebrow">cerradas</p>
           <p className="mt-1.5 font-display text-lg font-semibold tracking-tight text-foreground">
-            {items.length} licitaci{items.length === 1 ? "ón" : "ones"} fuera del
-            seguimiento activo
+            {items.length} fuera del seguimiento activo
           </p>
-          {desglose && (
-            <p className="mt-1 truncate text-xs text-muted-foreground">
-              {desglose}
-            </p>
-          )}
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            {ganadas > 0 && (
+              <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+                  aria-hidden
+                />
+                {ganadas} formalizada{ganadas === 1 ? "" : "s"}
+              </span>
+            )}
+            {adjudicadas > 0 && (
+              <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-amber-500"
+                  aria-hidden
+                />
+                {adjudicadas} adjudicada{adjudicadas === 1 ? "" : "s"}
+              </span>
+            )}
+            {perdidas > 0 && (
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-zinc-400"
+                  aria-hidden
+                />
+                {perdidas} perdida{perdidas === 1 ? "" : "s"}
+              </span>
+            )}
+            {rechazadas > 0 && (
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-zinc-400"
+                  aria-hidden
+                />
+                {rechazadas} rechazada{rechazadas === 1 ? "" : "s"}
+              </span>
+            )}
+            {tasaWin !== null && (
+              <span className="text-muted-foreground">
+                tasa adjudicación{" "}
+                <strong className="font-semibold tabular-nums text-foreground">
+                  {tasaWin}%
+                </strong>
+              </span>
+            )}
+          </div>
         </div>
         <span className="shrink-0 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
           {open ? "ocultar" : "ver historial →"}
@@ -453,9 +737,13 @@ function CerradasPlegadas({ items }: { items: TrackerFeedItem[] }) {
       </button>
 
       {open && (
-        <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
-            <ItemCard key={item.id} item={item} />
+            <ItemCard
+              key={item.id}
+              item={item}
+              fase={colorForEstado(item.estado as EstadoTracker)}
+            />
           ))}
         </div>
       )}
@@ -467,20 +755,18 @@ function CerradasPlegadas({ items }: { items: TrackerFeedItem[] }) {
 
 function Skeleton() {
   return (
-    <div className="space-y-8">
-      <div className="space-y-3">
-        <div className="skeleton h-3 w-32 rounded" />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="skeleton h-24 rounded-lg" />
-          <div className="skeleton h-24 rounded-lg" />
-        </div>
+    <div className="space-y-10">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="skeleton h-28 rounded-2xl" />
+        ))}
       </div>
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="space-y-3">
-          <div className="skeleton h-3 w-24 rounded" />
-          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="skeleton h-3 w-32 rounded" />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 3 }).map((_, j) => (
-              <div key={j} className="skeleton h-28 rounded-lg" />
+              <div key={j} className="skeleton h-32 rounded-xl" />
             ))}
           </div>
         </div>
@@ -536,7 +822,6 @@ function groupFeed(feed: TrackerFeedItem[]): GroupedFeed {
     else if (CERRADAS_ESTADOS.includes(e)) result.cerradas.push(item);
   }
 
-  // Relojes: el más urgente arriba (deadline asc, sin plazo al final)
   result.relojes.sort((a, b) => {
     const da = a.deadline_actual
       ? new Date(a.deadline_actual).getTime()
