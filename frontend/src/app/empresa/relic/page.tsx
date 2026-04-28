@@ -21,7 +21,7 @@ export default function RelicPage() {
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
       <header className="mb-10 animate-fade-up">
-        <h1 className="display-h text-4xl leading-[1] sm:text-5xl">relic</h1>
+        <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">relic</h1>
         <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
           Sincronización con el Registre Electrònic d&apos;Empreses Licitadores
           i Classificades de Catalunya. Si tu empresa está inscrita, conéctala

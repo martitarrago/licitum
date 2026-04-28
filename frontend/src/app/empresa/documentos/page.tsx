@@ -53,7 +53,7 @@ export default function DocumentosPage() {
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
       <header className="mb-10 flex flex-wrap items-end justify-between gap-4 animate-fade-up">
         <div>
-          <h1 className="display-h text-4xl leading-[1] sm:text-5xl">
+          <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">
             documentos administrativos
           </h1>
           <p className="mt-3 max-w-2xl text-sm text-muted-foreground">

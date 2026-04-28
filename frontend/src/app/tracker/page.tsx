@@ -122,7 +122,7 @@ function Hero({
   return (
     <header className="mb-10 animate-fade-up">
       <p className="eyebrow mb-3">seguimiento</p>
-      <h1 className="display-h text-5xl leading-[0.95] sm:text-6xl">
+      <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">
         control del pipeline
       </h1>
       <div className="mt-5 max-w-3xl">

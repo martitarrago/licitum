@@ -154,7 +154,7 @@ export default function DashboardPage() {
     <div className="mx-auto w-full max-w-[1400px] px-4 py-12 sm:px-10">
       {/* HERO */}
       <header className="mb-10 animate-fade-up">
-        <h1 className="display-h text-5xl leading-[0.95] sm:text-7xl">
+        <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">
           {saludo(now)}.
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
@@ -376,7 +376,7 @@ function PlazosCriticos({
         />
         <p className="text-sm text-muted-foreground">
           Estás al día.{" "}
-          <span className="text-foreground">Ningún reloj legal corriendo.</span>
+          <span className="text-foreground">Sin vencimientos esta semana.</span>
         </p>
       </section>
     );
@@ -393,12 +393,9 @@ function PlazosCriticos({
               aria-hidden="true"
             />
             <h2 className="font-display text-base font-bold tracking-tight text-danger">
-              {items.length} reloj{items.length === 1 ? "" : "es"} legal
-              {items.length === 1 ? "" : "es"} corriendo
+              {items.length} plazo{items.length === 1 ? "" : "s"} vence
+              {items.length === 1 ? "" : "n"} esta semana
             </h2>
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              Próximos 7 días
-            </span>
           </div>
           <Link
             href="/tracker"
@@ -529,10 +526,6 @@ function PipelineHeroina({
   }
 
   const total = ACTIVE_STATES.reduce((acc, s) => acc + counts[s], 0);
-  const conReloj = ACTIVE_STATES.reduce(
-    (acc, s) => acc + (ESTADOS_RELOJ_LEGAL.has(s) ? counts[s] : 0),
-    0,
-  );
 
   if (total === 0) {
     return (
@@ -590,15 +583,6 @@ function PipelineHeroina({
             <p className="mt-3 text-sm text-muted-foreground">
               licitaci{total === 1 ? "ón" : "ones"} en marcha
             </p>
-            {conReloj > 0 && (
-              <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-danger">
-                <span
-                  className="h-1.5 w-1.5 rounded-full bg-danger"
-                  aria-hidden="true"
-                />
-                {conReloj} con reloj legal corriendo
-              </p>
-            )}
           </div>
 
           {/* Columna derecha — bar + legend */}
