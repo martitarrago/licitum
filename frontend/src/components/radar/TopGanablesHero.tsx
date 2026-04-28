@@ -4,7 +4,7 @@
 // Threshold dinámico: score ≥70 o las 5 mejores, lo que dé menos.
 
 import Link from "next/link";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { intelApi, type ScoreCard } from "@/lib/api/intel";
 import { ScoreChip } from "@/components/ui/ScoreChip";
