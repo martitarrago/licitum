@@ -37,12 +37,6 @@ const eurCompact = new Intl.NumberFormat("es-ES", {
   maximumFractionDigits: 1,
 });
 
-const fechaLargaFormatter = new Intl.DateTimeFormat("es-ES", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function saludo(date: Date): string {
@@ -144,13 +138,12 @@ export default function DashboardPage() {
     <div className="mx-auto w-full max-w-[1400px] px-4 py-12 sm:px-10">
       {/* HERO */}
       <header className="mb-14 animate-fade-up">
-        <p className="eyebrow mb-3">{fechaLargaFormatter.format(now)}</p>
         <h1 className="display-h text-5xl leading-[0.95] sm:text-7xl">
           {saludo(now)}.
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
-          Tu pipeline de licitaciones en un vistazo. Detectar, decidir,
-          presentar y seguir cada oportunidad — todo desde aquí.
+          Tu seguimiento en vivo de licitaciones, en un vistazo. Detectar,
+          decidir, presentar y seguir cada oportunidad — todo desde aquí.
         </p>
       </header>
 
@@ -185,7 +178,6 @@ export default function DashboardPage() {
       <section className="mb-12 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ListaLicitaciones
           titulo="Cierran esta semana"
-          subtitulo="Verdes con plazo ≤14 días"
           ctaHref="/radar?semaforo=verde&plazo_max_dias=14"
           ctaLabel="Ver todas"
           loading={cierran.isLoading}
@@ -194,7 +186,6 @@ export default function DashboardPage() {
         />
         <ListaLicitaciones
           titulo="Nuevas oportunidades"
-          subtitulo="Compatibles con tu solvencia"
           ctaHref="/radar?semaforo=verde"
           ctaLabel="Ir al Radar"
           loading={nuevas.isLoading}
@@ -303,15 +294,15 @@ function KpiPipeline({
 
   return (
     <KpiTile
-      label="Pipeline activo"
-      tooltip="Licitaciones que has añadido al pipeline y siguen en estado activo (no terminales)."
+      label="En seguimiento"
+      tooltip="Licitaciones que has añadido al seguimiento y siguen en estado activo (no terminales)."
     >
       <p className="display-num text-[2.75rem] leading-none text-foreground">
         {total}
       </p>
       <p className="mt-3 text-xs tabular-nums text-muted-foreground">
         {total === 0
-          ? "ninguna en el pipeline"
+          ? "ninguna en seguimiento"
           : `licitación${total === 1 ? "" : "es"} en marcha`}
       </p>
       {conPlazo > 0 && (
@@ -418,19 +409,16 @@ function PlazosCriticos({
   return (
     <div className="card p-5">
       <header className="mb-3 flex items-baseline justify-between gap-4">
-        <div className="flex items-baseline gap-3">
-          <p className="eyebrow">Plazos críticos · 7 días</p>
-          <span className="font-display text-base font-bold tracking-tight">
-            {items.length === 0
-              ? "Sin plazos urgentes"
-              : `${items.length} reloj${items.length === 1 ? "" : "es"} corriendo`}
-          </span>
-        </div>
+        <h2 className="font-display text-base font-bold tracking-tight">
+          {items.length === 0
+            ? "Sin plazos críticos esta semana"
+            : `${items.length} plazo${items.length === 1 ? "" : "s"} crítico${items.length === 1 ? "" : "s"} esta semana`}
+        </h2>
         <Link
           href="/tracker"
           className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
         >
-          Pipeline →
+          Ver seguimiento →
         </Link>
       </header>
 
@@ -473,7 +461,7 @@ function PlazosCriticos({
                 href="/tracker"
                 className="text-[11px] font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
               >
-                +{items.length - 3} más en el pipeline →
+                +{items.length - 3} más en seguimiento →
               </Link>
             </li>
           )}
@@ -579,23 +567,26 @@ function MiniPipeline({
     return (
       <div className="card p-6">
         <header className="mb-3 flex items-baseline justify-between gap-4">
-          <p className="eyebrow">Pipeline activo</p>
+          <h2 className="font-display text-base font-bold tracking-tight">
+            Sin licitaciones en seguimiento
+          </h2>
           <Link
             href="/tracker"
             className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
-            Pipeline →
+            Ver seguimiento →
           </Link>
         </header>
         <p className="text-sm text-muted-foreground">
-          Aún no has añadido ninguna licitación al pipeline. Desde el{" "}
+          Aún no has añadido ninguna licitación al seguimiento. Desde el{" "}
           <Link
             href="/radar"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
             Radar
           </Link>
-          , abre una oportunidad y pulsa <strong>Añadir al pipeline</strong>.
+          , abre una oportunidad y pulsa{" "}
+          <strong>Añadir al seguimiento</strong>.
         </p>
       </div>
     );
@@ -604,17 +595,14 @@ function MiniPipeline({
   return (
     <div className="card p-6">
       <header className="mb-5 flex items-baseline justify-between gap-4">
-        <div>
-          <p className="eyebrow">Pipeline activo</p>
-          <h2 className="mt-2 font-display text-2xl font-bold tracking-tight">
-            {total} licitaci{total === 1 ? "ón" : "ones"} en marcha
-          </h2>
-        </div>
+        <h2 className="font-display text-2xl font-bold tracking-tight">
+          {total} licitaci{total === 1 ? "ón" : "ones"} en seguimiento
+        </h2>
         <Link
           href="/tracker"
           className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
         >
-          Ver pipeline completo →
+          Ver todo el seguimiento →
         </Link>
       </header>
 
@@ -769,7 +757,6 @@ function KpiSkeleton() {
 
 function ListaLicitaciones({
   titulo,
-  subtitulo,
   ctaHref,
   ctaLabel,
   loading,
@@ -777,7 +764,6 @@ function ListaLicitaciones({
   emptyMsg,
 }: {
   titulo: string;
-  subtitulo: string;
   ctaHref: string;
   ctaLabel: string;
   loading: boolean;
@@ -787,12 +773,9 @@ function ListaLicitaciones({
   return (
     <div className="card p-6">
       <header className="mb-5 flex items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow mb-2">{subtitulo}</p>
-          <h2 className="font-display text-xl font-bold leading-tight tracking-tight">
-            {titulo}
-          </h2>
-        </div>
+        <h2 className="font-display text-xl font-bold leading-tight tracking-tight">
+          {titulo}
+        </h2>
         <Link
           href={ctaHref}
           className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
@@ -886,7 +869,9 @@ function DesgloseRolece({
   if (!data || data.total_obras === 0) {
     return (
       <div className="card p-6">
-        <p className="eyebrow">Solvencia por grupo ROLECE</p>
+        <h2 className="font-display text-xl font-bold tracking-tight">
+          Solvencia por grupo ROLECE
+        </h2>
         <p className="mt-3 text-sm text-muted-foreground">
           Aún no hay obras certificadas. Sube tus certificados desde{" "}
           <Link
@@ -907,12 +892,14 @@ function DesgloseRolece({
 
   return (
     <div className="card p-6">
-      <header className="mb-5">
-        <p className="eyebrow">Solvencia por grupo ROLECE</p>
-        <h2 className="mt-2 font-display text-2xl font-bold tracking-tight">
+      <header className="mb-5 flex items-baseline justify-between gap-4">
+        <h2 className="font-display text-xl font-bold tracking-tight">
+          Solvencia por grupo ROLECE
+        </h2>
+        <span className="text-xs tabular-nums text-muted-foreground">
           {data.total_obras}{" "}
           {data.total_obras === 1 ? "obra certificada" : "obras certificadas"}
-        </h2>
+        </span>
       </header>
       <div className="space-y-3">
         {data.por_grupo.map((g, idx) => {

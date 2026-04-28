@@ -45,7 +45,7 @@ export const MODULE_GROUPS: ModuleGroup[] = [
       {
         id: "tracker",
         code: "",
-        label: "Pipeline",
+        label: "Seguimiento en vivo",
         href: "/tracker",
         icon: KanbanSquare,
         available: true,

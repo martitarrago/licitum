@@ -35,7 +35,6 @@ export default function SobreAListPage() {
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
       <header className="mb-10 animate-fade-up">
-        <p className="eyebrow mb-3">Documentación administrativa · M4</p>
         <h1 className="display-h text-4xl leading-[1] sm:text-5xl">
           sobres A generados
         </h1>
@@ -130,7 +129,6 @@ function Skeleton() {
 function Empty() {
   return (
     <div className="card flex flex-col items-center px-6 py-20 text-center">
-      <p className="eyebrow mb-3">Sin Sobres A</p>
       <h3 className="font-display text-2xl font-bold tracking-tight">
         Aún no has generado ningún Sobre A
       </h3>

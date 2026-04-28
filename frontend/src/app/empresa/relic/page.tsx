@@ -21,7 +21,6 @@ export default function RelicPage() {
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
       <header className="mb-10 animate-fade-up">
-        <p className="eyebrow mb-3">Empresa · M2</p>
         <h1 className="display-h text-4xl leading-[1] sm:text-5xl">relic</h1>
         <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
           Sincronización con el Registre Electrònic d&apos;Empreses Licitadores
@@ -85,7 +84,6 @@ function ConectarForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <div className="card p-8">
-      <p className="eyebrow mb-3">Conexión</p>
       <h2 className="font-display text-2xl font-bold tracking-tight">
         Conecta tu inscripción RELIC
       </h2>
@@ -174,7 +172,6 @@ function Conectado({
         <section>
           <div className="mb-4 flex items-end justify-between">
             <div>
-              <p className="eyebrow mb-1">RELIC oficial</p>
               <h2 className="font-display text-xl font-bold tracking-tight">
                 Clasificaciones empresariales
               </h2>
@@ -196,8 +193,7 @@ function BannerProhibicion({ relic }: { relic: EmpresaRelic }) {
   const data = relic.prohibicio_data ?? {};
   return (
     <div className="rounded-2xl bg-danger/5 p-6 ring-1 ring-danger/20 shadow-card">
-      <p className="eyebrow text-danger">Atención</p>
-      <h2 className="mt-2 font-display text-xl font-bold tracking-tight">
+      <h2 className="font-display text-xl font-bold tracking-tight text-danger">
         Empresa con prohibición de contratar
       </h2>
       <p className="mt-2 text-sm text-muted-foreground">

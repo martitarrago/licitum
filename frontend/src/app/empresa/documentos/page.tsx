@@ -53,7 +53,6 @@ export default function DocumentosPage() {
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
       <header className="mb-10 flex flex-wrap items-end justify-between gap-4 animate-fade-up">
         <div>
-          <p className="eyebrow mb-3">Empresa · M2</p>
           <h1 className="display-h text-4xl leading-[1] sm:text-5xl">
             documentos administrativos
           </h1>
@@ -279,7 +278,6 @@ function EstadoBadge({
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="card flex flex-col items-center px-6 py-20 text-center">
-      <p className="eyebrow mb-3">Sin documentos</p>
       <h3 className="font-display text-2xl font-bold tracking-tight">
         Aún no has subido ningún documento
       </h3>

@@ -86,7 +86,7 @@ export function EstadoSelector({ expediente }: Props) {
         ) : (
           <Plus className="h-4 w-4" strokeWidth={2} />
         )}
-        Añadir al pipeline
+        Añadir al seguimiento
       </button>
     );
   }
@@ -134,7 +134,7 @@ export function EstadoSelector({ expediente }: Props) {
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-50"
             >
               <X className="h-4 w-4" strokeWidth={2} />
-              Sacar del pipeline
+              Sacar del seguimiento
             </button>
           </div>
         </>

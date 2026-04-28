@@ -141,7 +141,6 @@ function RadarPageContent() {
       {/* Header */}
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4 animate-fade-up">
         <div>
-          <p className="eyebrow mb-3">Radar · M1</p>
           <div className="flex items-center gap-2">
             <h1 className="display-h text-4xl leading-[1] sm:text-5xl">
               radar de licitaciones
