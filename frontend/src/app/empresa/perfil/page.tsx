@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/empresa";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 import { CustomSelect } from "@/components/ui/CustomSelect";
+import { DatePicker } from "@/components/ui/DatePicker";
 
 const QUERY_KEY = ["empresa", EMPRESA_DEMO_ID] as const;
 
@@ -35,6 +36,11 @@ type FormState = {
   representante_nombre: string;
   representante_nif: string;
   representante_cargo: string;
+  poder_notario: string;
+  poder_fecha_escritura: string;
+  poder_protocolo: string;
+  poder_registro_mercantil: string;
+  ccc_seguridad_social: string;
   volumen_negocio_n: string;
   volumen_negocio_n1: string;
   volumen_negocio_n2: string;
@@ -57,6 +63,11 @@ const empty: FormState = {
   representante_nombre: "",
   representante_nif: "",
   representante_cargo: "",
+  poder_notario: "",
+  poder_fecha_escritura: "",
+  poder_protocolo: "",
+  poder_registro_mercantil: "",
+  ccc_seguridad_social: "",
   volumen_negocio_n: "",
   volumen_negocio_n1: "",
   volumen_negocio_n2: "",
@@ -80,6 +91,11 @@ function fromEmpresa(e: Empresa): FormState {
     representante_nombre: e.representante_nombre ?? "",
     representante_nif: e.representante_nif ?? "",
     representante_cargo: e.representante_cargo ?? "",
+    poder_notario: e.poder_notario ?? "",
+    poder_fecha_escritura: e.poder_fecha_escritura ?? "",
+    poder_protocolo: e.poder_protocolo ?? "",
+    poder_registro_mercantil: e.poder_registro_mercantil ?? "",
+    ccc_seguridad_social: e.ccc_seguridad_social ?? "",
     volumen_negocio_n: e.volumen_negocio_n ?? "",
     volumen_negocio_n1: e.volumen_negocio_n1 ?? "",
     volumen_negocio_n2: e.volumen_negocio_n2 ?? "",
@@ -151,6 +167,23 @@ function toPatch(form: FormState, original: Empresa): EmpresaPatch {
     "representante_cargo",
     form.representante_cargo,
     original.representante_cargo,
+  );
+  setStr("poder_notario", form.poder_notario, original.poder_notario);
+  setStr(
+    "poder_fecha_escritura",
+    form.poder_fecha_escritura,
+    original.poder_fecha_escritura,
+  );
+  setStr("poder_protocolo", form.poder_protocolo, original.poder_protocolo);
+  setStr(
+    "poder_registro_mercantil",
+    form.poder_registro_mercantil,
+    original.poder_registro_mercantil,
+  );
+  setStr(
+    "ccc_seguridad_social",
+    form.ccc_seguridad_social,
+    original.ccc_seguridad_social,
   );
   setNum("volumen_negocio_n", form.volumen_negocio_n, original.volumen_negocio_n);
   setNum(
@@ -325,6 +358,57 @@ export default function PerfilPage() {
               />
             </Field>
           </Two>
+        </Section>
+
+        <Section
+          title="Datos del poder"
+          help="Escritura notarial que apodera al representante. Va literal en el DEUC del Sobre A (Parte II.B)."
+        >
+          <Two>
+            <Field label="Notario otorgante">
+              <Input
+                value={form.poder_notario}
+                onChange={(v) => set("poder_notario", v)}
+              />
+            </Field>
+            <Field label="Fecha de escritura">
+              <DatePicker
+                value={form.poder_fecha_escritura}
+                onChange={(v) => set("poder_fecha_escritura", v)}
+                placeholder="Seleccionar…"
+                aria-label="Fecha de escritura del poder"
+              />
+            </Field>
+          </Two>
+          <Two>
+            <Field label="Número de protocolo">
+              <Input
+                value={form.poder_protocolo}
+                onChange={(v) => set("poder_protocolo", v)}
+                mono
+              />
+            </Field>
+            <Field label="Registro Mercantil">
+              <Input
+                value={form.poder_registro_mercantil}
+                onChange={(v) => set("poder_registro_mercantil", v)}
+              />
+            </Field>
+          </Two>
+        </Section>
+
+        <Section
+          title="Seguridad Social"
+          help="Código de cuenta de cotización principal. Algunos pliegos lo piden en la documentación administrativa."
+        >
+          <Field label="CCC principal">
+            <Input
+              value={form.ccc_seguridad_social}
+              onChange={(v) => set("ccc_seguridad_social", v)}
+              mono
+              className="max-w-xs"
+            />
+          </Field>
         </Section>
 
         <Section

@@ -27,6 +27,8 @@ class CertificadoObraUpdate(BaseModel):
     contratista_principal: bool | None = None
     es_valido_solvencia: bool | None = None
     razon_invalidez: str | None = None
+    destacado_sobre_b: bool | None = None
+    narrativa: str | None = None
 
 
 class CertificadoObraListItem(BaseModel):
@@ -51,6 +53,8 @@ class CertificadoObraListItem(BaseModel):
     razon_invalidez: str | None = None
     porcentaje_ute: Decimal | None = None
     contratista_principal: bool = True
+    destacado_sobre_b: bool = False
+    narrativa: str | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -19,6 +19,11 @@ export interface Empresa {
   representante_nombre: string | null;
   representante_nif: string | null;
   representante_cargo: string | null;
+  poder_notario: string | null;
+  poder_fecha_escritura: string | null;
+  poder_protocolo: string | null;
+  poder_registro_mercantil: string | null;
+  ccc_seguridad_social: string | null;
   volumen_negocio_n: string | null;
   volumen_negocio_n1: string | null;
   volumen_negocio_n2: string | null;
@@ -43,6 +48,11 @@ export type EmpresaPatch = Partial<{
   representante_nombre: string | null;
   representante_nif: string | null;
   representante_cargo: string | null;
+  poder_notario: string | null;
+  poder_fecha_escritura: string | null;
+  poder_protocolo: string | null;
+  poder_registro_mercantil: string | null;
+  ccc_seguridad_social: string | null;
   volumen_negocio_n: number | null;
   volumen_negocio_n1: number | null;
   volumen_negocio_n2: number | null;

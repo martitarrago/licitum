@@ -40,6 +40,8 @@ export interface CertificadoObraListItem {
   razon_invalidez: string | null;
   porcentaje_ute: string | null;
   contratista_principal: boolean;
+  destacado_sobre_b: boolean;
+  narrativa: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -78,6 +80,8 @@ export interface PatchCertificadoPayload {
   porcentaje_ute?: number | null;
   contratista_principal?: boolean;
   es_valido_solvencia?: boolean | null;
+  destacado_sobre_b?: boolean;
+  narrativa?: string | null;
 }
 
 export interface ListCertificadosParams {
