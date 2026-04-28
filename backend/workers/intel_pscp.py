@@ -83,19 +83,29 @@ async def _run_backfill_chunk(
     start_iso: str,
     end_iso: str,
     Session: async_sessionmaker[AsyncSession],
+    tipus_contracte: str | None = None,
 ) -> tuple[UpsertStats, int]:
-    """Lógica núcleo de backfill — separada de Celery para poder testearla."""
-    where = (
-        f"data_publicacio_adjudicacio >= '{start_iso}' "
-        f"AND data_publicacio_adjudicacio < '{end_iso}'"
-    )
+    """Lógica núcleo de backfill — separada de Celery para poder testearla.
+
+    `tipus_contracte`: si se pasa (ej. 'Obres'), filtra al ingest. Para el MVP
+    de Licitum siempre es 'Obres' — el producto es obras-only.
+    """
+    where_parts = [
+        f"data_publicacio_adjudicacio >= '{start_iso}'",
+        f"data_publicacio_adjudicacio < '{end_iso}'",
+    ]
+    if tipus_contracte:
+        # Escape minimal — Socrata SoQL string literals
+        safe = tipus_contracte.replace("'", "''")
+        where_parts.append(f"tipus_contracte = '{safe}'")
+    where = " AND ".join(where_parts)
     stats = UpsertStats()
 
     async with Session() as session:
         log_id = await _log_start(
             session,
             "backfill",
-            {"start": start_iso, "end": end_iso},
+            {"start": start_iso, "end": end_iso, "tipus_contracte": tipus_contracte},
         )
 
     async with PscpClient(rate_limit_delay=0.2) as client:
@@ -121,19 +131,28 @@ async def _run_backfill_chunk(
 async def _run_incremental_sync(
     Session: async_sessionmaker[AsyncSession],
     lookback_hours: int = 36,
+    tipus_contracte: str | None = None,
 ) -> tuple[UpsertStats, int]:
     """Pull registros con `data_publicacio_adjudicacio` en las últimas N horas."""
     cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
     cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%S.000")
 
-    where = f"data_publicacio_adjudicacio > '{cutoff_iso}'"
+    where_parts = [f"data_publicacio_adjudicacio > '{cutoff_iso}'"]
+    if tipus_contracte:
+        safe = tipus_contracte.replace("'", "''")
+        where_parts.append(f"tipus_contracte = '{safe}'")
+    where = " AND ".join(where_parts)
     stats = UpsertStats()
 
     async with Session() as session:
         log_id = await _log_start(
             session,
             "incremental",
-            {"cutoff_iso": cutoff_iso, "lookback_hours": lookback_hours},
+            {
+                "cutoff_iso": cutoff_iso,
+                "lookback_hours": lookback_hours,
+                "tipus_contracte": tipus_contracte,
+            },
         )
 
     async with PscpClient(rate_limit_delay=0.1) as client:
@@ -174,18 +193,25 @@ async def _run_backfill_range(
     end: date,
     Session: async_sessionmaker[AsyncSession],
     delay_between_chunks: float = 1.0,
+    tipus_contracte: str | None = None,
 ) -> dict[str, Any]:
     """Orquesta backfill mes a mes en [start, end). Resiliente a fallos por chunk.
 
     Cada chunk se commitea de forma independiente. Si un chunk falla, log
     + continuamos con el siguiente.
+
+    `tipus_contracte`: filtro opcional al ingest. Para Licitum MVP siempre 'Obres'.
     """
     chunks = _month_chunks(start, end)
-    logger.info("backfill range %s..%s en %d chunks mensuales", start, end, len(chunks))
+    logger.info(
+        "backfill range %s..%s tipus=%s en %d chunks mensuales",
+        start, end, tipus_contracte, len(chunks),
+    )
 
     summary: dict[str, Any] = {
         "start": start.isoformat(),
         "end": end.isoformat(),
+        "tipus_contracte": tipus_contracte,
         "chunks_total": len(chunks),
         "chunks_ok": 0,
         "chunks_failed": 0,
@@ -199,7 +225,9 @@ async def _run_backfill_range(
     for i, (chunk_start, chunk_end) in enumerate(chunks, 1):
         chunk_started = datetime.now()
         try:
-            stats, log_id = await _run_backfill_chunk(chunk_start, chunk_end, Session)
+            stats, log_id = await _run_backfill_chunk(
+                chunk_start, chunk_end, Session, tipus_contracte=tipus_contracte
+            )
             summary["chunks_ok"] += 1
             summary["inserted"] += stats.inserted
             summary["updated"] += stats.updated
@@ -235,11 +263,18 @@ async def _run_backfill_range(
 
 
 @celery_app.task(name="workers.intel_pscp.backfill_chunk")
-def intel_pscp_backfill_chunk(start_iso: str, end_iso: str) -> dict[str, Any]:
-    """Backfill PSCP entre dos fechas (formato `YYYY-MM-DDTHH:MM:SS.000`)."""
+def intel_pscp_backfill_chunk(
+    start_iso: str, end_iso: str, tipus_contracte: str | None = "Obres"
+) -> dict[str, Any]:
+    """Backfill PSCP entre dos fechas (formato `YYYY-MM-DDTHH:MM:SS.000`).
+
+    Default tipus_contracte='Obres' (Licitum es producto obras-only).
+    """
     Session = _new_session_factory()
     try:
-        stats, log_id = asyncio.run(_run_backfill_chunk(start_iso, end_iso, Session))
+        stats, log_id = asyncio.run(
+            _run_backfill_chunk(start_iso, end_iso, Session, tipus_contracte=tipus_contracte)
+        )
         return {
             "ok": True,
             "log_id": log_id,
@@ -253,13 +288,17 @@ def intel_pscp_backfill_chunk(start_iso: str, end_iso: str) -> dict[str, Any]:
 
 
 @celery_app.task(name="workers.intel_pscp.backfill_range")
-def intel_pscp_backfill_range(start_iso_date: str, end_iso_date: str) -> dict[str, Any]:
-    """Backfill PSCP en rango de fechas, mes a mes. `YYYY-MM-DD`."""
+def intel_pscp_backfill_range(
+    start_iso_date: str, end_iso_date: str, tipus_contracte: str | None = "Obres"
+) -> dict[str, Any]:
+    """Backfill PSCP en rango de fechas, mes a mes. Default obras-only."""
     Session = _new_session_factory()
     try:
         start = date.fromisoformat(start_iso_date)
         end = date.fromisoformat(end_iso_date)
-        summary = asyncio.run(_run_backfill_range(start, end, Session))
+        summary = asyncio.run(
+            _run_backfill_range(start, end, Session, tipus_contracte=tipus_contracte)
+        )
         return {"ok": True, **summary}
     except Exception as e:
         logger.exception("backfill range failed")
@@ -267,11 +306,15 @@ def intel_pscp_backfill_range(start_iso_date: str, end_iso_date: str) -> dict[st
 
 
 @celery_app.task(name="workers.intel_pscp.incremental_sync")
-def intel_pscp_incremental_sync(lookback_hours: int = 36) -> dict[str, Any]:
-    """Sync incremental — schedule diario."""
+def intel_pscp_incremental_sync(
+    lookback_hours: int = 36, tipus_contracte: str | None = "Obres"
+) -> dict[str, Any]:
+    """Sync incremental — schedule diario. Default obras-only."""
     Session = _new_session_factory()
     try:
-        stats, log_id = asyncio.run(_run_incremental_sync(Session, lookback_hours))
+        stats, log_id = asyncio.run(
+            _run_incremental_sync(Session, lookback_hours, tipus_contracte=tipus_contracte)
+        )
         return {
             "ok": True,
             "log_id": log_id,
@@ -324,11 +367,20 @@ _MVIEWS = (
 
 
 async def _mview_is_populated(conn, view: str) -> bool:
-    """Detecta si una mview ya tiene datos (necesario para CONCURRENTLY)."""
+    """Detecta si una mview ya tiene datos (necesario para CONCURRENTLY).
+
+    Usa `pg_class.relispopulated` — para una mview creada con WITH NO DATA
+    devuelve False hasta el primer REFRESH. SELECT count(*) directo da error
+    en ese estado, así que NO sirve.
+    """
     from sqlalchemy import text
 
-    r = await conn.execute(text(f"SELECT count(*) FROM {view}"))
-    return r.scalar_one() > 0
+    r = await conn.execute(text(
+        "SELECT relispopulated FROM pg_class "
+        "WHERE relname = :v AND relkind = 'm'"
+    ), {"v": view})
+    row = r.first()
+    return bool(row[0]) if row else False
 
 
 async def _run_refresh_mviews(

@@ -37,18 +37,26 @@ async def main() -> None:
         default=1.0,
         help="Segundos entre chunks mensuales (throttling)",
     )
+    parser.add_argument(
+        "--tipus",
+        default="Obres",
+        help="Filtro tipus_contracte ('' para no filtrar; default 'Obres')",
+    )
     args = parser.parse_args()
 
     start = date.fromisoformat(args.start)
     end = date.fromisoformat(args.end) if args.end else date.today()
+    tipus = args.tipus or None
 
-    print(f"Backfill {start} → {end} con delay {args.chunk_delay}s entre chunks")
+    print(f"Backfill {start} → {end}  tipus={tipus}  delay={args.chunk_delay}s")
     print()
 
     engine = create_async_engine(settings.database_url, poolclass=NullPool, echo=False)
     Session = async_sessionmaker(engine, expire_on_commit=False)
 
-    summary = await _run_backfill_range(start, end, Session, delay_between_chunks=args.chunk_delay)
+    summary = await _run_backfill_range(
+        start, end, Session, delay_between_chunks=args.chunk_delay, tipus_contracte=tipus
+    )
 
     print()
     print("=" * 70)
