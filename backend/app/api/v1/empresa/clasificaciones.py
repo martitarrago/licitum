@@ -16,6 +16,7 @@ from app.schemas.clasificacion_rolece import (
     ClasificacionRoleceRead,
     ClasificacionRoleceUpdate,
 )
+from app.services.scores_trigger import disparar_recalculo_scores
 from app.services.semaforo_trigger import disparar_recalculo_semaforo
 
 router = APIRouter()
@@ -60,6 +61,7 @@ async def crear_clasificacion(
         )
     await db.refresh(obj)
     disparar_recalculo_semaforo()
+    disparar_recalculo_scores(obj.empresa_id)
     return obj
 
 
@@ -116,6 +118,7 @@ async def actualizar_clasificacion(
         )
     await db.refresh(obj)
     disparar_recalculo_semaforo()
+    disparar_recalculo_scores(obj.empresa_id)
     return obj
 
 
@@ -132,3 +135,4 @@ async def eliminar_clasificacion(
     obj.deleted_at = datetime.now(timezone.utc)
     await db.commit()
     disparar_recalculo_semaforo()
+    disparar_recalculo_scores(obj.empresa_id)

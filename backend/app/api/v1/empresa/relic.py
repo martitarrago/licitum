@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.models.empresa_relic import EmpresaRelic
 from app.schemas.empresa_relic import EmpresaRelicRead, EmpresaRelicSincronizar
 from app.services.relic_sync import RelicNotFoundError, sincronizar_empresa_relic
+from app.services.scores_trigger import disparar_recalculo_scores
 from app.services.semaforo_trigger import disparar_recalculo_semaforo
 
 router = APIRouter()
@@ -70,6 +71,7 @@ async def sincronizar(
     # Tras el sync, las clasificaciones nuevas pueden cambiar el semáforo del
     # Radar. Idempotente: si no cambió nada, no escribe filas.
     disparar_recalculo_semaforo()
+    disparar_recalculo_scores(data.empresa_id)
 
     # Recarga con clasificaciones eager para la respuesta
     return await _cargar_relic_or_404(db, data.empresa_id)
@@ -88,3 +90,4 @@ async def desconectar(
     await db.delete(obj)
     await db.commit()
     disparar_recalculo_semaforo()
+    disparar_recalculo_scores(empresa_id)

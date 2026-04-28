@@ -28,6 +28,7 @@ from app.schemas.documento_empresa import (
     DocumentoEmpresaUpdate,
     ResumenSaludDocumental,
 )
+from app.services.scores_trigger import disparar_recalculo_scores
 from app.services.storage import R2Storage, get_storage
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,7 @@ async def crear_con_pdf(
         await storage.delete(key)
         raise
     await db.refresh(obj)
+    disparar_recalculo_scores(obj.empresa_id)
     return obj
 
 
@@ -119,6 +121,7 @@ async def crear_manual(
     db.add(obj)
     await db.commit()
     await db.refresh(obj)
+    disparar_recalculo_scores(obj.empresa_id)
     return obj
 
 
@@ -235,6 +238,8 @@ async def actualizar(
         setattr(obj, field, value)
     await db.commit()
     await db.refresh(obj)
+    # Cambios en fecha_caducidad afectan al hard_filter_documentacion_al_dia
+    disparar_recalculo_scores(obj.empresa_id)
     return obj
 
 
@@ -249,8 +254,10 @@ async def eliminar(
     storage: Annotated[R2Storage, Depends(get_storage)],
 ) -> None:
     obj = await _get_or_404(db, doc_id)
+    emp_id = obj.empresa_id
     obj.deleted_at = datetime.now(timezone.utc)
     await db.commit()
+    disparar_recalculo_scores(emp_id)
     if obj.pdf_url:
         try:
             await storage.delete(storage.key_from_url(obj.pdf_url))

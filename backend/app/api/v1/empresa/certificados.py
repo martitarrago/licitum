@@ -21,6 +21,7 @@ from app.schemas.certificado_obra import (
     CertificadoObraRead,
     CertificadoObraUpdate,
 )
+from app.services.scores_trigger import disparar_recalculo_scores
 from app.services.semaforo_trigger import disparar_recalculo_semaforo
 from app.services.storage import R2Storage, get_storage
 from workers.extraccion_pdf import extraer_certificado
@@ -205,6 +206,7 @@ async def crear_certificado_manual(
     await db.refresh(certificado)
     if es_valido:
         disparar_recalculo_semaforo()
+        disparar_recalculo_scores(certificado.empresa_id)
     return certificado
 
 
@@ -369,6 +371,7 @@ async def actualizar_certificado(
         ) from exc
     await db.refresh(cert)
     disparar_recalculo_semaforo()
+    disparar_recalculo_scores(cert.empresa_id)
     return cert
 
 
@@ -400,6 +403,10 @@ async def eliminar_batch(
     await db.commit()
     if certs:
         disparar_recalculo_semaforo()
+        # Una empresa por batch (todos los certs de una empresa
+        # típicamente, pero por si acaso disparamos por cada empresa única)
+        for emp_id in {c.empresa_id for c in certs}:
+            disparar_recalculo_scores(emp_id)
 
 
 @router.delete(
@@ -412,9 +419,11 @@ async def eliminar_certificado(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     cert = await _get_certificado_or_404(db, certificado_id)
+    emp_id = cert.empresa_id
     cert.deleted_at = datetime.now(timezone.utc)
     await db.commit()
     disparar_recalculo_semaforo()
+    disparar_recalculo_scores(emp_id)
 
 
 async def _transicionar_estado(
@@ -434,6 +443,7 @@ async def _transicionar_estado(
     await db.refresh(cert)
     # validar / rechazar afectan al canal 2 del semáforo (certificados válidos)
     disparar_recalculo_semaforo()
+    disparar_recalculo_scores(cert.empresa_id)
     return cert
 
 
@@ -512,6 +522,7 @@ async def revertir_certificado(
     await db.refresh(cert)
     # revertir un validado lo deja de contar en el semáforo
     disparar_recalculo_semaforo()
+    disparar_recalculo_scores(cert.empresa_id)
     return cert
 
 
