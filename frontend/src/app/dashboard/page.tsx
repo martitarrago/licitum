@@ -10,7 +10,12 @@ import {
   licitacionesApi,
   type LicitacionRead,
 } from "@/lib/api/licitaciones";
-import { documentosApi, type ResumenSaludDocumental } from "@/lib/api/documentos";
+import {
+  documentosApi,
+  TIPO_DOCUMENTO_LABELS,
+  type DocumentoEmpresa,
+  type ResumenSaludDocumental,
+} from "@/lib/api/documentos";
 import {
   trackerApi,
   ESTADO_LABELS,
@@ -35,6 +40,12 @@ const eurCompact = new Intl.NumberFormat("es-ES", {
   currency: "EUR",
   notation: "compact",
   maximumFractionDigits: 1,
+});
+
+const fechaCorta = new Intl.DateTimeFormat("es-ES", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -71,7 +82,7 @@ function parseLicitacion(l: LicitacionRead) {
   };
 }
 
-// Pipeline activo — orden visual: relojes legales primero (urgencia ↓ a ↑).
+// Pipeline activo — orden visual: estados con plazo legal abierto primero.
 const ACTIVE_STATES: EstadoTracker[] = [
   "en_subsanacion",
   "documentacion_previa",
@@ -162,7 +173,7 @@ export default function DashboardPage() {
         </p>
       </header>
 
-      {/* 1 ── PLAZOS CRÍTICOS al frente — grita cuando hay relojes corriendo */}
+      {/* 1 ── PLAZOS CRÍTICOS al frente — grita cuando hay vencimientos próximos */}
       <PlazosCriticos data={tracker.data} loading={tracker.isLoading} />
 
       {/* 2 ── PIPELINE HEROÍNA — KPI principal con visualización */}
