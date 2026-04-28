@@ -11,6 +11,7 @@ celery_app = Celery(
         "workers.extraccion_pdf",
         "workers.extraccion_pliego",
         "workers.ingesta_pscp",
+        "workers.intel_pscp",
         "workers.recalcular_semaforos",
         "workers.sync_relic",
     ],

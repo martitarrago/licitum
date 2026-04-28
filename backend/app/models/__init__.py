@@ -7,6 +7,13 @@ from app.models.empresa_relic import EmpresaRelic
 from app.models.licitacion import Licitacion
 from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
 from app.models.licitacion_estado_empresa import LicitacionEstadoEmpresa
+from app.models.pscp import (
+    PscpAdjudicacion,
+    PscpAdjudicacionEmpresa,
+    PscpEmpresa,
+    PscpPliegoDoc,
+    PscpSyncLog,
+)
 from app.models.sobre_a_generacion import SobreAGeneracion
 
 __all__ = [
@@ -19,5 +26,10 @@ __all__ = [
     "Licitacion",
     "LicitacionAnalisisIA",
     "LicitacionEstadoEmpresa",
+    "PscpAdjudicacion",
+    "PscpAdjudicacionEmpresa",
+    "PscpEmpresa",
+    "PscpPliegoDoc",
+    "PscpSyncLog",
     "SobreAGeneracion",
 ]
