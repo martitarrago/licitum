@@ -53,7 +53,7 @@ function fromApi(m: MaquinariaEmpresa): FormState {
   };
 }
 
-function buildCreate(f: FormState): MaquinariaCreatePayload {
+function buildPatch(f: FormState): MaquinariaPatchPayload {
   const num = (s: string): number | null => {
     const t = s.trim();
     if (t === "") return null;
@@ -61,7 +61,6 @@ function buildCreate(f: FormState): MaquinariaCreatePayload {
     return Number.isNaN(n) ? null : n;
   };
   return {
-    empresa_id: EMPRESA_DEMO_ID,
     tipo: f.tipo.trim(),
     marca: f.marca.trim() === "" ? null : f.marca.trim(),
     modelo: f.modelo.trim() === "" ? null : f.modelo.trim(),
@@ -73,10 +72,8 @@ function buildCreate(f: FormState): MaquinariaCreatePayload {
   };
 }
 
-function buildPatch(f: FormState): MaquinariaPatchPayload {
-  const c = buildCreate(f);
-  const { empresa_id: _omit, ...rest } = c;
-  return rest;
+function buildCreate(f: FormState): MaquinariaCreatePayload {
+  return { empresa_id: EMPRESA_DEMO_ID, ...buildPatch(f) } as MaquinariaCreatePayload;
 }
 
 export default function MaquinariaPage() {

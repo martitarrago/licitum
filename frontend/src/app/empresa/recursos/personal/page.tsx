@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { CustomSelect } from "@/components/ui/CustomSelect";
@@ -50,7 +50,7 @@ function fromApi(p: PersonalEmpresa): FormState {
   };
 }
 
-function buildCreate(f: FormState): PersonalCreatePayload {
+function buildPatch(f: FormState): PersonalPatchPayload {
   const num = (s: string): number | null => {
     const t = s.trim();
     if (t === "") return null;
@@ -58,7 +58,6 @@ function buildCreate(f: FormState): PersonalCreatePayload {
     return Number.isNaN(n) ? null : n;
   };
   return {
-    empresa_id: EMPRESA_DEMO_ID,
     nombre_completo: f.nombre_completo.trim(),
     dni: f.dni.trim() === "" ? null : f.dni.trim(),
     rol: f.rol,
@@ -69,11 +68,8 @@ function buildCreate(f: FormState): PersonalCreatePayload {
   };
 }
 
-function buildPatch(f: FormState): PersonalPatchPayload {
-  const c = buildCreate(f);
-  // PATCH no acepta empresa_id.
-  const { empresa_id: _omit, ...rest } = c;
-  return rest;
+function buildCreate(f: FormState): PersonalCreatePayload {
+  return { empresa_id: EMPRESA_DEMO_ID, ...buildPatch(f) } as PersonalCreatePayload;
 }
 
 export default function PersonalPage() {

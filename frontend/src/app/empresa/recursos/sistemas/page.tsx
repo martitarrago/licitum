@@ -47,9 +47,8 @@ function fromApi(s: SistemaGestionEmpresa): FormState {
   };
 }
 
-function buildCreate(f: FormState): SistemaGestionCreatePayload {
+function buildPatch(f: FormState): SistemaGestionPatchPayload {
   return {
-    empresa_id: EMPRESA_DEMO_ID,
     tipo: f.tipo,
     fecha_emision: f.fecha_emision === "" ? null : f.fecha_emision,
     fecha_caducidad: f.fecha_caducidad === "" ? null : f.fecha_caducidad,
@@ -62,10 +61,8 @@ function buildCreate(f: FormState): SistemaGestionCreatePayload {
   };
 }
 
-function buildPatch(f: FormState): SistemaGestionPatchPayload {
-  const c = buildCreate(f);
-  const { empresa_id: _omit, ...rest } = c;
-  return rest;
+function buildCreate(f: FormState): SistemaGestionCreatePayload {
+  return { empresa_id: EMPRESA_DEMO_ID, ...buildPatch(f) } as SistemaGestionCreatePayload;
 }
 
 function estadoCaducidad(fecha: string | null): {
