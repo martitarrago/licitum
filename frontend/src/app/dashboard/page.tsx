@@ -29,12 +29,6 @@ import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
-const eur = new Intl.NumberFormat("es-ES", {
-  style: "currency",
-  currency: "EUR",
-  maximumFractionDigits: 0,
-});
-
 const eurCompact = new Intl.NumberFormat("es-ES", {
   style: "currency",
   currency: "EUR",
@@ -215,9 +209,12 @@ export default function DashboardPage() {
         />
       </section>
 
-      {/* 5 ── DESGLOSE ROLECE */}
-      <section aria-label="Solvencia por grupo">
-        <DesgloseRolece data={solvencia.data} loading={solvencia.isLoading} />
+      {/* 5 ── VENCIMIENTOS DOCUMENTALES — accionable: pedir renovación a tiempo */}
+      <section aria-label="Próximos vencimientos documentales">
+        <VencimientosDocumentales
+          data={saludDocs.data}
+          loading={saludDocs.isLoading}
+        />
       </section>
     </div>
   );
@@ -825,101 +822,142 @@ function RowSkeleton() {
   );
 }
 
-// ─── Desglose ROLECE ────────────────────────────────────────────────────────
+// ─── Vencimientos documentales ──────────────────────────────────────────────
 
-const GRUPO_OPACITIES = ["90", "70", "55", "45", "35", "30", "25"];
-
-function grupoColor(idx: number) {
-  return `bg-foreground/${GRUPO_OPACITIES[idx % GRUPO_OPACITIES.length]}`;
-}
-
-function grupoLabel(g: string) {
-  return g === "Sin clasificar" ? g : `Grupo ${g}`;
-}
-
-function DesgloseRolece({
+function VencimientosDocumentales({
   data,
   loading,
 }: {
-  data: ResumenSolvencia | undefined;
+  data: ResumenSaludDocumental | undefined;
   loading: boolean;
 }) {
   if (loading) {
     return (
       <div className="card p-6">
-        <div className="skeleton h-3 w-40 rounded" />
-        <div className="mt-5 space-y-3">
+        <div className="skeleton h-3 w-56 rounded" />
+        <div className="mt-5 space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="skeleton h-3 rounded" />
+            <div key={i} className="skeleton h-12 rounded-lg" />
           ))}
         </div>
       </div>
     );
   }
 
-  if (!data || data.total_obras === 0) {
+  const total = data?.total ?? 0;
+  const items = data?.proximos_a_caducar ?? [];
+
+  // Sin documentos aún — empuja al usuario a sembrar M2.
+  if (total === 0) {
     return (
       <div className="card p-6">
         <h2 className="font-display text-xl font-bold tracking-tight">
-          Solvencia por grupo ROLECE
+          Próximos vencimientos documentales
         </h2>
         <p className="mt-3 text-sm text-muted-foreground">
-          Aún no hay obras certificadas. Sube tus certificados desde{" "}
+          Aún no has añadido documentos administrativos. Súbelos desde{" "}
           <Link
-            href="/empresa/certificados"
+            href="/empresa/documentos"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
-            Empresa → Certificados
+            Empresa → Documentos
           </Link>{" "}
-          para ver aquí el reparto por grupo.
+          para activar avisos de caducidad.
         </p>
       </div>
     );
   }
 
-  const maxImporte = Math.max(
-    ...data.por_grupo.map((g) => Number(g.importe_total)),
-  );
+  // Todo vigente — sin caducidades próximas.
+  if (items.length === 0) {
+    return (
+      <div className="card p-6">
+        <header className="mb-3 flex items-baseline justify-between gap-4">
+          <h2 className="font-display text-xl font-bold tracking-tight">
+            Próximos vencimientos documentales
+          </h2>
+          <Link
+            href="/empresa/documentos"
+            className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            Ver todos →
+          </Link>
+        </header>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-success"
+            aria-hidden="true"
+          />
+          Todos al día. Sin caducidades próximas.
+        </p>
+      </div>
+    );
+  }
+
+  // Lista de documentos próximos a caducar / caducados.
+  const visibles = items.slice(0, 6);
+  const restantes = items.length - visibles.length;
 
   return (
     <div className="card p-6">
       <header className="mb-5 flex items-baseline justify-between gap-4">
         <h2 className="font-display text-xl font-bold tracking-tight">
-          Solvencia por grupo ROLECE
+          Próximos vencimientos documentales
         </h2>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          {data.total_obras}{" "}
-          {data.total_obras === 1 ? "obra certificada" : "obras certificadas"}
-        </span>
+        <Link
+          href="/empresa/documentos"
+          className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+        >
+          Ver todos →
+        </Link>
       </header>
-      <div className="space-y-3">
-        {data.por_grupo.map((g, idx) => {
-          const pct =
-            maxImporte > 0 ? (Number(g.importe_total) / maxImporte) * 100 : 0;
-          return (
-            <div key={g.grupo} className="flex items-center gap-3">
-              <span
-                className="w-32 flex-shrink-0 truncate text-xs font-medium"
-                title={grupoLabel(g.grupo)}
-              >
-                {grupoLabel(g.grupo)}
-              </span>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted shadow-inset-soft">
-                <div
-                  className={`h-full rounded-full transition-all duration-700 ease-out-soft ${grupoColor(idx)}`}
-                  style={{ width: `${Math.max(pct, 2)}%` }}
-                />
-              </div>
-              <span className="w-28 flex-shrink-0 text-right text-sm font-semibold tabular-nums">
-                {eur.format(Number(g.importe_total))}
-              </span>
-              <span className="w-16 flex-shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                {g.num_obras} {g.num_obras === 1 ? "obra" : "obras"}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+      <ul className="divide-y divide-border">
+        {visibles.map((doc) => (
+          <li key={doc.id}>
+            <DocumentoVencimientoRow doc={doc} />
+          </li>
+        ))}
+      </ul>
+      {restantes > 0 && (
+        <div className="mt-3 border-t border-border pt-3 text-center">
+          <Link
+            href="/empresa/documentos"
+            className="text-[11px] font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            +{restantes} más en Empresa →
+          </Link>
+        </div>
+      )}
     </div>
+  );
+}
+
+function DocumentoVencimientoRow({ doc }: { doc: DocumentoEmpresa }) {
+  const tipoLabel = TIPO_DOCUMENTO_LABELS[doc.tipo];
+  const fecha = doc.fecha_caducidad ? new Date(doc.fecha_caducidad) : null;
+  const dias = doc.dias_a_caducidad;
+
+  return (
+    <Link
+      href="/empresa/documentos"
+      className="-mx-2 flex items-center justify-between gap-4 rounded-lg px-2 py-3 transition-colors hover:bg-muted/30"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium leading-snug">{tipoLabel}</p>
+        {doc.titulo && (
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            {doc.titulo}
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        {fecha && (
+          <span className="hidden text-xs tabular-nums text-muted-foreground sm:inline">
+            {fechaCorta.format(fecha)}
+          </span>
+        )}
+        <DeadlinePill dias={dias} />
+      </div>
+    </Link>
   );
 }
