@@ -12,6 +12,7 @@ from app.models.empresa_relic import EmpresaRelic
 from app.models.licitacion import Licitacion
 from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
 from app.models.licitacion_estado_empresa import LicitacionEstadoEmpresa
+from app.models.licitacion_score_empresa import LicitacionScoreEmpresa
 from app.models.maquinaria_empresa import MaquinariaEmpresa
 from app.models.personal_empresa import PersonalEmpresa
 from app.models.pscp import (
@@ -37,6 +38,7 @@ __all__ = [
     "Licitacion",
     "LicitacionAnalisisIA",
     "LicitacionEstadoEmpresa",
+    "LicitacionScoreEmpresa",
     "MaquinariaEmpresa",
     "PersonalEmpresa",
     "PscpAdjudicacion",

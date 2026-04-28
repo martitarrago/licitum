@@ -545,6 +545,47 @@ def hard_filter_preferencia_no_interesa(pref_cpv_prioridad: str | None) -> HardF
     return HardFilterResult(name="preferencia_cpv", fail=False, reason="OK")
 
 
+def hard_filter_documentacion_al_dia(
+    docs_caducados: list[str],
+    docs_caducan_pronto: list[str],
+    dias_a_cierre_licitacion: int | None,
+) -> HardFilterResult:
+    """LCSP exige presentar documentación administrativa post-adjudicación
+    (Hacienda al corriente, SS al corriente, pólizas) en 10 días hábiles.
+
+    Si HOY hay documentos caducados Y la licitación cierra en <14 días naturales,
+    no es factible renovar a tiempo de ganar y formalizar. Penalización 3% del
+    presupuesto base si se incumple.
+
+    Reglas:
+      - docs_caducados con cierre lejano (>30d): warning suave, no descarta
+        (se asume que el cliente renovará).
+      - docs_caducados con cierre próximo (<14d): hard filter — fail.
+      - docs_caducan_pronto (en los próximos 30d) sin cierre próximo: warning
+        en datos pero no filtro hard.
+    """
+    cierre_proximo = dias_a_cierre_licitacion is not None and dias_a_cierre_licitacion < 14
+    if docs_caducados and cierre_proximo:
+        return HardFilterResult(
+            name="documentacion",
+            fail=True,
+            reason=(
+                f"Documentos caducados ({', '.join(docs_caducados)}) y la licitación "
+                f"cierra en {dias_a_cierre_licitacion} días. No da tiempo a renovar "
+                "antes de la formalización."
+            ),
+        )
+    return HardFilterResult(
+        name="documentacion",
+        fail=False,
+        reason=(
+            "OK documentación al día"
+            if not docs_caducados and not docs_caducan_pronto
+            else f"OK (alerta: {len(docs_caducados)} caducado(s), {len(docs_caducan_pronto)} próximo(s))"
+        ),
+    )
+
+
 # ----------------------------------------------------------------------------
 # Score compuesto
 # ----------------------------------------------------------------------------

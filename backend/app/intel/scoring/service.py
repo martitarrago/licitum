@@ -34,6 +34,7 @@ from app.intel.scoring.composite import (
     compute_composite_score,
     hard_filter_capacidad,
     hard_filter_clasificacion,
+    hard_filter_documentacion_al_dia,
     hard_filter_estado_aceptacion,
     hard_filter_preferencia_no_interesa,
     hard_filter_presupuesto,
@@ -63,6 +64,7 @@ class LicitacionInput:
     presupuesto: float | None
     lloc_execucio: str | None
     codi_nuts: str | None
+    dias_a_cierre: int | None = None  # días naturales al `fecha_limite` de la licitación
 
     @property
     def codi_cpv_4(self) -> str | None:
@@ -100,6 +102,9 @@ class EmpresaContext:
     es_mismo_nuts3: bool = False
     # Margen para baja
     margen_minimo_baja: float | None = None  # %
+    # Documentación administrativa (M2 documentos_empresa) — para hard filter docs al día
+    docs_caducados: list[str] = field(default_factory=list)
+    docs_caducan_pronto: list[str] = field(default_factory=list)
 
     def pref_cpv_for(self, cpv: str | None) -> str | None:
         """Match más específico → más general (8 → 4 → 2 dígitos)."""
@@ -212,6 +217,11 @@ async def score_licitacion(
         ),
         hard_filter_capacidad(empresa.obras_simultaneas_actual, empresa.obras_simultaneas_max),
         hard_filter_preferencia_no_interesa(cpv_pref),
+        hard_filter_documentacion_al_dia(
+            docs_caducados=empresa.docs_caducados,
+            docs_caducan_pronto=empresa.docs_caducan_pronto,
+            dias_a_cierre_licitacion=licitacion.dias_a_cierre,
+        ),
     ]
 
     # ── Queries data layer ───────────────────────────────────────────
