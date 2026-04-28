@@ -1,3 +1,5 @@
+import { ScoreChip } from "./ScoreChip";
+
 type Semaforo = "verde" | "amarillo" | "rojo";
 
 interface LicitacionCardProps {
@@ -11,6 +13,12 @@ interface LicitacionCardProps {
   razon?: string | null;
   /** Afinidad histórica 0-1. ≥0.7 implica match de organismo; 0.3-0.7 implica match de CPV. */
   afinidad?: number | null;
+  /** Score de ganabilidad 0-100 del motor PSCP+M2. Si está, eclipsa el semáforo. */
+  score?: number | null;
+  /** Frase corta del breakdown — la mejor o la más débil señal. */
+  highlight?: string | null;
+  /** % de completeness M2 — para subrayar atenuación si falta info. */
+  completeness?: number | null;
 }
 
 function afinidadInfo(score: number | null | undefined): string | null {
@@ -86,37 +94,74 @@ export function LicitacionCard({
   cpvs,
   razon,
   afinidad,
+  score,
+  highlight,
+  completeness,
 }: LicitacionCardProps) {
   const estilo = semaforoStyles[semaforo];
   const dias = diasHasta(fechaLimite);
   const urgente = dias >= 0 && dias <= 7;
   const cerrada = dias < 0;
   const afinidadTexto = afinidadInfo(afinidad ?? null);
+  const hasScore = typeof score === "number";
 
   return (
     <article className="card-interactive group relative flex overflow-hidden">
-      {/* Franja de semáforo — único cue visual del estado */}
-      <div className={`w-1.5 flex-shrink-0 ${estilo.stripe}`} aria-hidden="true" />
+      {/* Franja izquierda: score si hay, fallback al semáforo */}
+      <div
+        className={`w-1.5 flex-shrink-0 ${
+          hasScore
+            ? score >= 70
+              ? "bg-success"
+              : score >= 40
+                ? "bg-warning"
+                : "bg-muted"
+            : estilo.stripe
+        }`}
+        aria-hidden="true"
+      />
 
       <div className="flex flex-1 flex-col gap-4 p-5">
-        {/* Badge de semáforo + razón */}
+        {/* Header: ScoreChip eclipsa el semáforo cuando existe */}
         <div className="space-y-1.5">
-          <div
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider ring-1 ring-inset ${estilo.badgeBg} ${estilo.badgeRing} ${estilo.textColor}`}
-            role="status"
-            title={razon ?? undefined}
-          >
-            <span className={`h-1.5 w-1.5 rounded-full ${estilo.stripe}`} aria-hidden="true" />
-            {estilo.label}
-          </div>
-          {razon && (
+          {hasScore ? (
+            <div className="flex items-center justify-between gap-2">
+              <ScoreChip score={score!} variant="sm" />
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ring-1 ring-inset ${estilo.badgeBg} ${estilo.badgeRing} ${estilo.textColor}`}
+                title={razon ?? undefined}
+              >
+                <span className={`h-1 w-1 rounded-full ${estilo.stripe}`} aria-hidden="true" />
+                {semaforo === "verde" ? "OK" : semaforo === "amarillo" ? "Ajustada" : "Limita"}
+              </span>
+            </div>
+          ) : (
+            <div
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider ring-1 ring-inset ${estilo.badgeBg} ${estilo.badgeRing} ${estilo.textColor}`}
+              role="status"
+              title={razon ?? undefined}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${estilo.stripe}`} aria-hidden="true" />
+              {estilo.label}
+            </div>
+          )}
+
+          {/* Highlight (preferido) o razón del semáforo */}
+          {highlight ? (
+            <p
+              className="line-clamp-2 text-[11.5px] leading-snug text-foreground/80"
+              title={highlight}
+            >
+              {highlight}
+            </p>
+          ) : razon ? (
             <p
               className="line-clamp-2 text-[11px] leading-snug text-muted-foreground"
               title={razon}
             >
               {razon}
             </p>
-          )}
+          ) : null}
         </div>
 
         {/* Título + organismo */}
@@ -174,6 +219,16 @@ export function LicitacionCard({
               </span>
             ))}
           </div>
+        )}
+
+        {/* Footer con completeness — sutil */}
+        {hasScore && typeof completeness === "number" && completeness < 80 && (
+          <p
+            className="border-t border-border pt-2 text-[10px] uppercase tracking-wider text-muted-foreground/70"
+            title={`Score basado en ${completeness}% de tu perfil M2 — completar mejora la precisión.`}
+          >
+            Precisión {completeness}%
+          </p>
         )}
       </div>
     </article>

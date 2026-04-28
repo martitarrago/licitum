@@ -16,10 +16,14 @@ import {
   licitacionesApi,
   type LicitacionRead,
 } from "@/lib/api/licitaciones";
+import { intelApi, type FeedItem } from "@/lib/api/intel";
 import { LicitacionCard } from "@/components/ui/LicitacionCard";
 import { RadarFilterBar } from "@/components/radar/RadarFilterBar";
 import { RadarActiveChips } from "@/components/radar/RadarActiveChips";
+import { TopGanablesHero } from "@/components/radar/TopGanablesHero";
+import { DescartadasSection } from "@/components/radar/DescartadasSection";
 import { useRadarFilters } from "@/lib/hooks/useRadarFilters";
+import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
 const PAGE_SIZE = 24;
 
@@ -83,6 +87,25 @@ function RadarPageContent() {
   const filtersState = useRadarFilters();
   const { filters, patchFilters, clearFilters, activeCount } = filtersState;
   const [infoOpen, setInfoOpen] = useState(false);
+
+  // Lookup map score por licitacion_id — para enriquecer las cards del feed.
+  // Se rellena con la primera página del feed scored.
+  const scoreFeedQuery = useQuery({
+    queryKey: ["intel", "feed-map", EMPRESA_DEMO_ID, filters.page],
+    queryFn: () =>
+      intelApi.feed({
+        empresa_id: EMPRESA_DEMO_ID,
+        include_descartadas: false,
+        min_score: 0,
+        limit: 200,
+        offset: 0,
+      }),
+    staleTime: 60_000,
+  });
+  const scoreMap = new Map<string, FeedItem>();
+  for (const it of scoreFeedQuery.data?.items ?? []) {
+    scoreMap.set(it.licitacion_id, it);
+  }
 
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["licitaciones", filters],
@@ -269,7 +292,13 @@ function RadarPageContent() {
         </div>
       )}
 
+      {/* Hero — Top ganables según el motor */}
+      <TopGanablesHero empresaId={EMPRESA_DEMO_ID} />
+
       {/* Barra de filtros */}
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <h2 className="display-h text-lg sm:text-xl">explorar todas</h2>
+      </div>
       <div className="mb-3">
         <RadarFilterBar state={filtersState} />
       </div>
@@ -345,6 +374,7 @@ function RadarPageContent() {
           <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
             {licitaciones.map((l) => {
               const p = parseLicitacion(l);
+              const scored = scoreMap.get(l.id);
               return (
                 <div key={l.id} className="group/card relative">
                   <Link
@@ -362,6 +392,9 @@ function RadarPageContent() {
                       cpvs={p.cpvs}
                       razon={p.razon}
                       afinidad={p.afinidad}
+                      score={scored?.score ?? null}
+                      highlight={scored?.highlight ?? null}
+                      completeness={scored?.data_completeness_pct ?? null}
                     />
                   </Link>
                   {p.url && (
@@ -413,6 +446,9 @@ function RadarPageContent() {
               </button>
             </div>
           )}
+
+          {/* Sección descartadas — colapsable, agrupada por razón */}
+          <DescartadasSection empresaId={EMPRESA_DEMO_ID} />
         </>
       )}
     </main>

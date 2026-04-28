@@ -26,7 +26,8 @@ import {
   type TipoOrganismo,
 } from "@/lib/api/licitaciones";
 import { EstadoSelector } from "@/components/tracker/EstadoSelector";
-import { GenerarSobreABoton } from "@/components/sobre-a/GenerarSobreABoton";
+import { AnalisisGanabilidad } from "@/components/radar/AnalisisGanabilidad";
+import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
 const TIPO_CONTRATO_LABEL: Record<string, string> = {
   obras: "Obras",
@@ -277,7 +278,7 @@ function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
             )}
           </div>
 
-          {/* Acciones */}
+          {/* Acciones — Sobre A removido, va al módulo M4 dedicado */}
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-5">
             <Link
               href={`/pliegos/${encodeURIComponent(l.expediente)}`}
@@ -290,7 +291,6 @@ function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               Analizar pliego con IA
             </Link>
-            <GenerarSobreABoton expediente={l.expediente} />
             <EstadoSelector expediente={l.expediente} />
             {l.url_placsp && (
               <a
@@ -309,6 +309,11 @@ function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Análisis de ganabilidad — bloque hero del detalle */}
+      <div className="mt-6">
+        <AnalisisGanabilidad licitacionId={l.id} empresaId={EMPRESA_DEMO_ID} />
       </div>
 
       {/* Datos clave en grid */}
