@@ -38,13 +38,6 @@ const C = {
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
-const eurCompact = new Intl.NumberFormat("es-ES", {
-  style: "currency",
-  currency: "EUR",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
 const fechaCorta = new Intl.DateTimeFormat("es-ES", {
   day: "numeric",
   month: "short",
