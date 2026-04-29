@@ -20,7 +20,6 @@ import { intelApi, type FeedItem } from "@/lib/api/intel";
 import { LicitacionCard } from "@/components/ui/LicitacionCard";
 import { RadarFilterBar } from "@/components/radar/RadarFilterBar";
 import { RadarActiveChips } from "@/components/radar/RadarActiveChips";
-import { TopGanablesHero } from "@/components/radar/TopGanablesHero";
 import { DescartadasSection } from "@/components/radar/DescartadasSection";
 import { useRadarFilters } from "@/lib/hooks/useRadarFilters";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
@@ -41,8 +40,6 @@ function parseLicitacion(l: LicitacionRead) {
       | "rojo",
     cpvs: l.cpv_codes,
     url: l.url_placsp,
-    razon: l.semaforo_razon,
-    afinidad: l.score_afinidad ? parseFloat(l.score_afinidad) : null,
   };
 }
 
@@ -229,31 +226,45 @@ function RadarPageContent() {
           </div>
           <div className="border-t border-border pt-4">
             <p className="mb-2 text-xs font-semibold text-foreground">
-              Qué significa el color del semáforo
+              Qué significa el color de la franja
             </p>
             <ul className="space-y-1.5 text-muted-foreground">
-              <li>
-                <span className="font-medium text-success">Verde</span> — tu empresa
-                cumple con la clasificación o solvencia que la obra exige. Puedes
-                presentarte sin problema.
+              <li className="flex items-baseline gap-2">
+                <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-info" aria-hidden="true" />
+                <span>
+                  <span className="font-medium text-foreground">Excelente</span> — score
+                  70 o más. Probabilidad alta de ganar; vale la pena estudiarla con prioridad.
+                </span>
               </li>
-              <li>
-                <span className="font-medium text-warning">Amarillo</span> — tienes
-                la clasificación correcta pero la categoría se queda corta para el
-                importe de esta obra.
+              <li className="flex items-baseline gap-2">
+                <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-success" aria-hidden="true" />
+                <span>
+                  <span className="font-medium text-foreground">Buena</span> — score
+                  50-69. Encaje sólido en clasificación y perfil de órgano.
+                </span>
               </li>
-              <li>
-                <span className="font-medium text-danger">Rojo</span> — la obra
-                exige un grupo (edificación, viales, eléctricas…) que tu empresa no
-                tiene acreditado.
+              <li className="flex items-baseline gap-2">
+                <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-warning" aria-hidden="true" />
+                <span>
+                  <span className="font-medium text-foreground">Aprobada raso</span> —
+                  score 40-49. Cumples mínimos pero hay alguna debilidad (categoría
+                  ajustada, poca afinidad, etc.).
+                </span>
+              </li>
+              <li className="flex items-baseline gap-2">
+                <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-danger" aria-hidden="true" />
+                <span>
+                  <span className="font-medium text-foreground">No apta</span> — score
+                  por debajo de 40. Suele ser mejor descartar y enfocarse en otras.
+                </span>
               </li>
             </ul>
-            <p className="mt-2 text-muted-foreground">
-              El cálculo cruza la información del{" "}
-              <span className="font-medium text-foreground">Radar</span> (CPV e importe
-              de la obra) con tus datos del módulo{" "}
-              <span className="font-medium text-foreground">Solvencia</span>
-              (clasificaciones ROLECE y certificados de obra).
+            <p className="mt-3 text-muted-foreground">
+              El score combina tu solvencia (clasificaciones ROLECE y certificados),
+              la competencia histórica del órgano y la baja media de adjudicaciones
+              previas. Cuanto más completo esté tu módulo{" "}
+              <span className="font-medium text-foreground">Solvencia</span>, más
+              precisos los scores.
             </p>
           </div>
           <div className="border-t border-border pt-4">
@@ -261,10 +272,11 @@ function RadarPageContent() {
               Cómo afinar la búsqueda
             </p>
             <p className="text-muted-foreground">
-              Los filtros de la barra superior funcionan combinados: provincia, tipo
-              de organismo, importe, plazo y código CPV. Si tienes obras certificadas
-              con un ayuntamiento concreto, sus licitaciones suben arriba con la
-              etiqueta <span className="font-medium text-foreground">«Has trabajado antes con este organismo»</span>.
+              Los filtros se combinan: provincia, tipo de organismo, importe, plazo y
+              código CPV. El orden por defecto es{" "}
+              <span className="font-medium text-foreground">score descendente</span>
+              {" "}— las licitaciones con mejor encaje aparecen primero. Puedes cambiar
+              el criterio desde el selector de orden.
             </p>
           </div>
         </div>
@@ -291,9 +303,6 @@ function RadarPageContent() {
           Error al lanzar el recálculo. ¿Está el worker de Celery activo?
         </div>
       )}
-
-      {/* Hero — Top ganables según el motor */}
-      <TopGanablesHero empresaId={EMPRESA_DEMO_ID} />
 
       {/* Barra de filtros */}
       <div className="mb-3 flex items-end justify-between gap-3">
@@ -390,11 +399,7 @@ function RadarPageContent() {
                       fechaLimite={p.fechaLimite}
                       semaforo={p.semaforo}
                       cpvs={p.cpvs}
-                      razon={p.razon}
-                      afinidad={p.afinidad}
                       score={scored?.score ?? null}
-                      highlight={scored?.highlight ?? null}
-                      completeness={scored?.data_completeness_pct ?? null}
                     />
                   </Link>
                   {p.url && (

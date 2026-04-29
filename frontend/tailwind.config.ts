@@ -47,10 +47,12 @@ const config: Config = {
           DEFAULT: "#E85820",
         },
 
-        // Semáforo — tonos apagados, no gritan
-        success: "#65A375",
-        warning: "#D4A23E",
-        danger:  "#C45A5A",
+        // Semáforo de score — vívidos pero AA-legibles (Tailwind -600 family)
+        // Azul = excelente/óptima, verde = bueno, amarillo = aprobado raso, rojo = no apto
+        info:    "#2563EB",
+        success: "#16A34A",
+        warning: "#CA8A04",
+        danger:  "#DC2626",
 
         // Tokens semánticos (vía CSS vars, cambian en dark mode)
         surface: {

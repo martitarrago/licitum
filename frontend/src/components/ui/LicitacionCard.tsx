@@ -1,5 +1,3 @@
-import { ScoreChip } from "./ScoreChip";
-
 type Semaforo = "verde" | "amarillo" | "rojo";
 
 interface LicitacionCardProps {
@@ -9,57 +7,24 @@ interface LicitacionCardProps {
   fechaLimite: Date;
   semaforo: Semaforo;
   cpvs: string[];
-  /** Razón explicativa generada por el evaluator de solvencia. */
-  razon?: string | null;
-  /** Afinidad histórica 0-1. ≥0.7 implica match de organismo; 0.3-0.7 implica match de CPV. */
-  afinidad?: number | null;
-  /** Score de ganabilidad 0-100 del motor PSCP+M2. Si está, eclipsa el semáforo. */
+  /** Score de ganabilidad 0-100 del motor PSCP+M2. Tiñe la franja superior y se muestra en el extremo superior derecho. */
   score?: number | null;
-  /** Frase corta del breakdown — la mejor o la más débil señal. */
-  highlight?: string | null;
-  /** % de completeness M2 — para subrayar atenuación si falta info. */
-  completeness?: number | null;
 }
 
-function afinidadInfo(score: number | null | undefined): string | null {
-  if (score == null || score < 0.3) return null;
-  if (score >= 0.7) return "Cliente conocido";
-  return "Tipo de obra similar";
-}
-
-interface SemaforoStyle {
-  label: string;
-  stripe: string;
-  badgeBg: string;
-  badgeRing: string;
-  textColor: string;
-}
-
-// El badge se simplifica a texto + pildora en color del semáforo (sutil),
-// sin icono. El color comunica el estado por sí solo.
-const semaforoStyles: Record<Semaforo, SemaforoStyle> = {
-  verde: {
-    label: "Cumple solvencia",
-    stripe: "bg-success",
-    badgeBg: "bg-success/10",
-    badgeRing: "ring-success/25",
-    textColor: "text-success",
-  },
-  amarillo: {
-    label: "Solvencia ajustada",
-    stripe: "bg-warning",
-    badgeBg: "bg-warning/10",
-    badgeRing: "ring-warning/25",
-    textColor: "text-warning",
-  },
-  rojo: {
-    label: "No cumple solvencia",
-    stripe: "bg-danger",
-    badgeBg: "bg-danger/10",
-    badgeRing: "ring-danger/25",
-    textColor: "text-danger",
-  },
+const semaforoStripe: Record<Semaforo, string> = {
+  verde: "bg-success",
+  amarillo: "bg-warning",
+  rojo: "bg-danger",
 };
+
+// 4 tiers de ganabilidad. Umbral azul fijado en 70 para mantener "excelente"
+// como categoría escasa (≤10 cards en el feed actual de la demo PYME C/G cat 3).
+function scoreTone(score: number): { stripe: string; text: string } {
+  if (score >= 70) return { stripe: "bg-info",    text: "text-info"    };
+  if (score >= 50) return { stripe: "bg-success", text: "text-success" };
+  if (score >= 40) return { stripe: "bg-warning", text: "text-warning" };
+  return                  { stripe: "bg-danger",  text: "text-danger"  };
+}
 
 const importeFormatter = new Intl.NumberFormat("es-ES", {
   style: "currency",
@@ -92,91 +57,36 @@ export function LicitacionCard({
   fechaLimite,
   semaforo,
   cpvs,
-  razon,
-  afinidad,
   score,
-  highlight,
-  completeness,
 }: LicitacionCardProps) {
-  const estilo = semaforoStyles[semaforo];
   const dias = diasHasta(fechaLimite);
   const urgente = dias >= 0 && dias <= 7;
   const cerrada = dias < 0;
-  const afinidadTexto = afinidadInfo(afinidad ?? null);
   const hasScore = typeof score === "number";
+  const tone = hasScore ? scoreTone(score!) : null;
+  const stripeClass = tone ? tone.stripe : semaforoStripe[semaforo];
 
   return (
-    <article className="card-interactive group relative flex overflow-hidden">
-      {/* Franja izquierda: score si hay, fallback al semáforo */}
-      <div
-        className={`w-1.5 flex-shrink-0 ${
-          hasScore
-            ? score >= 70
-              ? "bg-success"
-              : score >= 40
-                ? "bg-warning"
-                : "bg-muted"
-            : estilo.stripe
-        }`}
-        aria-hidden="true"
-      />
+    <article className="card-interactive group relative flex flex-col overflow-hidden">
+      {/* Franja superior fina — color del score (o semáforo de fallback) */}
+      <div className={`h-[3px] flex-shrink-0 ${stripeClass}`} aria-hidden="true" />
 
       <div className="flex flex-1 flex-col gap-4 p-5">
-        {/* Header: ScoreChip eclipsa el semáforo cuando existe */}
-        <div className="space-y-1.5">
-          {hasScore ? (
-            <div className="flex items-center justify-between gap-2">
-              <ScoreChip score={score!} variant="sm" />
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ring-1 ring-inset ${estilo.badgeBg} ${estilo.badgeRing} ${estilo.textColor}`}
-                title={razon ?? undefined}
-              >
-                <span className={`h-1 w-1 rounded-full ${estilo.stripe}`} aria-hidden="true" />
-                {semaforo === "verde" ? "OK" : semaforo === "amarillo" ? "Ajustada" : "Limita"}
-              </span>
-            </div>
-          ) : (
+        {/* Título + organismo, score en extremo superior derecho */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <h3 className="line-clamp-2 font-display text-[17px] font-semibold leading-snug tracking-tight text-foreground">
+              {titulo}
+            </h3>
+            <p className="truncate text-sm text-muted-foreground">{organismo}</p>
+          </div>
+          {hasScore && tone && (
             <div
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider ring-1 ring-inset ${estilo.badgeBg} ${estilo.badgeRing} ${estilo.textColor}`}
-              role="status"
-              title={razon ?? undefined}
+              className={`display-num shrink-0 text-lg font-bold tabular-nums leading-none ${tone.text}`}
+              aria-label={`Score ${Math.round(score!)} de 100`}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${estilo.stripe}`} aria-hidden="true" />
-              {estilo.label}
+              {Math.round(score!)}
             </div>
-          )}
-
-          {/* Highlight (preferido) o razón del semáforo */}
-          {highlight ? (
-            <p
-              className="line-clamp-2 text-[11.5px] leading-snug text-foreground/80"
-              title={highlight}
-            >
-              {highlight}
-            </p>
-          ) : razon ? (
-            <p
-              className="line-clamp-2 text-[11px] leading-snug text-muted-foreground"
-              title={razon}
-            >
-              {razon}
-            </p>
-          ) : null}
-        </div>
-
-        {/* Título + organismo */}
-        <div className="space-y-1">
-          <h3 className="line-clamp-2 font-display text-[17px] font-semibold leading-snug tracking-tight text-foreground">
-            {titulo}
-          </h3>
-          <p className="truncate text-sm text-muted-foreground">{organismo}</p>
-          {afinidadTexto && (
-            <p
-              className="text-[11px] font-medium uppercase tracking-wider text-foreground"
-              title={`Afinidad histórica: ${afinidad?.toFixed(2)}`}
-            >
-              · {afinidadTexto}
-            </p>
           )}
         </div>
 
@@ -207,7 +117,7 @@ export function LicitacionCard({
           </div>
         </div>
 
-        {/* CPVs — chips mono sin iconos */}
+        {/* CPVs */}
         {cpvs.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {cpvs.map((cpv) => (
@@ -219,16 +129,6 @@ export function LicitacionCard({
               </span>
             ))}
           </div>
-        )}
-
-        {/* Footer con completeness — sutil */}
-        {hasScore && typeof completeness === "number" && completeness < 80 && (
-          <p
-            className="border-t border-border pt-2 text-[10px] uppercase tracking-wider text-muted-foreground/70"
-            title={`Score basado en ${completeness}% de tu perfil M2 — completar mejora la precisión.`}
-          >
-            Precisión {completeness}%
-          </p>
         )}
       </div>
     </article>
@@ -247,6 +147,7 @@ export function LicitacionCardExample() {
         fechaLimite={new Date(2026, 4, 15)}
         semaforo="verde"
         cpvs={["45212200-8", "45310000-3"]}
+        score={82}
       />
       <LicitacionCard
         titulo="Pavimentación y mejora de aceras en el barrio de Gràcia"
@@ -255,6 +156,7 @@ export function LicitacionCardExample() {
         fechaLimite={new Date(2026, 3, 22)}
         semaforo="amarillo"
         cpvs={["45233252-0", "45233222-1", "45112500-0"]}
+        score={54}
       />
       <LicitacionCard
         titulo="Construcción de nueva escuela de educación infantil CEIP Les Corts"
@@ -263,6 +165,7 @@ export function LicitacionCardExample() {
         fechaLimite={new Date(2026, 4, 19)}
         semaforo="rojo"
         cpvs={["45214210-5", "45300000-0", "45400000-1"]}
+        score={28}
       />
     </div>
   );

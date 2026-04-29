@@ -63,7 +63,7 @@ export const MODULE_GROUPS: ModuleGroup[] = [
       {
         id: "radar",
         code: "",
-        label: "Radar",
+        label: "Radar de licitaciones",
         href: "/radar",
         icon: Radar,
         available: true,
