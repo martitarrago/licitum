@@ -108,7 +108,8 @@ export type OrderBy =
   | "fecha_limite_desc"
   | "importe_desc"
   | "importe_asc"
-  | "publicacion_desc";
+  | "publicacion_desc"
+  | "publicacion_asc";
 
 export interface ListLicitacionesParams {
   semaforo?: SemaforoType | null;

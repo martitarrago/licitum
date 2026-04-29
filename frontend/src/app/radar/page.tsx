@@ -4,7 +4,6 @@ import { Suspense, useCallback, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  ExternalLink,
   HelpCircle,
   Loader2,
   RefreshCcw,
@@ -38,7 +37,6 @@ function parseLicitacion(l: LicitacionRead) {
       | "amarillo"
       | "rojo",
     cpvs: l.cpv_codes,
-    url: l.url_placsp,
   };
 }
 
@@ -389,22 +387,6 @@ function RadarPageContent() {
                       score={l.score}
                     />
                   </Link>
-                  {p.url && (
-                    <a
-                      href={p.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="
-                        absolute right-3 top-3 z-10 rounded-md p-1.5
-                        text-muted-foreground transition-colors
-                        hover:bg-muted hover:text-foreground
-                      "
-                      title="Ver publicación oficial en PSCP (abre en otra pestaña)"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  )}
                 </div>
               );
             })}

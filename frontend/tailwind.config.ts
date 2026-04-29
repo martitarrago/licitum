@@ -6,6 +6,9 @@ const config: Config = {
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    // lib/ contiene mappings stringy (ej. TIER_DOT en useRadarFilters) que
+    // se renderizan como className. Sin esto, Tailwind purga bg-info etc.
+    "./src/lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {

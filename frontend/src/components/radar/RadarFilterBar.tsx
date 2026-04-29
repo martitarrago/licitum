@@ -14,12 +14,14 @@ import { CheckboxGroup, type CheckboxOption } from "@/components/ui/CheckboxGrou
 import { FilterPill } from "@/components/ui/FilterPill";
 import { FilterPopover } from "@/components/ui/FilterPopover";
 import {
-  ORDER_BY_DIR,
-  ORDER_BY_LABEL,
-  ORDER_BY_OPTIONS,
+  ORDER_CRITERION_LABEL,
+  ORDER_CRITERION_OPTIONS,
+  ORDER_DEFAULT_DIR,
   TIER_DOT,
   TIER_LABEL,
-  type OrderBy,
+  composeOrderBy,
+  decomposeOrderBy,
+  type OrderCriterion,
   type RadarFilters,
   type Tier,
   type UseRadarFiltersReturn,
@@ -160,19 +162,17 @@ function PuntuacionPanel({
   );
 }
 
-function OrdenPanel({
+function CriterioPanel({
   value,
   onSelect,
 }: {
-  value: OrderBy;
-  onSelect: (v: OrderBy) => void;
+  value: OrderCriterion;
+  onSelect: (v: OrderCriterion) => void;
 }) {
   return (
     <ul className="flex flex-col py-1.5" role="radiogroup">
-      {ORDER_BY_OPTIONS.map((opt) => {
+      {ORDER_CRITERION_OPTIONS.map((opt) => {
         const active = opt === value;
-        const dir = ORDER_BY_DIR[opt];
-        const Arrow = dir === "asc" ? ArrowUp : ArrowDown;
         return (
           <li key={opt}>
             <button
@@ -186,12 +186,7 @@ function OrdenPanel({
                 active ? "font-semibold text-foreground" : "text-foreground",
               ].join(" ")}
             >
-              <Arrow
-                className={`h-3.5 w-3.5 flex-shrink-0 ${active ? "text-foreground" : "text-muted-foreground"}`}
-                strokeWidth={2.25}
-                aria-hidden="true"
-              />
-              <span className="flex-1">{ORDER_BY_LABEL[opt]}</span>
+              <span className="flex-1">{ORDER_CRITERION_LABEL[opt]}</span>
               {active && <span className="text-[10px] font-bold text-muted-foreground">●</span>}
             </button>
           </li>
@@ -703,32 +698,55 @@ export function RadarFilterBar({ state }: RadarFilterBarProps) {
         />
       </FilterPopover>
 
-      {/* Ordenar — separador visual con margen izquierdo */}
+      {/* Orden: dropdown de criterio + flecha clicable adyacente para asc/desc */}
       <div className="ml-1 h-5 w-px bg-border" aria-hidden="true" />
-      <FilterPopover
-        minWidth={240}
-        trigger={({ ref, open, toggle }) => (
-          <FilterPill
-            ref={ref}
-            label="Ordenar"
-            value={ORDER_BY_LABEL[filters.order_by]}
-            active={filters.order_by !== "score"}
-            open={open}
-            onClick={toggle}
-            icon={ORDER_BY_DIR[filters.order_by] === "asc" ? ArrowUp : ArrowDown}
-          />
-        )}
-      >
-        {(close) => (
-          <OrdenPanel
-            value={filters.order_by}
-            onSelect={(v) => {
-              setFilter("order_by", v);
-              close();
-            }}
-          />
-        )}
-      </FilterPopover>
+      {(() => {
+        const { criterion, dir } = decomposeOrderBy(filters.order_by);
+        const Arrow = dir === "asc" ? ArrowUp : ArrowDown;
+        const otherDir: "asc" | "desc" = dir === "asc" ? "desc" : "asc";
+        return (
+          <div className="inline-flex items-center gap-1.5">
+            <FilterPopover
+              minWidth={220}
+              trigger={({ ref, open, toggle }) => (
+                <FilterPill
+                  ref={ref}
+                  label="Ordenar"
+                  value={ORDER_CRITERION_LABEL[criterion]}
+                  active={criterion !== "puntuacion"}
+                  open={open}
+                  onClick={toggle}
+                />
+              )}
+            >
+              {(close) => (
+                <CriterioPanel
+                  value={criterion}
+                  onSelect={(c) => {
+                    // Al cambiar de criterio se aplica su dirección natural
+                    setFilter("order_by", composeOrderBy(c, ORDER_DEFAULT_DIR[c]));
+                    close();
+                  }}
+                />
+              )}
+            </FilterPopover>
+            <button
+              type="button"
+              onClick={() => setFilter("order_by", composeOrderBy(criterion, otherDir))}
+              aria-label={`Cambiar a orden ${otherDir === "asc" ? "ascendente" : "descendente"}`}
+              title={`${dir === "asc" ? "Ascendente" : "Descendente"} — pulsar para invertir`}
+              className="
+                inline-flex h-7 w-7 items-center justify-center rounded-full
+                ring-1 ring-border text-foreground transition-colors
+                hover:bg-muted hover:ring-foreground/30
+                focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground
+              "
+            >
+              <Arrow className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Búsqueda */}
       <SearchInput value={filters.q} onChange={(v) => setFilter("q", v)} />

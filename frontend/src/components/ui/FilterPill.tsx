@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, type LucideIcon } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { forwardRef } from "react";
 
 interface FilterPillProps {
@@ -12,8 +12,6 @@ interface FilterPillProps {
   active: boolean;
   open: boolean;
   onClick: () => void;
-  /** Icono opcional a la izquierda del label (p.ej. flecha asc/desc del orden). */
-  icon?: LucideIcon;
 }
 
 /**
@@ -25,7 +23,7 @@ interface FilterPillProps {
  *  - abierto (popover desplegado): mismo estilo que activo + chevron rotado
  */
 export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(
-  function FilterPill({ label, value, count, active, open, onClick, icon: Icon }, ref) {
+  function FilterPill({ label, value, count, active, open, onClick }, ref) {
     const filled = active || open;
     return (
       <button
@@ -42,13 +40,6 @@ export const FilterPill = forwardRef<HTMLButtonElement, FilterPillProps>(
             : "bg-transparent text-muted-foreground ring-border hover:text-foreground hover:ring-foreground/30",
         ].join(" ")}
       >
-        {Icon && (
-          <Icon
-            className={`h-3.5 w-3.5 flex-shrink-0 ${filled ? "text-surface" : "text-foreground"}`}
-            strokeWidth={2.5}
-            aria-hidden="true"
-          />
-        )}
         <span className={filled ? "text-surface" : "text-foreground"}>{label}</span>
         {value && (
           <span

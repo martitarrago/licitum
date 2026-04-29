@@ -40,6 +40,7 @@ ORDER_BY_VALIDOS = {
     "importe_desc",          # mayor importe primero
     "importe_asc",           # menor importe primero
     "publicacion_desc",      # publicación más reciente primero
+    "publicacion_asc",       # publicación más antigua primero
 }
 CPV_PREFIX_RE = re.compile(r"^[0-9-]{1,16}$")
 ZONA_HORARIA_ES = ZoneInfo("Europe/Madrid")
@@ -264,6 +265,10 @@ async def list_licitaciones(
         stmt = stmt.order_by(
             Licitacion.importe_licitacion.asc().nulls_last(),
             Licitacion.fecha_publicacion.desc().nulls_last(),
+        )
+    elif order_by == "publicacion_asc":
+        stmt = stmt.order_by(
+            Licitacion.fecha_publicacion.asc().nulls_last(),
         )
     else:  # publicacion_desc
         stmt = stmt.order_by(

@@ -20,6 +20,13 @@ import {
  *  - sobrevivir a recargas,
  *  - migrar en el futuro a `empresas.filtros_radar` JSONB sin reescribir UI.
  */
+// El usuario controla criterio y dirección por separado en la UI: dropdown
+// con criterios + flecha clicable. Internamente lo serializamos a un único
+// string para el backend (compatible con OrderBy del API).
+
+export type OrderCriterion = "puntuacion" | "plazo" | "importe" | "publicacion";
+export type OrderDir = "asc" | "desc";
+
 export type OrderBy =
   | "score"
   | "score_asc"
@@ -27,38 +34,52 @@ export type OrderBy =
   | "fecha_limite_desc"
   | "importe_desc"
   | "importe_asc"
-  | "publicacion_desc";
+  | "publicacion_desc"
+  | "publicacion_asc";
 
-export const ORDER_BY_LABEL: Record<OrderBy, string> = {
-  score: "Puntuación (mejor primero)",
-  score_asc: "Puntuación (peor primero)",
-  fecha_limite_asc: "Plazo más cercano",
-  fecha_limite_desc: "Plazo más lejano",
-  importe_desc: "Importe (mayor primero)",
-  importe_asc: "Importe (menor primero)",
-  publicacion_desc: "Publicación reciente",
+export const ORDER_CRITERION_LABEL: Record<OrderCriterion, string> = {
+  puntuacion: "Puntuación",
+  plazo: "Plazo de presentación",
+  importe: "Importe",
+  publicacion: "Publicación",
 };
 
-// ↓ desc, ↑ asc — para el dropdown
-export const ORDER_BY_DIR: Record<OrderBy, "asc" | "desc"> = {
-  score: "desc",
-  score_asc: "asc",
-  fecha_limite_asc: "asc",
-  fecha_limite_desc: "desc",
-  importe_desc: "desc",
-  importe_asc: "asc",
-  publicacion_desc: "desc",
-};
-
-export const ORDER_BY_OPTIONS: OrderBy[] = [
-  "score",
-  "score_asc",
-  "fecha_limite_asc",
-  "fecha_limite_desc",
-  "importe_desc",
-  "importe_asc",
-  "publicacion_desc",
+export const ORDER_CRITERION_OPTIONS: OrderCriterion[] = [
+  "puntuacion",
+  "plazo",
+  "importe",
+  "publicacion",
 ];
+
+export const ORDER_DEFAULT_DIR: Record<OrderCriterion, OrderDir> = {
+  // Naturalmente lo más útil cuando se elige el criterio:
+  puntuacion: "desc",  // mejor primero
+  plazo: "asc",        // cierra antes
+  importe: "desc",     // más caro primero (oportunidades grandes)
+  publicacion: "desc", // más recientes
+};
+
+/** Serializa (criterio, dir) → string del backend. */
+export function composeOrderBy(c: OrderCriterion, d: OrderDir): OrderBy {
+  if (c === "puntuacion") return d === "asc" ? "score_asc" : "score";
+  if (c === "plazo") return d === "asc" ? "fecha_limite_asc" : "fecha_limite_desc";
+  if (c === "importe") return d === "asc" ? "importe_asc" : "importe_desc";
+  return d === "asc" ? "publicacion_asc" : "publicacion_desc";
+}
+
+/** Inverso: parsea el string del backend a (criterio, dir). */
+export function decomposeOrderBy(o: OrderBy): { criterion: OrderCriterion; dir: OrderDir } {
+  switch (o) {
+    case "score":             return { criterion: "puntuacion", dir: "desc" };
+    case "score_asc":         return { criterion: "puntuacion", dir: "asc" };
+    case "fecha_limite_asc":  return { criterion: "plazo",      dir: "asc" };
+    case "fecha_limite_desc": return { criterion: "plazo",      dir: "desc" };
+    case "importe_desc":      return { criterion: "importe",    dir: "desc" };
+    case "importe_asc":       return { criterion: "importe",    dir: "asc" };
+    case "publicacion_desc":  return { criterion: "publicacion", dir: "desc" };
+    case "publicacion_asc":   return { criterion: "publicacion", dir: "asc" };
+  }
+}
 
 // ─── Tier de puntuación (filtro) ────────────────────────────────────────────
 
@@ -117,7 +138,12 @@ const SEMAFOROS_VALIDOS = new Set<RadarFilters["semaforo"]>([
 const TIERS_VALIDOS = new Set<Tier>(["todas", "excelente", "buena", "raso", "no_apta"]);
 const PROVINCIAS_SET = new Set<Provincia>(PROVINCIAS);
 const TIPOS_ORGANISMO_SET = new Set<TipoOrganismo>(TIPOS_ORGANISMO);
-const ORDER_BY_SET = new Set<OrderBy>(ORDER_BY_OPTIONS);
+const ORDER_BY_SET = new Set<OrderBy>([
+  "score", "score_asc",
+  "fecha_limite_asc", "fecha_limite_desc",
+  "importe_desc", "importe_asc",
+  "publicacion_desc", "publicacion_asc",
+]);
 
 const DEFAULT_FILTERS: RadarFilters = {
   semaforo: "todos",
