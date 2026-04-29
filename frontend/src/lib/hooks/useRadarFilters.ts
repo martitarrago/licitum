@@ -22,6 +22,7 @@ import {
  */
 export type OrderBy =
   | "score"
+  | "score_asc"
   | "fecha_limite_asc"
   | "fecha_limite_desc"
   | "importe_desc"
@@ -29,7 +30,8 @@ export type OrderBy =
   | "publicacion_desc";
 
 export const ORDER_BY_LABEL: Record<OrderBy, string> = {
-  score: "Score (mejor encaje)",
+  score: "Puntuación (mejor primero)",
+  score_asc: "Puntuación (peor primero)",
   fecha_limite_asc: "Plazo más cercano",
   fecha_limite_desc: "Plazo más lejano",
   importe_desc: "Importe (mayor primero)",
@@ -37,8 +39,20 @@ export const ORDER_BY_LABEL: Record<OrderBy, string> = {
   publicacion_desc: "Publicación reciente",
 };
 
+// ↓ desc, ↑ asc — para el dropdown
+export const ORDER_BY_DIR: Record<OrderBy, "asc" | "desc"> = {
+  score: "desc",
+  score_asc: "asc",
+  fecha_limite_asc: "asc",
+  fecha_limite_desc: "desc",
+  importe_desc: "desc",
+  importe_asc: "asc",
+  publicacion_desc: "desc",
+};
+
 export const ORDER_BY_OPTIONS: OrderBy[] = [
   "score",
+  "score_asc",
   "fecha_limite_asc",
   "fecha_limite_desc",
   "importe_desc",
@@ -46,8 +60,40 @@ export const ORDER_BY_OPTIONS: OrderBy[] = [
   "publicacion_desc",
 ];
 
+// ─── Tier de puntuación (filtro) ────────────────────────────────────────────
+
+export type Tier = "todas" | "excelente" | "buena" | "raso" | "no_apta";
+
+export const TIER_LABEL: Record<Tier, string> = {
+  todas: "Todas",
+  excelente: "Excelente",
+  buena: "Buena",
+  raso: "Aprobada raso",
+  no_apta: "No apta",
+};
+
+export const TIER_DOT: Record<Tier, string> = {
+  todas: "bg-muted-foreground/40",
+  excelente: "bg-info",
+  buena: "bg-success",
+  raso: "bg-warning",
+  no_apta: "bg-danger",
+};
+
+/** Traduce un tier a (min_score, max_score) para el backend. */
+export function tierToScoreRange(t: Tier): { min: number | null; max: number | null } {
+  switch (t) {
+    case "excelente": return { min: 70, max: null };
+    case "buena":     return { min: 50, max: 69 };
+    case "raso":      return { min: 40, max: 49 };
+    case "no_apta":   return { min: 0,  max: 39 };
+    default:          return { min: null, max: null };
+  }
+}
+
 export interface RadarFilters {
-  semaforo: SemaforoType | "todos";
+  semaforo: SemaforoType | "todos";  // legacy — ya no se renderiza, mantengo por URL backwards-compat
+  tier: Tier;
   tipo_contrato: string | null;
   provincia: Provincia[];
   tipo_organismo: TipoOrganismo[];
@@ -68,12 +114,14 @@ const SEMAFOROS_VALIDOS = new Set<RadarFilters["semaforo"]>([
   "rojo",
   "gris",
 ]);
+const TIERS_VALIDOS = new Set<Tier>(["todas", "excelente", "buena", "raso", "no_apta"]);
 const PROVINCIAS_SET = new Set<Provincia>(PROVINCIAS);
 const TIPOS_ORGANISMO_SET = new Set<TipoOrganismo>(TIPOS_ORGANISMO);
 const ORDER_BY_SET = new Set<OrderBy>(ORDER_BY_OPTIONS);
 
 const DEFAULT_FILTERS: RadarFilters = {
   semaforo: "todos",
+  tier: "todas",
   tipo_contrato: null,
   provincia: [],
   tipo_organismo: [],
@@ -130,8 +178,14 @@ function parseFiltersFromSearchParams(sp: URLSearchParams): RadarFilters {
     ? (orderRaw as OrderBy)
     : "score";
 
+  const tierRaw = sp.get("tier");
+  const tier: Tier = tierRaw && TIERS_VALIDOS.has(tierRaw as Tier)
+    ? (tierRaw as Tier)
+    : "todas";
+
   return {
     semaforo,
+    tier,
     tipo_contrato: sp.get("tipo_contrato") || null,
     provincia,
     tipo_organismo,
@@ -151,6 +205,7 @@ function parseFiltersFromSearchParams(sp: URLSearchParams): RadarFilters {
 function filtersToSearchParams(f: RadarFilters): URLSearchParams {
   const sp = new URLSearchParams();
   if (f.semaforo && f.semaforo !== "todos") sp.set("semaforo", f.semaforo);
+  if (f.tier && f.tier !== "todas") sp.set("tier", f.tier);
   if (f.tipo_contrato) sp.set("tipo_contrato", f.tipo_contrato);
   for (const p of f.provincia) sp.append("provincia", p);
   for (const t of f.tipo_organismo) sp.append("tipo_organismo", t);
@@ -169,7 +224,7 @@ function filtersToSearchParams(f: RadarFilters): URLSearchParams {
 
 function countActive(f: RadarFilters): number {
   let n = 0;
-  if (f.semaforo !== "todos") n++;
+  if (f.tier !== "todas") n++;
   if (f.tipo_contrato) n++;
   if (f.provincia.length > 0) n++;
   if (f.tipo_organismo.length > 0) n++;

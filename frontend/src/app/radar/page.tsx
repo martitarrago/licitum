@@ -16,12 +16,11 @@ import {
   licitacionesApi,
   type LicitacionRead,
 } from "@/lib/api/licitaciones";
-import { intelApi, type FeedItem } from "@/lib/api/intel";
 import { LicitacionCard } from "@/components/ui/LicitacionCard";
 import { RadarFilterBar } from "@/components/radar/RadarFilterBar";
 import { RadarActiveChips } from "@/components/radar/RadarActiveChips";
 import { DescartadasSection } from "@/components/radar/DescartadasSection";
-import { useRadarFilters } from "@/lib/hooks/useRadarFilters";
+import { tierToScoreRange, useRadarFilters } from "@/lib/hooks/useRadarFilters";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
 const PAGE_SIZE = 24;
@@ -85,30 +84,11 @@ function RadarPageContent() {
   const { filters, patchFilters, clearFilters, activeCount } = filtersState;
   const [infoOpen, setInfoOpen] = useState(false);
 
-  // Lookup map score por licitacion_id — para enriquecer las cards del feed.
-  // Se rellena con la primera página del feed scored.
-  const scoreFeedQuery = useQuery({
-    queryKey: ["intel", "feed-map", EMPRESA_DEMO_ID, filters.page],
-    queryFn: () =>
-      intelApi.feed({
-        empresa_id: EMPRESA_DEMO_ID,
-        include_descartadas: false,
-        min_score: 0,
-        limit: 200,
-        offset: 0,
-      }),
-    staleTime: 60_000,
-  });
-  const scoreMap = new Map<string, FeedItem>();
-  for (const it of scoreFeedQuery.data?.items ?? []) {
-    scoreMap.set(it.licitacion_id, it);
-  }
-
+  const tierRange = tierToScoreRange(filters.tier);
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
-    queryKey: ["licitaciones", filters],
+    queryKey: ["licitaciones", filters, EMPRESA_DEMO_ID],
     queryFn: () =>
       licitacionesApi.list({
-        semaforo: filters.semaforo === "todos" ? null : filters.semaforo,
         provincia: filters.provincia.length > 0 ? filters.provincia : null,
         tipo_organismo:
           filters.tipo_organismo.length > 0 ? filters.tipo_organismo : null,
@@ -118,6 +98,12 @@ function RadarPageContent() {
         plazo_max_dias: filters.plazo_max_dias,
         cpv_prefix: filters.cpv_prefix,
         q: filters.q || null,
+        order_by: filters.order_by,
+        empresa_id: EMPRESA_DEMO_ID,
+        // Tier "no_apta" implica ver descartadas también (el motor las pone score 0).
+        incluye_descartadas: filters.tier === "no_apta" ? true : null,
+        min_score: tierRange.min,
+        max_score: tierRange.max,
         page: filters.page,
         page_size: PAGE_SIZE,
       }),
@@ -232,39 +218,41 @@ function RadarPageContent() {
               <li className="flex items-baseline gap-2">
                 <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-info" aria-hidden="true" />
                 <span>
-                  <span className="font-medium text-foreground">Excelente</span> — score
-                  70 o más. Probabilidad alta de ganar; vale la pena estudiarla con prioridad.
+                  <span className="font-medium text-foreground">Excelente</span> —
+                  puntuación 70 o más. Probabilidad alta de ganar; vale la pena
+                  estudiarla con prioridad.
                 </span>
               </li>
               <li className="flex items-baseline gap-2">
                 <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-success" aria-hidden="true" />
                 <span>
-                  <span className="font-medium text-foreground">Buena</span> — score
-                  50-69. Encaje sólido en clasificación y perfil de órgano.
+                  <span className="font-medium text-foreground">Buena</span> —
+                  puntuación 50-69. Encaje sólido en clasificación y perfil de órgano.
                 </span>
               </li>
               <li className="flex items-baseline gap-2">
                 <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-warning" aria-hidden="true" />
                 <span>
                   <span className="font-medium text-foreground">Aprobada raso</span> —
-                  score 40-49. Cumples mínimos pero hay alguna debilidad (categoría
-                  ajustada, poca afinidad, etc.).
+                  puntuación 40-49. Cumples mínimos pero hay alguna debilidad
+                  (categoría ajustada, poca afinidad, etc.).
                 </span>
               </li>
               <li className="flex items-baseline gap-2">
                 <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-danger" aria-hidden="true" />
                 <span>
-                  <span className="font-medium text-foreground">No apta</span> — score
-                  por debajo de 40. Suele ser mejor descartar y enfocarse en otras.
+                  <span className="font-medium text-foreground">No apta</span> —
+                  puntuación por debajo de 40. Suele ser mejor descartar y enfocarse
+                  en otras.
                 </span>
               </li>
             </ul>
             <p className="mt-3 text-muted-foreground">
-              El score combina tu solvencia (clasificaciones ROLECE y certificados),
-              la competencia histórica del órgano y la baja media de adjudicaciones
-              previas. Cuanto más completo esté tu módulo{" "}
+              La puntuación combina tu solvencia (clasificaciones ROLECE y
+              certificados), la competencia histórica del órgano y la baja media de
+              adjudicaciones previas. Cuanto más completo esté tu módulo{" "}
               <span className="font-medium text-foreground">Solvencia</span>, más
-              precisos los scores.
+              precisas las puntuaciones.
             </p>
           </div>
           <div className="border-t border-border pt-4">
@@ -274,7 +262,7 @@ function RadarPageContent() {
             <p className="text-muted-foreground">
               Los filtros se combinan: provincia, tipo de organismo, importe, plazo y
               código CPV. El orden por defecto es{" "}
-              <span className="font-medium text-foreground">score descendente</span>
+              <span className="font-medium text-foreground">puntuación descendente</span>
               {" "}— las licitaciones con mejor encaje aparecen primero. Puedes cambiar
               el criterio desde el selector de orden.
             </p>
@@ -383,7 +371,6 @@ function RadarPageContent() {
           <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
             {licitaciones.map((l) => {
               const p = parseLicitacion(l);
-              const scored = scoreMap.get(l.id);
               return (
                 <div key={l.id} className="group/card relative">
                   <Link
@@ -399,7 +386,7 @@ function RadarPageContent() {
                       fechaLimite={p.fechaLimite}
                       semaforo={p.semaforo}
                       cpvs={p.cpvs}
-                      score={scored?.score ?? null}
+                      score={l.score}
                     />
                   </Link>
                   {p.url && (

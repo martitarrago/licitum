@@ -29,8 +29,8 @@ export function RadarActiveChips({ state }: RadarActiveChipsProps) {
           label={it.label}
           onRemove={() => {
             switch (it.onRemoveKey) {
-              case "semaforo":
-                patchFilters({ semaforo: "todos" });
+              case "tier":
+                patchFilters({ tier: "todas" });
                 break;
               case "provincia":
                 patchFilters({ provincia: [] });

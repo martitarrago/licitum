@@ -61,6 +61,10 @@ export interface LicitacionRead {
   provincias: Provincia[];
   tipo_organismo: TipoOrganismo | null;
   score_afinidad: string | null;
+  /** Puntuación 0-100 del motor de ganabilidad. null si aún no scoreada. */
+  score: number | null;
+  /** true si el motor descartó por hard-filter (clasificación, etc.). */
+  descartada: boolean | null;
   created_at: string;
 }
 
@@ -97,6 +101,15 @@ export interface IngestaTriggerResponse {
 
 // ─── Query params ────────────────────────────────────────────────────────────
 
+export type OrderBy =
+  | "score"
+  | "score_asc"
+  | "fecha_limite_asc"
+  | "fecha_limite_desc"
+  | "importe_desc"
+  | "importe_asc"
+  | "publicacion_desc";
+
 export interface ListLicitacionesParams {
   semaforo?: SemaforoType | null;
   tipo_contrato?: string | null;
@@ -108,6 +121,11 @@ export interface ListLicitacionesParams {
   plazo_max_dias?: number | null;
   cpv_prefix?: string | null;
   q?: string | null;
+  order_by?: OrderBy | null;
+  empresa_id?: string | null;
+  incluye_descartadas?: boolean | null;
+  min_score?: number | null;
+  max_score?: number | null;
   page?: number;
   page_size?: number;
 }
@@ -139,6 +157,11 @@ function buildQS(params: ListLicitacionesParams): string {
   if (params.plazo_max_dias != null) qs.set("plazo_max_dias", String(params.plazo_max_dias));
   if (params.cpv_prefix) qs.set("cpv_prefix", params.cpv_prefix);
   if (params.q) qs.set("q", params.q);
+  if (params.order_by) qs.set("order_by", params.order_by);
+  if (params.empresa_id) qs.set("empresa_id", params.empresa_id);
+  if (params.incluye_descartadas != null) qs.set("incluye_descartadas", String(params.incluye_descartadas));
+  if (params.min_score != null) qs.set("min_score", String(params.min_score));
+  if (params.max_score != null) qs.set("max_score", String(params.max_score));
   if (params.page) qs.set("page", String(params.page));
   if (params.page_size) qs.set("page_size", String(params.page_size));
   return qs.toString();

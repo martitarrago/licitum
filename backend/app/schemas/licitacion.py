@@ -28,6 +28,10 @@ class LicitacionRead(BaseModel):
     provincias: list[str]
     tipo_organismo: str | None
     score_afinidad: Decimal | None
+    # Puntuación del motor de ganabilidad (0-100). Nullable si la licitación
+    # aún no ha sido scoreada para la empresa actual.
+    score: int | None = None
+    descartada: bool | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

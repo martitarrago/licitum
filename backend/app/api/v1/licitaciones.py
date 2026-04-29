@@ -34,6 +34,7 @@ TIPOS_ORGANISMO_VALIDOS = {
 }
 ORDER_BY_VALIDOS = {
     "score",                 # default: score DESC, NULLS LAST, fecha_publicacion DESC
+    "score_asc",             # peores primero (debug / "necesita más solvencia")
     "fecha_limite_asc",      # plazo más cercano primero
     "fecha_limite_desc",     # plazo más lejano primero
     "importe_desc",          # mayor importe primero
@@ -74,12 +75,34 @@ async def list_licitaciones(
         "score",
         description="Criterio de orden. Valores: "
         "score (default, score del motor PSCP+M2 desc), "
-        "fecha_limite_asc, fecha_limite_desc, "
+        "score_asc, fecha_limite_asc, fecha_limite_desc, "
         "importe_desc, importe_asc, publicacion_desc",
     ),
     empresa_id: uuid.UUID | None = Query(
         None,
         description="Empresa para resolver el score. Si no se pasa, usa la demo.",
+    ),
+    incluye_descartadas: bool = Query(
+        False,
+        description="Si false (default), las licitaciones descartadas por el "
+        "motor (hard filters: clasificación insuficiente, presupuesto fuera de "
+        "rango, etc.) se excluyen del listado principal. La sección colapsada "
+        "del frontend las muestra aparte vía /api/v1/intel/feed.",
+    ),
+    min_score: int | None = Query(
+        None,
+        ge=0,
+        le=100,
+        description="Filtra por puntuación mínima del motor. Útil para los "
+        "tiers de la card: 70 (azul/excelente), 50 (verde+/buena), 40 "
+        "(amarillo+/aprobada raso).",
+    ),
+    max_score: int | None = Query(
+        None,
+        ge=0,
+        le=100,
+        description="Filtra por puntuación máxima del motor. Combinado con "
+        "min_score sirve para aislar un tier exacto (p.ej. 50-69 = buena).",
     ),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -128,7 +151,32 @@ async def list_licitaciones(
             )
 
     # ── Construcción del statement ───────────────────────────────────────
-    stmt = select(Licitacion)
+    # SIEMPRE join al cache del motor — la card pinta su tier por score, y
+    # los filtros (min_score, incluye_descartadas) actúan sobre la misma
+    # tabla. Sin esto la primera pintada llega sin score y la card se ve
+    # vacía hasta el siguiente render.
+    empresa_filtro = empresa_id or EMPRESA_DEMO_ID
+    stmt = select(
+        Licitacion,
+        LicitacionScoreEmpresa.score.label("lse_score"),
+        LicitacionScoreEmpresa.descartada.label("lse_descartada"),
+    ).outerjoin(
+        LicitacionScoreEmpresa,
+        (LicitacionScoreEmpresa.licitacion_id == Licitacion.id)
+        & (LicitacionScoreEmpresa.empresa_id == empresa_filtro),
+    )
+
+    if not incluye_descartadas:
+        # Filtra las descartadas pero deja pasar las que aún no tienen score
+        # calculado (NULL → la empresa es nueva, primer cron pendiente).
+        stmt = stmt.where(
+            (LicitacionScoreEmpresa.descartada.is_(None))
+            | (LicitacionScoreEmpresa.descartada.is_(False))
+        )
+    if min_score is not None:
+        stmt = stmt.where(LicitacionScoreEmpresa.score >= min_score)
+    if max_score is not None:
+        stmt = stmt.where(LicitacionScoreEmpresa.score <= max_score)
 
     if semaforo:
         stmt = stmt.where(Licitacion.semaforo == semaforo)
@@ -186,16 +234,15 @@ async def list_licitaciones(
             Licitacion.titulo.ilike(pattern) | Licitacion.organismo.ilike(pattern)
         )
 
-    # Orden — score (default) requiere LEFT JOIN al cache del motor. Las demás
-    # opciones operan sobre columnas físicas de licitaciones.
+    # Orden — el JOIN al cache de score ya está hecho arriba (siempre).
     if order_by == "score":
-        empresa_filtro = empresa_id or EMPRESA_DEMO_ID
-        stmt = stmt.outerjoin(
-            LicitacionScoreEmpresa,
-            (LicitacionScoreEmpresa.licitacion_id == Licitacion.id)
-            & (LicitacionScoreEmpresa.empresa_id == empresa_filtro),
-        ).order_by(
+        stmt = stmt.order_by(
             LicitacionScoreEmpresa.score.desc().nulls_last(),
+            Licitacion.fecha_publicacion.desc().nulls_last(),
+        )
+    elif order_by == "score_asc":
+        stmt = stmt.order_by(
+            LicitacionScoreEmpresa.score.asc().nulls_last(),
             Licitacion.fecha_publicacion.desc().nulls_last(),
         )
     elif order_by == "fecha_limite_asc":
@@ -227,10 +274,17 @@ async def list_licitaciones(
     total: int = (await db.execute(count_stmt)).scalar_one()
 
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-    rows = (await db.execute(stmt)).scalars().all()
+    rows = (await db.execute(stmt)).all()
+
+    items: list[LicitacionRead] = []
+    for lic, lse_score, lse_descartada in rows:
+        item = LicitacionRead.model_validate(lic)
+        item.score = lse_score
+        item.descartada = lse_descartada
+        items.append(item)
 
     return LicitacionListResponse(
-        items=[LicitacionRead.model_validate(r) for r in rows],
+        items=items,
         total=total,
         page=page,
         page_size=page_size,

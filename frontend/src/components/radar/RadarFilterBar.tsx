@@ -1,40 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Search, X } from "lucide-react";
 import {
   PROVINCIAS,
   PROVINCIAS_LABEL,
   TIPOS_ORGANISMO,
   TIPOS_ORGANISMO_LABEL,
   type Provincia,
-  type SemaforoType,
   type TipoOrganismo,
 } from "@/lib/api/licitaciones";
 import { CheckboxGroup, type CheckboxOption } from "@/components/ui/CheckboxGroup";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { FilterPopover } from "@/components/ui/FilterPopover";
-import type { RadarFilters, UseRadarFiltersReturn } from "@/lib/hooks/useRadarFilters";
+import {
+  ORDER_BY_DIR,
+  ORDER_BY_LABEL,
+  ORDER_BY_OPTIONS,
+  TIER_DOT,
+  TIER_LABEL,
+  type OrderBy,
+  type RadarFilters,
+  type Tier,
+  type UseRadarFiltersReturn,
+} from "@/lib/hooks/useRadarFilters";
 
 // ─── Opciones / presets ──────────────────────────────────────────────────────
 
-type SemaforoFiltro = SemaforoType | "todos";
-
-const SEMAFORO_OPTS: { value: SemaforoFiltro; label: string; dot: string }[] = [
-  { value: "todos", label: "Todas", dot: "bg-muted-foreground/40" },
-  { value: "verde", label: "Aptas (verde)", dot: "bg-success" },
-  { value: "amarillo", label: "Marginales (amarillo)", dot: "bg-warning" },
-  { value: "rojo", label: "Fuera de alcance (rojo)", dot: "bg-danger" },
-  { value: "gris", label: "Sin clasificar", dot: "bg-muted-foreground/40" },
+const TIER_OPTS: { value: Tier; label: string; dot: string; subtitle: string }[] = [
+  { value: "todas",     label: "Todas",         dot: TIER_DOT.todas,     subtitle: "" },
+  { value: "excelente", label: "Excelente",     dot: TIER_DOT.excelente, subtitle: "≥ 70" },
+  { value: "buena",     label: "Buena",         dot: TIER_DOT.buena,     subtitle: "50–69" },
+  { value: "raso",      label: "Aprobada raso", dot: TIER_DOT.raso,      subtitle: "40–49" },
+  { value: "no_apta",   label: "No apta",       dot: TIER_DOT.no_apta,   subtitle: "< 40" },
 ];
-
-const SEMAFORO_LABEL: Record<SemaforoFiltro, string> = {
-  todos: "Todas",
-  verde: "Verde",
-  amarillo: "Amarillo",
-  rojo: "Rojo",
-  gris: "Gris",
-};
 
 const PROVINCIA_OPTS: CheckboxOption<Provincia>[] = PROVINCIAS.map((p) => ({
   value: p,
@@ -121,16 +120,16 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SemaforoPanel({
+function PuntuacionPanel({
   value,
   onSelect,
 }: {
-  value: SemaforoFiltro;
-  onSelect: (v: SemaforoFiltro) => void;
+  value: Tier;
+  onSelect: (v: Tier) => void;
 }) {
   return (
     <ul className="flex flex-col py-1.5" role="radiogroup">
-      {SEMAFORO_OPTS.map((opt) => {
+      {TIER_OPTS.map((opt) => {
         const active = opt.value === value;
         return (
           <li key={opt.value}>
@@ -147,7 +146,53 @@ function SemaforoPanel({
             >
               <span className={`h-2 w-2 flex-shrink-0 rounded-full ${opt.dot}`} aria-hidden="true" />
               <span className="flex-1">{opt.label}</span>
-              {active && <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">●</span>}
+              {opt.subtitle && (
+                <span className="text-[10px] tabular-nums text-muted-foreground">
+                  {opt.subtitle}
+                </span>
+              )}
+              {active && <span className="ml-1 text-[10px] font-bold text-muted-foreground">●</span>}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function OrdenPanel({
+  value,
+  onSelect,
+}: {
+  value: OrderBy;
+  onSelect: (v: OrderBy) => void;
+}) {
+  return (
+    <ul className="flex flex-col py-1.5" role="radiogroup">
+      {ORDER_BY_OPTIONS.map((opt) => {
+        const active = opt === value;
+        const dir = ORDER_BY_DIR[opt];
+        const Arrow = dir === "asc" ? ArrowUp : ArrowDown;
+        return (
+          <li key={opt}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onSelect(opt)}
+              className={[
+                "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors",
+                "hover:bg-muted focus:outline-none",
+                active ? "font-semibold text-foreground" : "text-foreground",
+              ].join(" ")}
+            >
+              <Arrow
+                className={`h-3.5 w-3.5 flex-shrink-0 ${active ? "text-foreground" : "text-muted-foreground"}`}
+                strokeWidth={2.25}
+                aria-hidden="true"
+              />
+              <span className="flex-1">{ORDER_BY_LABEL[opt]}</span>
+              {active && <span className="text-[10px] font-bold text-muted-foreground">●</span>}
             </button>
           </li>
         );
@@ -515,25 +560,25 @@ export function RadarFilterBar({ state }: RadarFilterBarProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Semáforo */}
+      {/* Puntuación (tier de ganabilidad — sustituye al semáforo legacy) */}
       <FilterPopover
-        minWidth={220}
+        minWidth={240}
         trigger={({ ref, open, toggle }) => (
           <FilterPill
             ref={ref}
-            label="Semáforo"
-            value={filters.semaforo !== "todos" ? SEMAFORO_LABEL[filters.semaforo] : null}
-            active={filters.semaforo !== "todos"}
+            label="Puntuación"
+            value={filters.tier !== "todas" ? TIER_LABEL[filters.tier] : null}
+            active={filters.tier !== "todas"}
             open={open}
             onClick={toggle}
           />
         )}
       >
         {(close) => (
-          <SemaforoPanel
-            value={filters.semaforo}
+          <PuntuacionPanel
+            value={filters.tier}
             onSelect={(v) => {
-              setFilter("semaforo", v);
+              setFilter("tier", v);
               close();
             }}
           />
@@ -658,6 +703,33 @@ export function RadarFilterBar({ state }: RadarFilterBarProps) {
         />
       </FilterPopover>
 
+      {/* Ordenar — separador visual con margen izquierdo */}
+      <div className="ml-1 h-5 w-px bg-border" aria-hidden="true" />
+      <FilterPopover
+        minWidth={240}
+        trigger={({ ref, open, toggle }) => (
+          <FilterPill
+            ref={ref}
+            label="Ordenar"
+            value={ORDER_BY_LABEL[filters.order_by]}
+            active={filters.order_by !== "score"}
+            open={open}
+            onClick={toggle}
+            icon={ORDER_BY_DIR[filters.order_by] === "asc" ? ArrowUp : ArrowDown}
+          />
+        )}
+      >
+        {(close) => (
+          <OrdenPanel
+            value={filters.order_by}
+            onSelect={(v) => {
+              setFilter("order_by", v);
+              close();
+            }}
+          />
+        )}
+      </FilterPopover>
+
       {/* Búsqueda */}
       <SearchInput value={filters.q} onChange={(v) => setFilter("q", v)} />
     </div>
@@ -673,11 +745,11 @@ export function describeFilters(filters: RadarFilters): {
 }[] {
   const out: { key: string; label: string; onRemoveKey: keyof RadarFilters | "importe" | "plazo" }[] = [];
 
-  if (filters.semaforo !== "todos") {
+  if (filters.tier !== "todas") {
     out.push({
-      key: `semaforo-${filters.semaforo}`,
-      label: `Semáforo: ${SEMAFORO_LABEL[filters.semaforo]}`,
-      onRemoveKey: "semaforo",
+      key: `tier-${filters.tier}`,
+      label: `Puntuación: ${TIER_LABEL[filters.tier]}`,
+      onRemoveKey: "tier",
     });
   }
 
