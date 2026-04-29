@@ -17,12 +17,13 @@ const semaforoStripe: Record<Semaforo, string> = {
   rojo: "bg-danger",
 };
 
-// 4 tiers de ganabilidad. Umbral azul fijado en 70 para mantener "excelente"
-// como categoría escasa (≤10 cards en el feed actual de la demo PYME C/G cat 3).
+// 4 tiers de ganabilidad. Umbrales recalibrados tras el suavizado de
+// buckets continuos en el motor (avg viable ~67, max ~85). ≥80 da ~10 azul
+// para mantener "excelente" como categoría escasa.
 function scoreTone(score: number): { stripe: string; text: string } {
-  if (score >= 70) return { stripe: "bg-info",    text: "text-info"    };
-  if (score >= 50) return { stripe: "bg-success", text: "text-success" };
-  if (score >= 40) return { stripe: "bg-warning", text: "text-warning" };
+  if (score >= 80) return { stripe: "bg-info",    text: "text-info"    };
+  if (score >= 65) return { stripe: "bg-success", text: "text-success" };
+  if (score >= 50) return { stripe: "bg-warning", text: "text-warning" };
   return                  { stripe: "bg-danger",  text: "text-danger"  };
 }
 

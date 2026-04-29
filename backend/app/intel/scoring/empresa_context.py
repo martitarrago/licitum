@@ -283,13 +283,39 @@ def _evaluar_solvencia_economica(
     return profile.anualidad_media >= 0.7 * importe
 
 
+_PROVINCIA_CENTROID: dict[str, tuple[float, float]] = {
+    # Centroide aproximado de cada provincia (lat, lng) — suficiente para
+    # señales en buckets de decenas de km. Si llega NUTS3 más fino, sustituir.
+    # Keys en UPPER porque _provincia_norm devuelve uppercase.
+    "BARCELONA": (41.55, 2.00),
+    "GIRONA":    (42.00, 2.65),
+    "LLEIDA":    (41.90, 1.00),
+    "TARRAGONA": (41.05, 1.30),
+}
+
+
+def _haversine_km(a: tuple[float, float], b: tuple[float, float]) -> float:
+    """Distancia great-circle en km entre dos (lat, lng) en grados."""
+    import math
+    lat1, lon1 = math.radians(a[0]), math.radians(a[1])
+    lat2, lon2 = math.radians(b[0]), math.radians(b[1])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 2 * 6371.0 * math.asin(math.sqrt(h))
+
+
 def _evaluar_geografia(
     profile: EmpresaStaticProfile, licitacion: Licitacion
 ) -> tuple[bool, bool, float | None]:
     """(es_misma_provincia, es_mismo_nuts3, distancia_km).
 
-    Comparación textual entre `direccion_provincia` (M2) y `provincias[]` de
-    licitacion. Distancia exacta requeriría geocoding — pendiente.
+    Provincia: comparación textual entre `direccion_provincia` (M2) y
+    `provincias[]` de licitacion. NUTS3 catalanas son 1:1 con provincias.
+
+    Distancia: si ambas provincias caen en el mapeo de centroides, haversine
+    entre centroides. Para empresas catalanas con obras catalanas siempre
+    hay distancia. Para obras fuera de Catalunya cae a `None` (neutro).
     """
     es_misma = False
     if profile.direccion_provincia and licitacion.provincias:
@@ -297,9 +323,22 @@ def _evaluar_geografia(
             _provincia_norm(p) == profile.direccion_provincia
             for p in licitacion.provincias
         )
-    # NUTS3 exacto requeriría tabla provincia↔NUTS; por ahora reusamos misma_provincia
-    es_mismo_nuts = es_misma
-    return es_misma, es_mismo_nuts, None
+    es_mismo_nuts = es_misma  # NUTS3 catalanas 1:1 con provincias
+
+    distancia_km: float | None = None
+    if profile.direccion_provincia and licitacion.provincias:
+        emp_centroid = _PROVINCIA_CENTROID.get(profile.direccion_provincia)
+        # Para licitaciones multi-provincia, tomamos la más cercana.
+        if emp_centroid is not None:
+            cand_distancias: list[float] = []
+            for prov in licitacion.provincias:
+                lic_centroid = _PROVINCIA_CENTROID.get(_provincia_norm(prov))
+                if lic_centroid is not None:
+                    cand_distancias.append(_haversine_km(emp_centroid, lic_centroid))
+            if cand_distancias:
+                distancia_km = round(min(cand_distancias), 1)
+
+    return es_misma, es_mismo_nuts, distancia_km
 
 
 def evaluate_empresa_for_licitacion(

@@ -217,30 +217,30 @@ function RadarPageContent() {
                 <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-info" aria-hidden="true" />
                 <span>
                   <span className="font-medium text-foreground">Excelente</span> —
-                  puntuación 70 o más. Probabilidad alta de ganar; vale la pena
-                  estudiarla con prioridad.
+                  puntuación 80 o más. Candidato fuerte para estudiar el pliego con
+                  prioridad.
                 </span>
               </li>
               <li className="flex items-baseline gap-2">
                 <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-success" aria-hidden="true" />
                 <span>
                   <span className="font-medium text-foreground">Buena</span> —
-                  puntuación 50-69. Encaje sólido en clasificación y perfil de órgano.
+                  puntuación 65-79. Encaje sólido en clasificación y perfil de órgano.
                 </span>
               </li>
               <li className="flex items-baseline gap-2">
                 <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-warning" aria-hidden="true" />
                 <span>
                   <span className="font-medium text-foreground">Aprobada raso</span> —
-                  puntuación 40-49. Cumples mínimos pero hay alguna debilidad
-                  (categoría ajustada, poca afinidad, etc.).
+                  puntuación 50-64. Cumples mínimos pero hay alguna debilidad
+                  (categoría ajustada, poca afinidad, baja exigente, etc.).
                 </span>
               </li>
               <li className="flex items-baseline gap-2">
                 <span className="mt-1.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-danger" aria-hidden="true" />
                 <span>
                   <span className="font-medium text-foreground">No apta</span> —
-                  puntuación por debajo de 40. Suele ser mejor descartar y enfocarse
+                  puntuación por debajo de 50. Suele ser mejor descartar y enfocarse
                   en otras.
                 </span>
               </li>

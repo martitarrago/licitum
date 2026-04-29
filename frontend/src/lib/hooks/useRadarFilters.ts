@@ -101,13 +101,15 @@ export const TIER_DOT: Record<Tier, string> = {
   no_apta: "bg-danger",
 };
 
-/** Traduce un tier a (min_score, max_score) para el backend. */
+/** Traduce un tier a (min_score, max_score) para el backend.
+ *  Umbrales sincronizados con LicitacionCard.scoreTone — recalibrados tras
+ *  suavizado de buckets continuos. */
 export function tierToScoreRange(t: Tier): { min: number | null; max: number | null } {
   switch (t) {
-    case "excelente": return { min: 70, max: null };
-    case "buena":     return { min: 50, max: 69 };
-    case "raso":      return { min: 40, max: 49 };
-    case "no_apta":   return { min: 0,  max: 39 };
+    case "excelente": return { min: 80, max: null };
+    case "buena":     return { min: 65, max: 79 };
+    case "raso":      return { min: 50, max: 64 };
+    case "no_apta":   return { min: 0,  max: 49 };
     default:          return { min: null, max: null };
   }
 }

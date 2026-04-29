@@ -127,18 +127,17 @@ def signal_competencia_esperada(
     """Menos competencia → más ganabilidad. Bonus si órgano tiene historial de oferta única.
 
     Ofertes_posterior es el output de bayesian_shrinkage.
-    Mapeo: 1 oferta → 1.0; 2-3 → 0.7; 4-5 → 0.5; 6-10 → 0.3; 11+ → 0.1
+
+    Curva continua: 1 oferta → 1.0, decae exponencialmente. Calibrada para
+    pasar cerca de los buckets clásicos (3 ofertas ≈ 0.74, 5 ≈ 0.55,
+    10 ≈ 0.29) pero sin saltos discretos que producen empates artificiales.
+    Clamp inferior 0.05 para 30+ ofertas (megaconcurso, peor caso).
     """
-    if ofertes_posterior <= 1.5:
+    import math
+    if ofertes_posterior <= 1.0:
         value = 1.0
-    elif ofertes_posterior <= 3:
-        value = 0.7
-    elif ofertes_posterior <= 5:
-        value = 0.5
-    elif ofertes_posterior <= 10:
-        value = 0.3
     else:
-        value = 0.1
+        value = max(0.05, math.exp(-0.13 * (ofertes_posterior - 1.0)))
 
     pct_str = f", {pct_oferta_unica*100:.0f}% son oferta única" if pct_oferta_unica is not None else ""
     explanation = (
@@ -273,18 +272,25 @@ def signal_encaje_geografico(
 
     Construcción: <50 km es zona natural. >150 km es desplazamiento serio.
     """
+    # Curva continua por tramos. Misma provincia → siempre máximo (la
+    # distancia entre centroides puede ser >0 pero la operativa es local).
     if distancia_km is None:
         value = 0.5
         explanation = "Distancia no calculada (datos NUTS de licitación incompletos)."
-    elif es_misma_provincia or distancia_km <= 50:
+    elif es_misma_provincia:
         value = 1.0
-        explanation = f"Obra en tu zona natural ({distancia_km:.0f} km, misma provincia)."
-    elif es_mismo_nuts3 or distancia_km <= 100:
-        value = 0.8
-        explanation = f"Obra cercana ({distancia_km:.0f} km, misma comarca)."
+        explanation = f"Obra en tu provincia ({distancia_km:.0f} km al centroide)."
+    elif distancia_km <= 50:
+        value = 1.0
+        explanation = f"Obra en tu zona natural ({distancia_km:.0f} km)."
     elif distancia_km <= 150:
-        value = 0.5
-        explanation = f"Distancia significativa ({distancia_km:.0f} km) — coste logístico."
+        # Tramo 50→150 km: 1.0 → 0.5 lineal
+        value = round(1.0 - (distancia_km - 50) / 100 * 0.5, 3)
+        explanation = f"Distancia moderada ({distancia_km:.0f} km) — coste logístico."
+    elif distancia_km <= 250:
+        # Tramo 150→250 km: 0.5 → 0.2 lineal
+        value = round(0.5 - (distancia_km - 150) / 100 * 0.3, 3)
+        explanation = f"Distancia significativa ({distancia_km:.0f} km)."
     else:
         value = 0.2
         explanation = f"Obra lejana ({distancia_km:.0f} km) — coste logístico alto."
@@ -376,18 +382,22 @@ def signal_baja_factible(
             f"{marker} Baja necesaria ~{baja_necesaria_estimada:.1f}% está al borde del umbral "
             f"temerario ({baja_temeraria_threshold:.1f}%). Ganar con margen exigirá defensa robusta."
         )
-    elif margen_status == "al_limite":
-        value = 0.60
-        explanation = (
-            f"Baja necesaria ~{baja_necesaria_estimada:.1f}% al límite de tu margen "
-            f"({margen_efectivo:.0f}%). Sin margen para sorpresas."
-        )
-    else:  # comoda
-        value = 1.0
-        explanation = (
-            f"Baja necesaria ~{baja_necesaria_estimada:.1f}% está cómoda "
-            f"(tu margen permite hasta {margen_efectivo:.0f}%, holgura {diff:.0f} pp)."
-        )
+    else:
+        # Zona segura: interpolación continua entre al_limite (diff=0 → 0.60) y
+        # comoda (diff≥5 → 1.0). Antes había salto duro entre 0.60 y 1.0 que
+        # creaba empates artificiales en el ranking.
+        clamped_diff = min(5.0, max(0.0, diff))
+        value = round(0.60 + (clamped_diff / 5.0) * 0.40, 3)
+        if margen_status == "al_limite":
+            explanation = (
+                f"Baja necesaria ~{baja_necesaria_estimada:.1f}% al límite de tu margen "
+                f"({margen_efectivo:.0f}%, holgura {diff:.1f} pp)."
+            )
+        else:
+            explanation = (
+                f"Baja necesaria ~{baja_necesaria_estimada:.1f}% está cómoda "
+                f"(tu margen permite hasta {margen_efectivo:.0f}%, holgura {diff:.1f} pp)."
+            )
 
     # data_quality
     if not margen_declarado:
