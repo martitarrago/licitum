@@ -16,6 +16,7 @@ from app.intel.scoring.composite import (
     hard_filter_clasificacion,
     hard_filter_documentacion_al_dia,
     hard_filter_estado_aceptacion,
+    hard_filter_pliego,
     hard_filter_preferencia_no_interesa,
     hard_filter_presupuesto,
     hard_filter_solvencia,
@@ -24,6 +25,7 @@ from app.intel.scoring.composite import (
     signal_concentracion_organo,
     signal_encaje_geografico,
     signal_encaje_tecnico,
+    signal_pliego_check,
     signal_preferencias_match,
 )
 from app.intel.scoring.lcsp import TemerariaEstimate, estimar_baja_temeraria
@@ -42,6 +44,7 @@ __all__ = [
     "hard_filter_clasificacion",
     "hard_filter_documentacion_al_dia",
     "hard_filter_estado_aceptacion",
+    "hard_filter_pliego",
     "hard_filter_preferencia_no_interesa",
     "hard_filter_presupuesto",
     "hard_filter_solvencia",
@@ -50,5 +53,6 @@ __all__ = [
     "signal_concentracion_organo",
     "signal_encaje_geografico",
     "signal_encaje_tecnico",
+    "signal_pliego_check",
     "signal_preferencias_match",
 ]

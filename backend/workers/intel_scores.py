@@ -28,6 +28,7 @@ from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.core.celery_app import celery_app
+from app.core.enums import EstadoAnalisisPliego
 from app.intel.scoring.empresa_context import (
     build_empresa_static_profile,
     compute_empresa_context_hash,
@@ -36,7 +37,9 @@ from app.intel.scoring.empresa_context import (
 from app.intel.scoring.service import LicitacionInput, score_licitacion
 from app.models.empresa import Empresa
 from app.models.licitacion import Licitacion
+from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
 from app.models.licitacion_score_empresa import LicitacionScoreEmpresa
+from app.services.recomendacion_evaluator import calcular_recomendacion
 
 logger = logging.getLogger(__name__)
 
@@ -122,11 +125,50 @@ async def _run_recalc_empresa(
 
         result["n_licitaciones"] = len(licitaciones)
 
+        # ── Pre-cargar análisis IA disponibles (Phase 2) ─────────────
+        # Bulk select. Indexar por licitacion_id para lookup O(1) en el loop.
+        # Solo análisis completados — los demás estados (pendiente, error)
+        # se tratan como "sin análisis" → señal pliego_check neutro.
+        lic_ids = [l.id for l in licitaciones]
+        analisis_q = await session.execute(
+            select(LicitacionAnalisisIA).where(
+                LicitacionAnalisisIA.licitacion_id.in_(lic_ids),
+                LicitacionAnalisisIA.estado == EstadoAnalisisPliego.completado,
+            )
+        )
+        analisis_by_lic: dict[uuid.UUID, LicitacionAnalisisIA] = {
+            a.licitacion_id: a for a in analisis_q.scalars().all()
+        }
+        result["analisis_disponibles"] = len(analisis_by_lic)
+
         rows: list[dict[str, Any]] = []
         for lic in licitaciones:
             ctx = evaluate_empresa_for_licitacion(profile, lic)
             lic_input = _licitacion_to_input(lic)
-            score = await score_licitacion(session, lic_input, ctx)
+
+            # Resolver veredicto del pliego si hay análisis (Phase 2)
+            pliego_veredicto: str | None = None
+            pliego_razones_no: list[str] | None = None
+            pliego_riesgo_count = 0
+            an = analisis_by_lic.get(lic.id)
+            if an is not None and an.extracted_data:
+                try:
+                    rec = await calcular_recomendacion(session, an.extracted_data, empresa_id)
+                    pliego_veredicto = rec.veredicto
+                    pliego_razones_no = list(rec.razones_no) if rec.razones_no else None
+                    pliego_riesgo_count = len(rec.razones_riesgo) if rec.razones_riesgo else 0
+                except Exception as e:
+                    logger.warning(
+                        "Recomendación falló para licitacion %s — score sigue sin pliego: %s",
+                        lic.id, e,
+                    )
+
+            score = await score_licitacion(
+                session, lic_input, ctx,
+                pliego_veredicto=pliego_veredicto,
+                pliego_razones_no=pliego_razones_no,
+                pliego_razones_riesgo_count=pliego_riesgo_count,
+            )
             d = score.to_dict()
             rows.append({
                 "empresa_id": empresa_id,

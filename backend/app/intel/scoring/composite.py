@@ -104,12 +104,13 @@ class GanabilidadScore:
 # ----------------------------------------------------------------------------
 
 WEIGHTS = {
-    "competencia_esperada": 0.25,
+    "competencia_esperada": 0.20,  # antes 0.25 (−0.05 redistribuido a pliego)
     "concentracion_organo": 0.18,
     "encaje_tecnico": 0.15,        # M2: clasificación + solvencia técnica
     "encaje_geografico": 0.08,     # M2 prefs territorio + distancia
     "preferencias_match": 0.09,    # M2 prefs CPV (core/secundario/no_interesa)
-    "baja_factible": 0.25,         # PSCP histórico + M2 márgenes
+    "baja_factible": 0.20,         # antes 0.25 (−0.05 redistribuido a pliego)
+    "pliego_check": 0.10,          # NUEVO Phase 2 — análisis IA del PCAP/PPT
 }
 assert abs(sum(WEIGHTS.values()) - 1.0) < 1e-9, "pesos no suman 1"
 
@@ -430,6 +431,62 @@ def signal_baja_factible(
     )
 
 
+def signal_pliego_check(
+    veredicto: str | None,
+    razones_riesgo_count: int = 0,
+) -> SignalBreakdown:
+    """Señal SOFT del análisis IA del pliego (M3).
+
+    Trabaja con el `veredicto` ya calculado por `recomendacion_evaluator`
+    cruzando la extracción IA × M2:
+      - 'ir'             → 1.0 (pliego confirma encaje)
+      - 'ir_con_riesgo'  → 0.5 (encaja pero hay matices a vigilar)
+      - 'incompleto'     → 0.5 (faltan datos para conclusión firme — neutro)
+      - None             → 0.5 (sin análisis IA — neutro, dq=faltante)
+
+    El caso 'no_ir' NO entra aquí — se gestiona vía hard_filter_pliego que
+    descarta la licitación entera. Mantenerlos separados evita el patrón
+    "score azul que el pliego contradice": si el pliego dice no, la card
+    desaparece del feed principal.
+    """
+    if veredicto is None:
+        return SignalBreakdown(
+            name="pliego_check",
+            value_normalized=0.5,
+            weight=WEIGHTS["pliego_check"],
+            explanation="Pliego pendiente de análisis IA — score basado solo en PSCP+M2.",
+            data_points={"veredicto": None, "razones_riesgo": 0},
+            data_quality="faltante",
+        )
+
+    if veredicto == "ir":
+        value = 1.0
+        explanation = "Pliego confirma encaje (clasificación, solvencia, criterios)."
+        dq = "completa"
+    elif veredicto == "ir_con_riesgo":
+        # 0.3 < neutro 0.5 → penaliza visiblemente la presencia de matices
+        # respecto a no tener análisis. Diff vs neutro: -2 pts con peso 0.10.
+        value = 0.3
+        explanation = (
+            f"Pliego con matices ({razones_riesgo_count} riesgo"
+            f"{'s' if razones_riesgo_count != 1 else ''} a vigilar)."
+        )
+        dq = "completa"
+    else:  # incompleto
+        value = 0.5
+        explanation = "Pliego analizado pero datos insuficientes para conclusión firme."
+        dq = "parcial"
+
+    return SignalBreakdown(
+        name="pliego_check",
+        value_normalized=value,
+        weight=WEIGHTS["pliego_check"],
+        explanation=explanation,
+        data_points={"veredicto": veredicto, "razones_riesgo": razones_riesgo_count},
+        data_quality=dq,
+    )
+
+
 def signal_preferencias_match(
     cpv_division: str | None,
     pref_cpv_prioridad: str | None,    # 'core' | 'secundario' | 'no_interesa' | None
@@ -555,6 +612,33 @@ def hard_filter_preferencia_no_interesa(pref_cpv_prioridad: str | None) -> HardF
     return HardFilterResult(name="preferencia_cpv", fail=False, reason="OK")
 
 
+def hard_filter_pliego(
+    veredicto: str | None,
+    razones_no: list[str] | None = None,
+) -> HardFilterResult:
+    """Si el análisis IA del pliego determinó 'no_ir', descarta la licitación.
+
+    Esto resuelve el patrón "score azul que el pliego contradice": cuando el
+    pliego revela un requisito incumplible (clasificación exacta, solvencia
+    económica exacta, restricción específica) la licitación pasa a la sección
+    descartadas, no se muestra como ganable con un score erosionado.
+
+    Si no hay análisis disponible (veredicto None) → no_op, no descarta.
+    """
+    if veredicto != "no_ir":
+        return HardFilterResult(
+            name="pliego",
+            fail=False,
+            reason="OK pliego" if veredicto else "Pliego no analizado aún",
+        )
+    razones_str = "; ".join(razones_no[:2]) if razones_no else "ver detalle del análisis"
+    return HardFilterResult(
+        name="pliego",
+        fail=True,
+        reason=f"El análisis del pliego descarta la licitación: {razones_str}",
+    )
+
+
 def hard_filter_documentacion_al_dia(
     docs_caducados: list[str],
     docs_caducan_pronto: list[str],
@@ -623,15 +707,16 @@ def compute_composite_score(
     encaje_geografico: SignalBreakdown,
     preferencias: SignalBreakdown,
     baja: SignalBreakdown,
+    pliego: SignalBreakdown,
     n_obs_principal: int,
 ) -> GanabilidadScore:
-    """Combina hard filters + 6 señales blandas en score 0-100.
+    """Combina hard filters + 7 señales blandas en score 0-100.
 
     Si cualquier hard filter falla → score=0 + reason explícito.
-    Si todos OK → suma ponderada de las 6 señales.
+    Si todos OK → suma ponderada de las 7 señales.
     """
     failed = [f for f in hard_filters if f.fail]
-    breakdown = [competencia, concentracion, encaje_tecnico, encaje_geografico, preferencias, baja]
+    breakdown = [competencia, concentracion, encaje_tecnico, encaje_geografico, preferencias, baja, pliego]
     completeness = _data_completeness_pct(breakdown)
 
     if failed:

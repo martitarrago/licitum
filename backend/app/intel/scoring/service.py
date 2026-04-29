@@ -36,6 +36,7 @@ from app.intel.scoring.composite import (
     hard_filter_clasificacion,
     hard_filter_documentacion_al_dia,
     hard_filter_estado_aceptacion,
+    hard_filter_pliego,
     hard_filter_preferencia_no_interesa,
     hard_filter_presupuesto,
     hard_filter_solvencia,
@@ -44,6 +45,7 @@ from app.intel.scoring.composite import (
     signal_concentracion_organo,
     signal_encaje_geografico,
     signal_encaje_tecnico,
+    signal_pliego_check,
     signal_preferencias_match,
 )
 from app.intel.scoring.lcsp import TemerariaEstimate, estimar_baja_temeraria
@@ -201,8 +203,16 @@ async def score_licitacion(
     session: AsyncSession,
     licitacion: LicitacionInput,
     empresa: EmpresaContext,
+    pliego_veredicto: str | None = None,
+    pliego_razones_no: list[str] | None = None,
+    pliego_razones_riesgo_count: int = 0,
 ) -> GanabilidadScore:
-    """Calcula el score de ganabilidad para (licitación, empresa)."""
+    """Calcula el score de ganabilidad para (licitación, empresa).
+
+    Si hay análisis IA del pliego disponible, el caller pasa `pliego_veredicto`
+    (uno de 'ir', 'ir_con_riesgo', 'no_ir', 'incompleto') y opcionalmente las
+    razones, calculados con `recomendacion_evaluator`. Phase 2.
+    """
     # ── Hard filters (M2) ────────────────────────────────────────────
     cpv_pref = empresa.pref_cpv_for(licitacion.codi_cpv)
     hard_filters = [
@@ -222,6 +232,7 @@ async def score_licitacion(
             docs_caducan_pronto=empresa.docs_caducan_pronto,
             dias_a_cierre_licitacion=licitacion.dias_a_cierre,
         ),
+        hard_filter_pliego(pliego_veredicto, pliego_razones_no),
     ]
 
     # ── Queries data layer ───────────────────────────────────────────
@@ -314,6 +325,10 @@ async def score_licitacion(
         baja_temeraria_threshold=temeraria.threshold_pct,
         n_obs_baja=n_obs_principal,
     )
+    sig_pliego = signal_pliego_check(
+        veredicto=pliego_veredicto,
+        razones_riesgo_count=pliego_razones_riesgo_count,
+    )
 
     return compute_composite_score(
         hard_filters=hard_filters,
@@ -323,5 +338,6 @@ async def score_licitacion(
         encaje_geografico=sig_geo,
         preferencias=sig_pref,
         baja=sig_baja,
+        pliego=sig_pliego,
         n_obs_principal=n_obs_principal,
     )
