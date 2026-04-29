@@ -20,6 +20,32 @@ import {
  *  - sobrevivir a recargas,
  *  - migrar en el futuro a `empresas.filtros_radar` JSONB sin reescribir UI.
  */
+export type OrderBy =
+  | "score"
+  | "fecha_limite_asc"
+  | "fecha_limite_desc"
+  | "importe_desc"
+  | "importe_asc"
+  | "publicacion_desc";
+
+export const ORDER_BY_LABEL: Record<OrderBy, string> = {
+  score: "Score (mejor encaje)",
+  fecha_limite_asc: "Plazo más cercano",
+  fecha_limite_desc: "Plazo más lejano",
+  importe_desc: "Importe (mayor primero)",
+  importe_asc: "Importe (menor primero)",
+  publicacion_desc: "Publicación reciente",
+};
+
+export const ORDER_BY_OPTIONS: OrderBy[] = [
+  "score",
+  "fecha_limite_asc",
+  "fecha_limite_desc",
+  "importe_desc",
+  "importe_asc",
+  "publicacion_desc",
+];
+
 export interface RadarFilters {
   semaforo: SemaforoType | "todos";
   tipo_contrato: string | null;
@@ -31,6 +57,7 @@ export interface RadarFilters {
   plazo_max_dias: number | null;
   cpv_prefix: string | null;
   q: string;
+  order_by: OrderBy;
   page: number;
 }
 
@@ -43,6 +70,7 @@ const SEMAFOROS_VALIDOS = new Set<RadarFilters["semaforo"]>([
 ]);
 const PROVINCIAS_SET = new Set<Provincia>(PROVINCIAS);
 const TIPOS_ORGANISMO_SET = new Set<TipoOrganismo>(TIPOS_ORGANISMO);
+const ORDER_BY_SET = new Set<OrderBy>(ORDER_BY_OPTIONS);
 
 const DEFAULT_FILTERS: RadarFilters = {
   semaforo: "todos",
@@ -55,6 +83,7 @@ const DEFAULT_FILTERS: RadarFilters = {
   plazo_max_dias: null,
   cpv_prefix: null,
   q: "",
+  order_by: "score",
   page: 1,
 };
 
@@ -96,6 +125,11 @@ function parseFiltersFromSearchParams(sp: URLSearchParams): RadarFilters {
 
   const page = Math.max(1, parseInt0(sp.get("page")) ?? 1);
 
+  const orderRaw = sp.get("order_by");
+  const order_by: OrderBy = orderRaw && ORDER_BY_SET.has(orderRaw as OrderBy)
+    ? (orderRaw as OrderBy)
+    : "score";
+
   return {
     semaforo,
     tipo_contrato: sp.get("tipo_contrato") || null,
@@ -107,6 +141,7 @@ function parseFiltersFromSearchParams(sp: URLSearchParams): RadarFilters {
     plazo_max_dias: parseInt0(sp.get("plazo_max_dias")),
     cpv_prefix,
     q: sp.get("q") ?? "",
+    order_by,
     page,
   };
 }
@@ -125,6 +160,7 @@ function filtersToSearchParams(f: RadarFilters): URLSearchParams {
   if (f.plazo_max_dias != null) sp.set("plazo_max_dias", String(f.plazo_max_dias));
   if (f.cpv_prefix) sp.set("cpv_prefix", f.cpv_prefix);
   if (f.q) sp.set("q", f.q);
+  if (f.order_by && f.order_by !== "score") sp.set("order_by", f.order_by);
   if (f.page > 1) sp.set("page", String(f.page));
   return sp;
 }

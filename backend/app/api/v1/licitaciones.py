@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
+from app.models.licitacion_score_empresa import LicitacionScoreEmpresa
 from app.schemas.licitacion import (
     IngestaTriggerResponse,
     LicitacionDetail,
@@ -30,8 +32,17 @@ TIPOS_ORGANISMO_VALIDOS = {
     "generalitat",
     "otros",
 }
+ORDER_BY_VALIDOS = {
+    "score",                 # default: score DESC, NULLS LAST, fecha_publicacion DESC
+    "fecha_limite_asc",      # plazo más cercano primero
+    "fecha_limite_desc",     # plazo más lejano primero
+    "importe_desc",          # mayor importe primero
+    "importe_asc",           # menor importe primero
+    "publicacion_desc",      # publicación más reciente primero
+}
 CPV_PREFIX_RE = re.compile(r"^[0-9-]{1,16}$")
 ZONA_HORARIA_ES = ZoneInfo("Europe/Madrid")
+EMPRESA_DEMO_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
 
 @router.get("", response_model=LicitacionListResponse)
@@ -59,6 +70,17 @@ async def list_licitaciones(
         None, description="Prefijo CPV: solo dígitos y guion, hasta 16 chars"
     ),
     q: str | None = Query(None, description="Búsqueda en título y organismo"),
+    order_by: str = Query(
+        "score",
+        description="Criterio de orden. Valores: "
+        "score (default, score del motor PSCP+M2 desc), "
+        "fecha_limite_asc, fecha_limite_desc, "
+        "importe_desc, importe_asc, publicacion_desc",
+    ),
+    empresa_id: uuid.UUID | None = Query(
+        None,
+        description="Empresa para resolver el score. Si no se pasa, usa la demo.",
+    ),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -80,6 +102,11 @@ async def list_licitaciones(
     if cpv_prefix is not None and not CPV_PREFIX_RE.match(cpv_prefix):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "cpv_prefix solo admite dígitos y guion"
+        )
+    if order_by not in ORDER_BY_VALIDOS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"order_by no válido. Valores: {sorted(ORDER_BY_VALIDOS)}",
         )
 
     provincia_norm: list[str] | None = None
@@ -159,13 +186,42 @@ async def list_licitaciones(
             Licitacion.titulo.ilike(pattern) | Licitacion.organismo.ilike(pattern)
         )
 
-    # Orden por defecto: afinidad histórica DESC primero, fecha_publicacion DESC
-    # como desempate. Cuando la empresa no tiene historial, todos los scores
-    # son 0 → el orden colapsa a la fecha (comportamiento previo).
-    stmt = stmt.order_by(
-        Licitacion.score_afinidad.desc().nulls_last(),
-        Licitacion.fecha_publicacion.desc().nulls_last(),
-    )
+    # Orden — score (default) requiere LEFT JOIN al cache del motor. Las demás
+    # opciones operan sobre columnas físicas de licitaciones.
+    if order_by == "score":
+        empresa_filtro = empresa_id or EMPRESA_DEMO_ID
+        stmt = stmt.outerjoin(
+            LicitacionScoreEmpresa,
+            (LicitacionScoreEmpresa.licitacion_id == Licitacion.id)
+            & (LicitacionScoreEmpresa.empresa_id == empresa_filtro),
+        ).order_by(
+            LicitacionScoreEmpresa.score.desc().nulls_last(),
+            Licitacion.fecha_publicacion.desc().nulls_last(),
+        )
+    elif order_by == "fecha_limite_asc":
+        stmt = stmt.order_by(
+            Licitacion.fecha_limite.asc().nulls_last(),
+            Licitacion.fecha_publicacion.desc().nulls_last(),
+        )
+    elif order_by == "fecha_limite_desc":
+        stmt = stmt.order_by(
+            Licitacion.fecha_limite.desc().nulls_last(),
+            Licitacion.fecha_publicacion.desc().nulls_last(),
+        )
+    elif order_by == "importe_desc":
+        stmt = stmt.order_by(
+            Licitacion.importe_licitacion.desc().nulls_last(),
+            Licitacion.fecha_publicacion.desc().nulls_last(),
+        )
+    elif order_by == "importe_asc":
+        stmt = stmt.order_by(
+            Licitacion.importe_licitacion.asc().nulls_last(),
+            Licitacion.fecha_publicacion.desc().nulls_last(),
+        )
+    else:  # publicacion_desc
+        stmt = stmt.order_by(
+            Licitacion.fecha_publicacion.desc().nulls_last(),
+        )
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total: int = (await db.execute(count_stmt)).scalar_one()
