@@ -23,7 +23,7 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -31,6 +31,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.enums import EstadoCertificado
 from app.intel.scoring.service import EmpresaContext
 from app.models.certificado_obra import CertificadoObra
 from app.models.clasificacion_rolece import ClasificacionRolece
@@ -107,22 +108,30 @@ def _docs_estado_hoy(documentos: list[DocumentoEmpresa]) -> tuple[list[str], lis
 
 
 def _anualidad_media(certificados: list[CertificadoObra]) -> float | None:
-    """Heurística: suma del importe de certificados validados / cobertura años."""
+    """Anualidad media de los últimos 5 años — alineada con /resumen-solvencia.
+
+    Fórmula: total importe (con UTE aplicado) / 5 años. Es la métrica que ya
+    expone el endpoint M2 público — replicar aquí evita divergencia entre lo
+    que el cliente ve en su pantalla de Solvencia y lo que el motor de
+    ganabilidad usa en el hard filter.
+
+    Pre-requisito: la lista debe estar ya filtrada (validado + contratista
+    principal + ventana 5 años + es_valido_solvencia ≠ False) por la query
+    que llame a esta función.
+    """
     if not certificados:
         return None
-    importes_anualizados = []
+    total = 0.0
     for c in certificados:
-        # Heurística simple: importe / 1 (anual). Una versión avanzada
-        # divide por duración real de la obra; por ahora aprovechamos lo
-        # ya consolidado en M2 (resumen-solvencia endpoint).
-        if hasattr(c, "importe_anualizado") and c.importe_anualizado:
-            importes_anualizados.append(float(c.importe_anualizado))
-        elif hasattr(c, "importe") and c.importe:
-            importes_anualizados.append(float(c.importe))
-    if not importes_anualizados:
+        if c.importe_adjudicacion is None:
+            continue
+        importe = float(c.importe_adjudicacion)
+        if c.porcentaje_ute is not None:
+            importe = importe * float(c.porcentaje_ute) / 100.0
+        total += importe
+    if total <= 0:
         return None
-    # Anualidad media: el mayor año de importe (lo común en pliegos)
-    return max(importes_anualizados)
+    return total / 5.0
 
 
 async def build_empresa_static_profile(
@@ -171,12 +180,20 @@ async def build_empresa_static_profile(
     )
     grupos = sorted({r.grupo for r in rolece_q.scalars().all()})
 
-    # Certificados validados → anualidad media (proxy)
+    # Certificados validados → anualidad media (espejo de /resumen-solvencia)
+    # Filtros canónicos: validado + contratista principal + ventana 5 años
+    # + importe presente + es_valido_solvencia ≠ False.
+    periodo_inicio = date.today() - timedelta(days=5 * 365)
     cert_q = await session.execute(
         select(CertificadoObra).where(
             and_(
                 CertificadoObra.empresa_id == empresa_id,
                 CertificadoObra.deleted_at.is_(None),
+                CertificadoObra.estado == EstadoCertificado.validado,
+                CertificadoObra.contratista_principal.is_(True),
+                CertificadoObra.fecha_fin >= periodo_inicio,
+                CertificadoObra.importe_adjudicacion.is_not(None),
+                CertificadoObra.es_valido_solvencia.is_not(False),
             )
         )
     )
