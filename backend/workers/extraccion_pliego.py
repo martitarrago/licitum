@@ -504,7 +504,24 @@ def _extraer_texto(pdf_bytes: bytes) -> str:
     if len(nativo) >= NATIVE_TEXT_MIN_CHARS:
         return nativo
     logger.info("Texto nativo insuficiente (%d chars); cayendo a OCR", len(nativo))
-    return _extraer_texto_ocr(pdf_bytes)
+    try:
+        return _extraer_texto_ocr(pdf_bytes)
+    except Exception as e:
+        # OCR puede fallar por poppler/tesseract no instalados (típico
+        # en local sin setup completo) o por PDFs corruptos. Si hay algo
+        # de texto nativo, usarlo aunque sea corto — Claude verá poco
+        # contexto y devolverá confianza_global baja, mejor que fallido
+        # duro. Si nativo=0, propagar para que el caller marque fallido
+        # con mensaje claro al usuario.
+        logger.warning("OCR no disponible (%s)", e)
+        if nativo:
+            logger.info("Devolviendo texto nativo de %d chars sin OCR", len(nativo))
+            return nativo
+        raise RuntimeError(
+            "PDF escaneado sin texto nativo y OCR no disponible "
+            "(poppler/tesseract). En local Windows instalar poppler-windows "
+            "y añadir bin/ al PATH; Railway lo tiene preinstalado."
+        ) from e
 
 
 def _extraer_texto_nativo(pdf_bytes: bytes) -> str:
