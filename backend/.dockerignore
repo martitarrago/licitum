@@ -1,0 +1,40 @@
+# Virtualenv local — 220+MB que rompe el cache y tarda en subir al builder
+.venv/
+venv/
+ENV/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Configuración local — Railway tiene sus propias env vars
+.env
+.env.*
+!.env.example
+
+# Data dumps de auditoría / scripts no necesarios en runtime
+scripts/data_audit/data/
+
+# IDE / sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Docker / git en build context
+.dockerignore
+.gitignore
