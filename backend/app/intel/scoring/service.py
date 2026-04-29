@@ -40,6 +40,7 @@ from app.intel.scoring.composite import (
     hard_filter_preferencia_no_interesa,
     hard_filter_presupuesto,
     hard_filter_solvencia,
+    hard_filter_solvencia_economica,
     signal_baja_factible,
     signal_competencia_esperada,
     signal_concentracion_organo,
@@ -102,6 +103,8 @@ class EmpresaContext:
     distancia_km_estimada: float | None = None
     es_misma_provincia: bool = False
     es_mismo_nuts3: bool = False
+    # Phase 2 Fase 3 — solvencia económica declarada
+    volumen_negocio_max: float | None = None  # max(n, n-1, n-2)
     # Margen para baja
     margen_minimo_baja: float | None = None  # %
     # Documentación administrativa (M2 documentos_empresa) — para hard filter docs al día
@@ -206,12 +209,17 @@ async def score_licitacion(
     pliego_veredicto: str | None = None,
     pliego_razones_no: list[str] | None = None,
     pliego_razones_riesgo_count: int = 0,
+    pliego_volumen_exigido: float | None = None,
 ) -> GanabilidadScore:
     """Calcula el score de ganabilidad para (licitación, empresa).
 
     Si hay análisis IA del pliego disponible, el caller pasa `pliego_veredicto`
     (uno de 'ir', 'ir_con_riesgo', 'no_ir', 'incompleto') y opcionalmente las
     razones, calculados con `recomendacion_evaluator`. Phase 2.
+
+    `pliego_volumen_exigido` es el volumen anual € exigido por el PCAP
+    (campo `solvencia_economica_volumen_anual` del extracted_data); aplica
+    hard filter granular contra `empresa.volumen_negocio_max`.
     """
     # ── Hard filters (M2) ────────────────────────────────────────────
     cpv_pref = empresa.pref_cpv_for(licitacion.codi_cpv)
@@ -219,6 +227,10 @@ async def score_licitacion(
         hard_filter_estado_aceptacion(empresa.estado_aceptacion),
         hard_filter_clasificacion(empresa.cumple_clasificacion),
         hard_filter_solvencia(empresa.cumple_solvencia),
+        hard_filter_solvencia_economica(
+            volumen_exigido=pliego_volumen_exigido,
+            volumen_max_empresa=empresa.volumen_negocio_max,
+        ),
         hard_filter_presupuesto(
             licitacion.presupuesto,
             empresa.presupuesto_min_interes,

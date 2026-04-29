@@ -150,6 +150,7 @@ async def _run_recalc_empresa(
             pliego_veredicto: str | None = None
             pliego_razones_no: list[str] | None = None
             pliego_riesgo_count = 0
+            pliego_volumen_exigido: float | None = None
             an = analisis_by_lic.get(lic.id)
             if an is not None and an.extracted_data:
                 try:
@@ -162,12 +163,20 @@ async def _run_recalc_empresa(
                         "Recomendación falló para licitacion %s — score sigue sin pliego: %s",
                         lic.id, e,
                     )
+                # Volumen anual exigido — alimenta hard_filter_solvencia_economica
+                vol_raw = an.extracted_data.get("solvencia_economica_volumen_anual")
+                if vol_raw is not None:
+                    try:
+                        pliego_volumen_exigido = float(vol_raw)
+                    except (TypeError, ValueError):
+                        pass
 
             score = await score_licitacion(
                 session, lic_input, ctx,
                 pliego_veredicto=pliego_veredicto,
                 pliego_razones_no=pliego_razones_no,
                 pliego_razones_riesgo_count=pliego_riesgo_count,
+                pliego_volumen_exigido=pliego_volumen_exigido,
             )
             d = score.to_dict()
             rows.append({

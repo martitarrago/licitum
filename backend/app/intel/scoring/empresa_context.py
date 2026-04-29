@@ -64,7 +64,9 @@ DIAS_PRE_CADUCIDAD = 30  # mismo umbral que en schemas/documento_empresa.py
 class EmpresaStaticProfile:
     empresa_id: uuid.UUID
     cif: str | None
-    direccion_provincia: str | None  # nombre normalizado mayúsculas (ej. "BARCELONA")
+    # Geografía — codigo INE primario (Phase 2 Fase 2.3), nombre uppercase como fallback
+    direccion_provincia: str | None         # ej. "BARCELONA" (uppercase, legacy)
+    direccion_provincia_codigo: str | None  # ej. "08" (INE)
     # Preferencias
     presupuesto_min_interes: float | None
     presupuesto_max_interes: float | None
@@ -74,14 +76,25 @@ class EmpresaStaticProfile:
     obras_simultaneas_actual: int | None
     pref_cpv_prioridades: dict[str, str]  # {'45': 'core', ...}
     pref_territorios: dict[str, str]  # {'BARCELONA': 'preferida', ...} (provincia o comarca)
-    # Solvencia derivada
-    anualidad_media: float | None  # de certificados (€/año equivalente)
+    # Solvencia económica — volúmenes declarados (Phase 2 Fase 3)
+    volumen_negocio_n: float | None
+    volumen_negocio_n1: float | None
+    volumen_negocio_n2: float | None
+    plantilla_media: int | None
+    # Solvencia técnica derivada
+    anualidad_media: float | None  # de certificados (€/año equivalente, /resumen-solvencia)
     grupos_rolece_activos: list[str]  # ['C', 'I', 'G']
     # Documentos
     docs_caducados: list[str]  # ['hacienda_corriente', ...]
     docs_caducan_pronto: list[str]
     # Reservado — pendiente de añadir a EmpresaPreferencias en futura migración
     margen_minimo_baja: float | None = None
+
+    @property
+    def volumen_negocio_max(self) -> float | None:
+        """Mayor de los 3 ejercicios declarados (n, n-1, n-2). None si todos None."""
+        vols = [v for v in (self.volumen_negocio_n, self.volumen_negocio_n1, self.volumen_negocio_n2) if v is not None]
+        return max(vols) if vols else None
 
 
 def _provincia_norm(s: str | None) -> str | None:
@@ -214,6 +227,7 @@ async def build_empresa_static_profile(
         empresa_id=empresa_id,
         cif=empresa.cif,
         direccion_provincia=_provincia_norm(empresa.direccion_provincia),
+        direccion_provincia_codigo=empresa.direccion_provincia_codigo,
         presupuesto_min_interes=float(prefs.presupuesto_min_interes) if prefs and prefs.presupuesto_min_interes is not None else None,
         presupuesto_max_interes=float(prefs.presupuesto_max_interes) if prefs and prefs.presupuesto_max_interes is not None else None,
         apetito_ute=bool(prefs.apetito_ute) if prefs else False,
@@ -222,6 +236,10 @@ async def build_empresa_static_profile(
         obras_simultaneas_actual=prefs.obras_simultaneas_actual if prefs else None,
         pref_cpv_prioridades=pref_cpv,
         pref_territorios=pref_terr,
+        volumen_negocio_n=float(empresa.volumen_negocio_n) if empresa.volumen_negocio_n is not None else None,
+        volumen_negocio_n1=float(empresa.volumen_negocio_n1) if empresa.volumen_negocio_n1 is not None else None,
+        volumen_negocio_n2=float(empresa.volumen_negocio_n2) if empresa.volumen_negocio_n2 is not None else None,
+        plantilla_media=empresa.plantilla_media,
         anualidad_media=anualidad,
         grupos_rolece_activos=grupos,
         docs_caducados=docs_caducados,
@@ -238,6 +256,7 @@ def compute_empresa_context_hash(profile: EmpresaStaticProfile) -> str:
     payload = {
         "cif": profile.cif,
         "prov": profile.direccion_provincia,
+        "prov_cod": profile.direccion_provincia_codigo,
         "pres_min": profile.presupuesto_min_interes,
         "pres_max": profile.presupuesto_max_interes,
         "ute": profile.apetito_ute,
@@ -246,6 +265,13 @@ def compute_empresa_context_hash(profile: EmpresaStaticProfile) -> str:
         "sim_act": profile.obras_simultaneas_actual,
         "cpv": sorted(profile.pref_cpv_prioridades.items()),
         "terr": sorted(profile.pref_territorios.items()),
+        # Phase 2 Fase 1.2 — volúmenes y plantilla afectan a hard filters de
+        # solvencia económica (Fase 3) → debe entrar en el hash para que
+        # cambios en el perfil disparen recálculo automático.
+        "vol_n":  round(profile.volumen_negocio_n,  2) if profile.volumen_negocio_n  is not None else None,
+        "vol_n1": round(profile.volumen_negocio_n1, 2) if profile.volumen_negocio_n1 is not None else None,
+        "vol_n2": round(profile.volumen_negocio_n2, 2) if profile.volumen_negocio_n2 is not None else None,
+        "plantilla": profile.plantilla_media,
         "anu": round(profile.anualidad_media, 2) if profile.anualidad_media else None,
         "rolece": profile.grupos_rolece_activos,
         "docs_cad": sorted(profile.docs_caducados),
@@ -300,14 +326,25 @@ def _evaluar_solvencia_economica(
     return profile.anualidad_media >= 0.7 * importe
 
 
+# Mapeo provincia → centroide (lat, lng) por código INE (estándar oficial).
+# Phase 2 Fase 2.3: migración de keys uppercase ("BARCELONA") a códigos INE
+# ("08"), alineado con la columna `direccion_provincia_codigo` que añadió
+# la migración 0022. NUTS3 catalanas son 1:1 con provincias.
 _PROVINCIA_CENTROID: dict[str, tuple[float, float]] = {
-    # Centroide aproximado de cada provincia (lat, lng) — suficiente para
-    # señales en buckets de decenas de km. Si llega NUTS3 más fino, sustituir.
-    # Keys en UPPER porque _provincia_norm devuelve uppercase.
-    "BARCELONA": (41.55, 2.00),
-    "GIRONA":    (42.00, 2.65),
-    "LLEIDA":    (41.90, 1.00),
-    "TARRAGONA": (41.05, 1.30),
+    "08": (41.55, 2.00),  # Barcelona
+    "17": (42.00, 2.65),  # Girona
+    "25": (41.90, 1.00),  # Lleida
+    "43": (41.05, 1.30),  # Tarragona
+}
+
+# Bridge: licitacion.provincias[] viene en strings lowercase ("barcelona",
+# "girona", ...) del ingest PSCP. Mapeo a INE para alinear con el dict de
+# centroides y con direccion_provincia_codigo del empresa profile.
+_PROVINCIA_NAME_TO_INE: dict[str, str] = {
+    "barcelona": "08",
+    "girona":    "17",
+    "lleida":    "25",
+    "tarragona": "43",
 }
 
 
@@ -327,31 +364,37 @@ def _evaluar_geografia(
 ) -> tuple[bool, bool, float | None]:
     """(es_misma_provincia, es_mismo_nuts3, distancia_km).
 
-    Provincia: comparación textual entre `direccion_provincia` (M2) y
-    `provincias[]` de licitacion. NUTS3 catalanas son 1:1 con provincias.
+    Compara codigo INE de la empresa (`direccion_provincia_codigo`) con los
+    nombres normalizados de `licitacion.provincias[]` mapeados a INE.
+    Si la empresa aún no tiene codigo INE (perfil legacy) cae a comparación
+    por nombre uppercase. NUTS3 catalanas son 1:1 con provincias.
 
-    Distancia: si ambas provincias caen en el mapeo de centroides, haversine
-    entre centroides. Para empresas catalanas con obras catalanas siempre
-    hay distancia. Para obras fuera de Catalunya cae a `None` (neutro).
+    Distancia: haversine entre centroides INE. Para obras fuera de Catalunya
+    el codigo no está mapeado → None (neutro).
     """
-    es_misma = False
-    if profile.direccion_provincia and licitacion.provincias:
-        es_misma = any(
-            _provincia_norm(p) == profile.direccion_provincia
-            for p in licitacion.provincias
-        )
+    # Codigo INE de la empresa (preferido) o derivado del nombre legacy
+    emp_codigo = profile.direccion_provincia_codigo
+    if emp_codigo is None and profile.direccion_provincia:
+        emp_codigo = _PROVINCIA_NAME_TO_INE.get(profile.direccion_provincia.lower())
+
+    # Códigos INE de las provincias de la licitación
+    lic_codigos: list[str] = []
+    for p in (licitacion.provincias or []):
+        codigo = _PROVINCIA_NAME_TO_INE.get((p or "").strip().lower())
+        if codigo:
+            lic_codigos.append(codigo)
+
+    es_misma = bool(emp_codigo and emp_codigo in lic_codigos)
     es_mismo_nuts = es_misma  # NUTS3 catalanas 1:1 con provincias
 
     distancia_km: float | None = None
-    if profile.direccion_provincia and licitacion.provincias:
-        emp_centroid = _PROVINCIA_CENTROID.get(profile.direccion_provincia)
-        # Para licitaciones multi-provincia, tomamos la más cercana.
+    if emp_codigo and lic_codigos:
+        emp_centroid = _PROVINCIA_CENTROID.get(emp_codigo)
         if emp_centroid is not None:
-            cand_distancias: list[float] = []
-            for prov in licitacion.provincias:
-                lic_centroid = _PROVINCIA_CENTROID.get(_provincia_norm(prov))
-                if lic_centroid is not None:
-                    cand_distancias.append(_haversine_km(emp_centroid, lic_centroid))
+            cand_distancias = [
+                _haversine_km(emp_centroid, _PROVINCIA_CENTROID[c])
+                for c in lic_codigos if c in _PROVINCIA_CENTROID
+            ]
             if cand_distancias:
                 distancia_km = round(min(cand_distancias), 1)
 
@@ -387,6 +430,7 @@ def evaluate_empresa_for_licitacion(
         distancia_km_estimada=dist_km,
         es_misma_provincia=misma_prov,
         es_mismo_nuts3=mismo_nuts,
+        volumen_negocio_max=profile.volumen_negocio_max,
         margen_minimo_baja=profile.margen_minimo_baja,
         docs_caducados=profile.docs_caducados,
         docs_caducan_pronto=profile.docs_caducan_pronto,

@@ -612,6 +612,53 @@ def hard_filter_preferencia_no_interesa(pref_cpv_prioridad: str | None) -> HardF
     return HardFilterResult(name="preferencia_cpv", fail=False, reason="OK")
 
 
+def hard_filter_solvencia_economica(
+    volumen_exigido: float | None,
+    volumen_max_empresa: float | None,
+) -> HardFilterResult:
+    """Phase 2 Fase 3 — descarta si el volumen anual exigido por el pliego
+    supera el mayor volumen declarado por la empresa (n / n-1 / n-2).
+
+    `volumen_exigido` viene del análisis IA del pliego (campo
+    `solvencia_economica_volumen_anual` del extracted_data); el pliego dice
+    "exigimos volumen anual ≥ X €". `volumen_max_empresa` es max(n, n1, n2)
+    de `volumen_negocio_*` declarado en M2.
+
+    Permisivo cuando falta info: si no hay extracción IA o la empresa no ha
+    declarado volumen, no descarta — la decisión queda al `hard_filter_pliego`
+    o al cliente. Alineado con la lógica del recomendacion_evaluator pero
+    como hard filter granular (reason más específica).
+    """
+    if volumen_exigido is None:
+        return HardFilterResult(
+            name="solvencia_economica",
+            fail=False,
+            reason="OK (sin info de volumen exigido — pliego pendiente de análisis)",
+        )
+    if volumen_max_empresa is None:
+        return HardFilterResult(
+            name="solvencia_economica",
+            fail=False,
+            reason="OK (volumen anual no declarado por la empresa)",
+        )
+    if volumen_max_empresa < volumen_exigido:
+        return HardFilterResult(
+            name="solvencia_economica",
+            fail=True,
+            reason=(
+                f"Volumen anual exigido {volumen_exigido:,.0f}€, "
+                f"el tuyo es {volumen_max_empresa:,.0f}€"
+            ).replace(",", "."),
+        )
+    return HardFilterResult(
+        name="solvencia_economica",
+        fail=False,
+        reason=(
+            f"OK volumen ({volumen_max_empresa:,.0f}€ ≥ {volumen_exigido:,.0f}€ exigido)"
+        ).replace(",", "."),
+    )
+
+
 def hard_filter_pliego(
     veredicto: str | None,
     razones_no: list[str] | None = None,
