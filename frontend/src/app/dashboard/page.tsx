@@ -214,14 +214,19 @@ function FranjaPlazos({
   return (
     <Link
       href="/tracker"
-      className="mb-6 flex items-center justify-between gap-4 rounded-lg border-l-[3px] border-danger bg-danger/5 px-4 py-2.5 text-sm transition-colors hover:bg-danger/10"
+      className="mb-6 flex items-center justify-between gap-4 rounded-lg border-l-[3px] px-4 py-2.5 text-sm transition-colors"
+      style={{
+        borderLeftColor: C.next,
+        backgroundColor: `${C.next}0d`,
+      }}
     >
       <div className="flex min-w-0 items-center gap-2.5">
         <span
-          className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger"
+          className="h-1.5 w-1.5 shrink-0 rounded-full"
+          style={{ backgroundColor: C.next }}
           aria-hidden="true"
         />
-        <span className="font-semibold text-danger">
+        <span className="font-semibold" style={{ color: C.next }}>
           {items.length} plazo{items.length === 1 ? "" : "s"} esta semana
         </span>
         <span className="hidden truncate text-muted-foreground sm:inline">
@@ -229,7 +234,12 @@ function FranjaPlazos({
           {items.length > 2 ? ` · +${items.length - 2}` : ""}
         </span>
       </div>
-      <span className="shrink-0 text-xs font-medium text-danger">Ver →</span>
+      <span
+        className="shrink-0 text-xs font-medium"
+        style={{ color: C.next }}
+      >
+        Ver →
+      </span>
     </Link>
   );
 }
@@ -261,10 +271,7 @@ function CommandCard({
       <div className="p-6">
         <header className="mb-5 flex items-baseline justify-between gap-4">
           <div>
-            <p
-              className="text-[11px] font-semibold uppercase tracking-[0.08em]"
-              style={{ color }}
-            >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               {eyebrow}
             </p>
             <h2 className="mt-1.5 font-display text-xl font-bold leading-tight tracking-tight">
@@ -274,8 +281,7 @@ function CommandCard({
           {cta && ctaHref && (
             <Link
               href={ctaHref}
-              className="shrink-0 text-xs font-semibold underline-offset-4 transition-all hover:underline"
-              style={{ color }}
+              className="shrink-0 text-xs font-semibold text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
             >
               {cta} →
             </Link>
@@ -322,10 +328,7 @@ function NuevosMatchesCard({
       ) : (
         <>
           <div className="mb-3 flex items-baseline gap-2">
-            <span
-              className="display-num text-3xl leading-none"
-              style={{ color: C.matches }}
-            >
+            <span className="display-num text-3xl leading-none text-foreground">
               {total}
             </span>
             <span className="text-xs text-muted-foreground">
@@ -642,10 +645,7 @@ function SeguimientoEnVivoCard({
     >
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[auto_1fr] lg:items-center lg:gap-14">
         <div>
-          <p
-            className="display-num text-[4.5rem] leading-[0.9] sm:text-[5.5rem]"
-            style={{ color: C.pipeline }}
-          >
+          <p className="display-num text-[4.5rem] leading-[0.9] text-foreground sm:text-[5.5rem]">
             {total}
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -662,6 +662,21 @@ function SeguimientoEnVivoCard({
   );
 }
 
+// Cada estado del pipeline = un color distinto, ayuda a leer la barra
+// de un vistazo. Reloj legal usa los acentos de "urgencia" del sistema.
+const PIPELINE_COLOR: Record<EstadoTracker, string> = {
+  en_subsanacion: C.next,        // carmesí — reloj legal 3d
+  documentacion_previa: C.plan,  // ocre — reloj legal 10d
+  en_preparacion: C.pipeline,    // púrpura — en taller
+  presentada: C.matches,         // azul acero — entregado
+  apertura_sobres: C.health,
+  adjudicacion_provisional: C.health,
+  adjudicada: C.health,
+  formalizada: C.health,
+  perdida: "#A1A1AA",
+  rechazada: "#A1A1AA",
+};
+
 function PipelineBar({
   counts,
   total,
@@ -669,11 +684,6 @@ function PipelineBar({
   counts: Record<EstadoTracker, number>;
   total: number;
 }) {
-  const colorFor = (estado: EstadoTracker): string => {
-    if (ESTADOS_RELOJ_LEGAL.has(estado)) return "#DC2626"; // danger — plazo legal
-    if (estado === "en_preparacion") return C.pipeline;
-    return `${C.pipeline}80`; // pipeline tint para "presentada"
-  };
   return (
     <div
       className="flex h-3 w-full overflow-hidden rounded-full bg-muted shadow-inset-soft"
@@ -688,7 +698,7 @@ function PipelineBar({
           <div
             key={estado}
             className="h-full transition-all duration-700 ease-out-soft"
-            style={{ width: `${pct}%`, backgroundColor: colorFor(estado) }}
+            style={{ width: `${pct}%`, backgroundColor: PIPELINE_COLOR[estado] }}
             title={`${ESTADO_LABELS[estado]}: ${value}`}
           />
         );
@@ -706,39 +716,29 @@ function PipelineLegend({
     <ul className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
       {ACTIVE_STATES.map((estado) => {
         const value = counts[estado];
-        const reloj = ESTADOS_RELOJ_LEGAL.has(estado);
         const tieneItems = value > 0;
-        const dotColor = reloj
-          ? "#DC2626"
-          : tieneItems
-            ? C.pipeline
-            : "transparent";
-        const numColor = reloj && tieneItems ? "#DC2626" : "inherit";
         return (
           <li key={estado}>
             <div className="flex items-center gap-1.5">
               <span
                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                  !tieneItems && !reloj ? "ring-1 ring-border" : ""
+                  !tieneItems ? "ring-1 ring-border" : ""
                 }`}
-                style={{ backgroundColor: dotColor }}
+                style={{
+                  backgroundColor: tieneItems
+                    ? PIPELINE_COLOR[estado]
+                    : "transparent",
+                }}
                 aria-hidden="true"
               />
-              <p
-                className={`truncate text-[10px] font-semibold uppercase tracking-wider ${
-                  reloj && tieneItems
-                    ? "text-danger"
-                    : "text-muted-foreground"
-                }`}
-              >
+              <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {ESTADO_LABELS[estado]}
               </p>
             </div>
             <p
               className={`mt-1 font-display text-2xl font-bold tabular-nums tracking-tight ${
-                tieneItems ? "" : "text-muted-foreground/40"
+                tieneItems ? "text-foreground" : "text-muted-foreground/40"
               }`}
-              style={tieneItems ? { color: numColor } : undefined}
             >
               {value}
             </p>
@@ -849,10 +849,7 @@ function SaludRow({
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
-        <p
-          className="display-num text-2xl leading-none"
-          style={{ color: pct == null ? undefined : color }}
-        >
+        <p className="display-num text-2xl leading-none text-foreground">
           {pct == null ? "—" : `${pct}%`}
         </p>
       </div>
@@ -869,8 +866,7 @@ function SaludRow({
         {ctaEmpty && (
           <Link
             href={href}
-            className="shrink-0 font-semibold underline-offset-4 hover:underline"
-            style={{ color }}
+            className="shrink-0 font-semibold text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
           >
             {ctaEmpty} →
           </Link>
@@ -903,10 +899,7 @@ function PlanCuotaCard({ now }: { now: Date }) {
     >
       <div className="space-y-5">
         <div className="flex items-baseline gap-3">
-          <p
-            className="display-num text-[3rem] leading-none"
-            style={{ color: C.plan }}
-          >
+          <p className="display-num text-[3rem] leading-none text-foreground">
             {restantes}
           </p>
           <p className="text-sm text-muted-foreground">
