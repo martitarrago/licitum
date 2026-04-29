@@ -127,6 +127,34 @@ El "Punto 7 — Estados por licitación" del backlog antiguo se ha promovido a m
 - **Refinar mapeo CPV→ROLECE a nivel de subgrupo** cuando aparezcan pliegos que exijan subgrupo específico (`C2`, `G4`, etc.)
 - **Ajustar mensaje del semáforo cuando los grupos exigidos son TODOS** (CPV genérico 45000000) — actualmente la prosa solo menciona la cobertura, sin contexto del CPV genérico
 - **Renombrar `licitaciones.url_placsp` → `url_publicacio`** (cosmético, el dato viene de PSCP no de PLACSP)
+- **Ingesta multi-lote: importe del expediente vs importe del lote** 🐞
+  PSCP devuelve **una fila por lote** del mismo `codi_expedient`, cada una con su propio `pressupost_licitacio_sense`. El worker en `backend/workers/ingesta_pscp.py:122-128` deduplica por `codi_expedient` y conserva la **primera aparición**, ordenada por `data_publicacio_anunci DESC` — no por `numero_lot`. Resultado: cualquiera de los lotes (no necesariamente el más grande) acaba representando al expediente entero.
+
+  **Ejemplo real detectado 2026-04-29** — expediente `2025CT09_2026_755` "CONSTRUCCIÓ POLIESPORTIU MUNICIPAL":
+  | Lot | Descripción | `pressupost_licitacio_sense` |
+  |-----|-------------|---:|
+  | 1 | Pavelló esportiu (3 fases) | 3.424.960,79 € |
+  | 2 | Terra tècnic | 107.052,10 € |
+  | 3 | Equipament | 46.901,22 € |
+  | 4 | Pistes de pàdel | 81.412,54 € |
+  | 5 | Urbanització accés | **51.079,68 €** ← guardado en BBDD |
+  | **Total** | | **3.711.406,33 €** = `valor_estimat_expedient` |
+
+  En la card del Radar se ve 51 K€; al analizar el pliego (M3 lee el PDF completo) aparecen los 3,7 M reales — choque visible para el usuario.
+
+  **Impacto** — el importe erróneo afecta a:
+  - Filtro `importe_min/max` del Radar (oportunidades grandes filtradas hacia abajo)
+  - `evaluar_semaforo` (categoría ROLECE exigida calculada sobre el importe equivocado)
+  - `empresa_context.calcular_banda_competitiva` y scoring de afinidad PSCP
+  - M5 Sobre B y M6 Calculadora consumen `licitacion.importe_licitacion` directo
+
+  **Fix propuesto** — en `_parsear_row` o en una fase previa al dedup en `_ejecutar_ingesta`:
+  1. Usar `valor_estimat_expedient` como fuente principal de `importe_licitacion` (PSCP lo devuelve idéntico en todas las filas del expediente, por diseño es el total).
+  2. Fallback: `SUM(pressupost_licitacio_sense)` agrupando filas por `codi_expedient` antes de deduplicar.
+  3. Persistir los lotes individuales en `raw_data.lotes` (lista) para que M3/M5 tengan la descomposición y puedan razonar sobre lotes.
+  4. (Opcional) añadir `numero_lotes` como columna física para ordenar/filtrar y para mostrar un badge "5 lotes" en la card.
+
+  **Validación** — antes de patchear, contar cuántos expedientes en BBDD tienen `numero_lot != NULL` y comparar `importe_licitacion` actual vs `SUM(pressupost_licitacio_sense)` real (consultando la API PSCP) para dimensionar cuántas oportunidades están infravaloradas.
 
 ## Geográfico (post-MVP) 🔲
 Configurar radio operativo por empresa (`provincia_base`, `radio_km` en `empresas`) y degradar el semáforo a amarillo si la obra cae fuera del radio. Los filtros del punto 1 ya cubren el caso manual hasta que haya feedback de pilotos.
