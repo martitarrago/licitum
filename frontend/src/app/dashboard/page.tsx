@@ -33,7 +33,7 @@ const C = {
   next: "#ca5670",      // carmesí — soft-urgency, next steps
   pipeline: "#ab62c0",  // púrpura — pipeline en movimiento
   health: "#72a555",    // verde oliva — salud documental
-  plan: "#c57c3c",      // ocre — plan / cuota
+  plan: "#D97706",      // amber Claude — plan / cuota / reloj documentación previa
 } as const;
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
