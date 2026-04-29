@@ -45,7 +45,7 @@ function HeroCard({ item }: { item: ScoreCard }) {
         <ScoreChip score={item.score} variant="lg" />
         <span
           className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
-          title={`Score basado en ${item.data_completeness_pct}% de tu perfil`}
+          title={`Puntuación basada en ${item.data_completeness_pct}% de tu perfil`}
         >
           {item.confidence === "alta"
             ? "Alta confianza"
@@ -153,8 +153,8 @@ export function TopGanablesHero({ empresaId }: Props) {
       : "lo más cercano a ganable";
   const subtitle =
     items.length > 0
-      ? `${items.length} licitaci${items.length === 1 ? "ón" : "ones"} con score ≥70 según el motor`
-      : "Sin obras con score 70+ hoy. Estas son las más cercanas:";
+      ? `${items.length} licitaci${items.length === 1 ? "ón" : "ones"} con puntuación ≥70 según el motor`
+      : "Sin obras con puntuación 70+ hoy. Estas son las más cercanas:";
 
   return (
     <section className="mb-10 animate-fade-up">

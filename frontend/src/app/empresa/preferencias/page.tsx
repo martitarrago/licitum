@@ -228,7 +228,7 @@ export default function PreferenciasPage() {
 
         <Section
           title="Territorios"
-          help="Ranking, no filtro: las preferidas suben score, las marcadas como evitar bajan score (no las descartan)."
+          help="Ranking, no filtro: las preferidas suben la puntuación, las marcadas como evitar la bajan (no las descartan)."
         >
           <TerritoriosEditor
             value={form.territorios}

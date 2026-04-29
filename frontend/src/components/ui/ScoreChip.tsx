@@ -64,7 +64,7 @@ export function ScoreChip({ score, variant = "sm", className = "" }: Props) {
     <div
       className={`inline-flex items-baseline ring-1 ring-inset ${bucket.bg} ${bucket.ring} ${bucket.text} ${v.container} ${className}`}
       role="status"
-      aria-label={`Score ${score} de 100 — ${bucket.label}`}
+      aria-label={`Puntuación ${score} de 100 — ${bucket.label}`}
     >
       <span className={v.number}>{score}</span>
       <span className={v.over}>/100</span>

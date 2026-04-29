@@ -83,7 +83,7 @@ export function LicitacionCard({
           {hasScore && tone && (
             <div
               className={`display-num shrink-0 text-lg font-bold tabular-nums leading-none ${tone.text}`}
-              aria-label={`Score ${Math.round(score!)} de 100`}
+              aria-label={`Puntuación ${Math.round(score!)} de 100`}
             >
               {Math.round(score!)}
             </div>

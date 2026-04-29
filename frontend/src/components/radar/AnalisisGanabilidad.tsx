@@ -124,7 +124,7 @@ export function AnalisisGanabilidad({ licitacionId, empresaId }: Props) {
               Análisis de ganabilidad pendiente
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              El motor calcula los scores cada mañana. Los resultados aparecerán
+              Las puntuaciones se calculan cada mañana. Los resultados aparecerán
               en el próximo ciclo (07:15 Madrid).
             </p>
           </div>
