@@ -32,6 +32,13 @@ class LicitacionRead(BaseModel):
     # aún no ha sido scoreada para la empresa actual.
     score: int | None = None
     descartada: bool | None = None
+    # Phase 2 B4 — estado del análisis IA del pliego (M3)
+    # Valores: 'completado' | 'procesando' | 'pendiente' | 'fallido' |
+    # 'documento_no_disponible' | None (sin entrada todavía)
+    pliego_estado: str | None = None
+    # Veredicto del recomendacion_evaluator si pliego analizado y no descartado
+    # por hard filter. Valores: 'ir' | 'ir_con_riesgo' | 'incompleto' | None
+    pliego_veredicto: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

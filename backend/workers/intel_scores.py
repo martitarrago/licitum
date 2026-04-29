@@ -237,6 +237,25 @@ async def _run_recalc_empresa(
 
     result["finished_at"] = datetime.now().isoformat()
     result["duration_seconds"] = (datetime.now() - started).total_seconds()
+
+    # Phase 2 B2 — encolar dispatcher para que analice top-20 pendientes.
+    # No bloquea la respuesta del recalc; los análisis se procesan async y
+    # un recalc posterior los recogerá. Tolera fallos del broker (Redis
+    # caído → log + sigue).
+    try:
+        from workers.intel_pliego_dispatch import analizar_top_pendientes_empresa
+        analizar_top_pendientes_empresa.apply_async(
+            args=[str(empresa_id)],
+            expires=60 * 60,  # si en 1h no se ejecutó, lo encolará el próximo recalc
+        )
+        logger.info("Dispatcher de pliego encolado para empresa %s", empresa_id)
+    except Exception:
+        logger.exception(
+            "No se pudo encolar dispatcher de pliego para empresa %s — "
+            "los pliegos se analizarán en el siguiente recalc.",
+            empresa_id,
+        )
+
     return result
 
 

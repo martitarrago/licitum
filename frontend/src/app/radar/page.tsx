@@ -385,6 +385,8 @@ function RadarPageContent() {
                       semaforo={p.semaforo}
                       cpvs={p.cpvs}
                       score={l.score}
+                      pliegoEstado={l.pliego_estado}
+                      pliegoVeredicto={l.pliego_veredicto}
                     />
                   </Link>
                 </div>

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
+from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
 from app.models.licitacion_score_empresa import LicitacionScoreEmpresa
 from app.schemas.licitacion import (
     IngestaTriggerResponse,
@@ -161,10 +162,16 @@ async def list_licitaciones(
         Licitacion,
         LicitacionScoreEmpresa.score.label("lse_score"),
         LicitacionScoreEmpresa.descartada.label("lse_descartada"),
+        LicitacionScoreEmpresa.breakdown_json.label("lse_breakdown"),
+        LicitacionAnalisisIA.estado.label("ai_estado"),
+        LicitacionAnalisisIA.error_mensaje.label("ai_error"),
     ).outerjoin(
         LicitacionScoreEmpresa,
         (LicitacionScoreEmpresa.licitacion_id == Licitacion.id)
         & (LicitacionScoreEmpresa.empresa_id == empresa_filtro),
+    ).outerjoin(
+        LicitacionAnalisisIA,
+        LicitacionAnalisisIA.licitacion_id == Licitacion.id,
     )
 
     if not incluye_descartadas:
@@ -282,10 +289,29 @@ async def list_licitaciones(
     rows = (await db.execute(stmt)).all()
 
     items: list[LicitacionRead] = []
-    for lic, lse_score, lse_descartada in rows:
+    for lic, lse_score, lse_descartada, lse_breakdown, ai_estado, ai_error in rows:
         item = LicitacionRead.model_validate(lic)
         item.score = lse_score
         item.descartada = lse_descartada
+
+        # B4 — estado del análisis del pliego
+        if ai_estado is None:
+            item.pliego_estado = None
+        else:
+            estado_str = ai_estado.value if hasattr(ai_estado, "value") else str(ai_estado)
+            # DOCUMENTO_NO_DISPONIBLE va como fallido con prefijo en el error
+            if estado_str == "fallido" and ai_error and ai_error.startswith("DOCUMENTO_NO_DISPONIBLE:"):
+                item.pliego_estado = "documento_no_disponible"
+            else:
+                item.pliego_estado = estado_str
+
+        # Veredicto: leer del breakdown_json del score (entrada pliego_check.data_points.veredicto)
+        if lse_breakdown:
+            for sig in lse_breakdown:
+                if sig.get("name") == "pliego_check":
+                    item.pliego_veredicto = (sig.get("data") or {}).get("veredicto")
+                    break
+
         items.append(item)
 
     return LicitacionListResponse(

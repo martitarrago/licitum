@@ -1,5 +1,14 @@
 type Semaforo = "verde" | "amarillo" | "rojo";
 
+type PliegoEstado =
+  | "pendiente"
+  | "procesando"
+  | "completado"
+  | "fallido"
+  | "documento_no_disponible";
+
+type PliegoVeredicto = "ir" | "ir_con_riesgo" | "incompleto";
+
 interface LicitacionCardProps {
   titulo: string;
   organismo: string;
@@ -9,6 +18,9 @@ interface LicitacionCardProps {
   cpvs: string[];
   /** Score de ganabilidad 0-100 del motor PSCP+M2. Tiñe la franja superior y se muestra en el extremo superior derecho. */
   score?: number | null;
+  /** Estado del análisis IA del pliego (M3 Phase 2 B4). */
+  pliegoEstado?: PliegoEstado | null;
+  pliegoVeredicto?: PliegoVeredicto | null;
 }
 
 const semaforoStripe: Record<Semaforo, string> = {
@@ -25,6 +37,40 @@ function scoreTone(score: number): { stripe: string; text: string } {
   if (score >= 65) return { stripe: "bg-success", text: "text-success" };
   if (score >= 50) return { stripe: "bg-warning", text: "text-warning" };
   return                  { stripe: "bg-danger",  text: "text-danger"  };
+}
+
+// Phase 2 B4 — badge del estado del pliego, debajo del score.
+// Cuatro estados visibles + uno transitorio:
+//   ✓ analizado y encaja        (estado=completado + veredicto=ir)
+//   ⚠ analizado con matices     (estado=completado + veredicto=ir_con_riesgo)
+//   ⚪ analizado parcial         (estado=completado + veredicto=incompleto)
+//   ⊘ no descargable             (estado=documento_no_disponible)
+//   ○ pendiente / analizando     (estado=pendiente | procesando)
+//   ! error de análisis          (estado=fallido)
+//   null sin entrada todavía     → no renderizar nada
+function pliegoBadge(
+  estado: PliegoEstado | null | undefined,
+  veredicto: PliegoVeredicto | null | undefined,
+): { glyph: string; tone: string; title: string } | null {
+  if (!estado) return null;
+  if (estado === "documento_no_disponible") {
+    return { glyph: "⊘", tone: "text-muted-foreground", title: "Pliego no descargable desde PSCP" };
+  }
+  if (estado === "pendiente" || estado === "procesando") {
+    return { glyph: "○", tone: "text-muted-foreground", title: "Pliego pendiente de análisis" };
+  }
+  if (estado === "fallido") {
+    return { glyph: "!", tone: "text-danger", title: "Error en el análisis del pliego" };
+  }
+  // estado === "completado"
+  if (veredicto === "ir") {
+    return { glyph: "✓", tone: "text-success", title: "Pliego confirma encaje" };
+  }
+  if (veredicto === "ir_con_riesgo") {
+    return { glyph: "⚠", tone: "text-warning", title: "Pliego con matices a vigilar" };
+  }
+  // incompleto o veredicto null
+  return { glyph: "⚪", tone: "text-muted-foreground", title: "Pliego analizado parcialmente" };
 }
 
 const importeFormatter = new Intl.NumberFormat("es-ES", {
@@ -59,6 +105,8 @@ export function LicitacionCard({
   semaforo,
   cpvs,
   score,
+  pliegoEstado,
+  pliegoVeredicto,
 }: LicitacionCardProps) {
   const dias = diasHasta(fechaLimite);
   const urgente = dias >= 0 && dias <= 7;
@@ -66,6 +114,7 @@ export function LicitacionCard({
   const hasScore = typeof score === "number";
   const tone = hasScore ? scoreTone(score!) : null;
   const stripeClass = tone ? tone.stripe : semaforoStripe[semaforo];
+  const badge = pliegoBadge(pliegoEstado, pliegoVeredicto);
 
   return (
     <article className="card-interactive group relative flex flex-col overflow-hidden">
@@ -81,14 +130,25 @@ export function LicitacionCard({
             </h3>
             <p className="truncate text-sm text-muted-foreground">{organismo}</p>
           </div>
-          {hasScore && tone && (
-            <div
-              className={`display-num shrink-0 text-lg font-bold tabular-nums leading-none ${tone.text}`}
-              aria-label={`Puntuación ${Math.round(score!)} de 100`}
-            >
-              {Math.round(score!)}
-            </div>
-          )}
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            {hasScore && tone && (
+              <div
+                className={`display-num text-lg font-bold tabular-nums leading-none ${tone.text}`}
+                aria-label={`Puntuación ${Math.round(score!)} de 100`}
+              >
+                {Math.round(score!)}
+              </div>
+            )}
+            {badge && (
+              <span
+                className={`text-sm leading-none ${badge.tone}`}
+                title={badge.title}
+                aria-label={badge.title}
+              >
+                {badge.glyph}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Datos clave — importe + fecha */}

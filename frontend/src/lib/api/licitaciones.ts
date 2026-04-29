@@ -65,8 +65,21 @@ export interface LicitacionRead {
   score: number | null;
   /** true si el motor descartó por hard-filter (clasificación, etc.). */
   descartada: boolean | null;
+  /** Estado del análisis IA del pliego (M3 Phase 2). */
+  pliego_estado: PliegoEstado | null;
+  /** Veredicto del recomendacion_evaluator si pliego analizado. */
+  pliego_veredicto: PliegoVeredicto | null;
   created_at: string;
 }
+
+export type PliegoEstado =
+  | "pendiente"
+  | "procesando"
+  | "completado"
+  | "fallido"
+  | "documento_no_disponible";
+
+export type PliegoVeredicto = "ir" | "ir_con_riesgo" | "incompleto";
 
 export interface LicitacionDetail extends LicitacionRead {
   organismo_id: string | null;
