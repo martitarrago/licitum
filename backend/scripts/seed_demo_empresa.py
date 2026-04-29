@@ -50,6 +50,7 @@ EMPRESA_PROFILE = {
     "direccion_codigo_postal": "08003",
     "direccion_ciudad": "Barcelona",
     "direccion_provincia": "Barcelona",
+    "direccion_provincia_codigo": "08",
     "direccion_pais": "ES",
     "telefono": "+34 933 12 45 67",
     "iae": "501.1",

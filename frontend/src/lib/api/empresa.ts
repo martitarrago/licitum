@@ -15,6 +15,7 @@ export interface Empresa {
   direccion_codigo_postal: string | null;
   direccion_ciudad: string | null;
   direccion_provincia: string | null;
+  direccion_provincia_codigo: string | null;
   direccion_pais: string | null;
   representante_nombre: string | null;
   representante_nif: string | null;
@@ -44,6 +45,7 @@ export type EmpresaPatch = Partial<{
   direccion_codigo_postal: string | null;
   direccion_ciudad: string | null;
   direccion_provincia: string | null;
+  direccion_provincia_codigo: string | null;
   direccion_pais: string | null;
   representante_nombre: string | null;
   representante_nif: string | null;

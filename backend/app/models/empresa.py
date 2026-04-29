@@ -38,6 +38,11 @@ class Empresa(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
     direccion_codigo_postal: Mapped[str | None] = mapped_column(String(16), nullable=True)
     direccion_ciudad: Mapped[str | None] = mapped_column(String(128), nullable=True)
     direccion_provincia: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Código INE 2 dígitos — fuente canónica para el motor de scoring.
+    # `direccion_provincia` (texto libre) se mantiene como label para el DEUC.
+    direccion_provincia_codigo: Mapped[str | None] = mapped_column(
+        String(2), nullable=True
+    )
     direccion_pais: Mapped[str | None] = mapped_column(
         String(64), nullable=True, default="ES", server_default="ES"
     )

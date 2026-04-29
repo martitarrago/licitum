@@ -35,6 +35,9 @@ class EmpresaUpdate(BaseModel):
     direccion_codigo_postal: str | None = Field(default=None, max_length=16)
     direccion_ciudad: str | None = Field(default=None, max_length=128)
     direccion_provincia: str | None = Field(default=None, max_length=64)
+    direccion_provincia_codigo: str | None = Field(
+        default=None, min_length=2, max_length=2
+    )
     direccion_pais: str | None = Field(default=None, max_length=64)
 
     # Representante legal
@@ -73,6 +76,7 @@ class EmpresaRead(BaseModel):
     direccion_codigo_postal: str | None = None
     direccion_ciudad: str | None = None
     direccion_provincia: str | None = None
+    direccion_provincia_codigo: str | None = None
     direccion_pais: str | None = None
     representante_nombre: str | None = None
     representante_nif: str | None = None
