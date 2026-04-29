@@ -51,13 +51,7 @@ export default function DocumentosPage() {
 
   return (
     <>
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Hacienda, Seguridad Social, pólizas, ISOs, REA y TC2 con sus fechas
-          de caducidad. Cuando ganes una adjudicación provisional tendrás{" "}
-          <strong className="text-foreground">10 días hábiles</strong> para
-          presentarlos — tenerlos al día evita perder obras ya ganadas.
-        </p>
+      <div className="mb-8 flex flex-wrap items-end justify-end gap-4">
         <button onClick={() => setOpen(true)} className="btn-primary">
           <Plus className="h-4 w-4" strokeWidth={2} />
           Nuevo documento

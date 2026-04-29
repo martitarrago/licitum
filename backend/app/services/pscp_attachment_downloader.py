@@ -42,16 +42,30 @@ PORTAL_API = f"{PORTAL_BASE}/portal-api"
 PSCP_TIMEOUT = 30
 # Patron de URL del expediente: /detall-publicacio/<UUID>/<numero>
 _NUM_PUBLICACIO_RE = re.compile(r"/detall-publicacio/[a-f0-9-]+/(\d+)")
+# Cota de tamaño para PDFs complementarios (PPT). Pliegos técnicos en obras
+# grandes son proyectos completos con planos/mediciones — pueden superar
+# 30MB y disparar el coste de Claude por encima de $1.50 con poca señal
+# adicional para el motor (los planos y mediciones no aportan al scoring).
+# El PCAP NO tiene este guard: es siempre core, raramente >5MB.
+MAX_PPT_BYTES = 8 * 1024 * 1024  # 8 MB
 
-# Orden de prioridad de los campos del JSON donde puede aparecer el pliego
-# que queremos analizar. PCAP tiene preferencia (cláusulas administrativas
-# es la sección que más datos para el motor: clasificación, solvencia,
-# baja temeraria, criterios). PPT como fallback.
-PLIEGO_FIELDS_PRIORITY = [
-    "plecsDeClausulesAdministratives",
-    "plecsDePrescripcionsTecniques",
-    "memoriaJustificativaContracte",  # último recurso
-]
+# Documentos que el motor PUEDE consumir, en dos categorías:
+#
+# CORE (siempre) — el PCAP. Contiene clasificación, solvencia, baja temeraria,
+# criterios y garantías. Sin PCAP no hay análisis útil del expediente.
+#
+# COMPLEMENTARY (si existe, concatenar) — el PPT. En obras públicas el PPT
+# frecuentemente es el "Projecte d'Obres" e incluye memoria descriptiva,
+# criterios técnicos puntuables (memoria, equipo adscrito, mejoras) y a
+# veces solvencia técnica detallada que el PCAP referencia. Aporta señal
+# útil al motor por +$0.15-0.35 de coste Claude marginal.
+#
+# OUT OF SCOPE para B1.1 (reservado a M5 Sobre B):
+# - memoriaJustificativaContracte (justifica necesidad del órgano)
+# - documentsAprovacio (acto administrativo interno)
+# - altresDocuments (anexos, planos en CAD/BC3, actas de replanteo)
+PLIEGO_CORE_FIELD = "plecsDeClausulesAdministratives"
+PLIEGO_COMPLEMENTARY_FIELDS = ["plecsDePrescripcionsTecniques"]
 
 
 class PscpDocumentNotFoundError(Exception):
@@ -75,30 +89,57 @@ async def _fetch_publicacio_json(num_publicacio: str) -> dict[str, Any]:
         return resp.json()
 
 
-def _extraer_doc_principal(json_data: dict[str, Any]) -> dict[str, Any] | None:
-    """Devuelve el primer documento útil del expediente, en orden de prioridad.
+def _primer_doc_de_seccion(seccion: dict[str, Any], campo: str) -> dict[str, Any] | None:
+    """Devuelve el primer doc descargable de una sección (catalán preferido)."""
+    if not seccion:
+        return None
+    # Estructura: { "ca": [...], "es": [...], "en": [...], "oc": [...] }
+    for idioma in ("ca", "es", "en", "oc"):
+        docs = seccion.get(idioma) or []
+        for doc in docs:
+            if doc.get("id") and doc.get("hash"):
+                return {
+                    "id": doc["id"],
+                    "hash": doc["hash"],
+                    "titol": doc.get("titol", ""),
+                    "mida": doc.get("mida"),
+                    "idioma": doc.get("idioma", idioma),
+                    "campo_origen": campo,
+                }
+    return None
 
-    Cada documento tiene `id`, `hash`, `titol`, `mida` (tamaño en bytes),
-    `idioma`. Probamos catalán primero, castellano como fallback dentro
-    del mismo campo.
+
+def _extraer_docs_para_motor(json_data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Lista de documentos a consumir por el motor: PCAP siempre + PPT si existe.
+
+    Orden: PCAP primero (es la fuente principal de señales), PPT después
+    (complementario). El worker concatena el texto extraído en este orden
+    antes de pasarlo a Claude para mantener trazabilidad de qué afirmación
+    viene de qué documento.
     """
     dades = json_data.get("publicacio", {}).get("dadesPublicacio", {})
-    for field in PLIEGO_FIELDS_PRIORITY:
-        seccion = dades.get(field) or {}
-        # Estructura: { "ca": [...], "es": [...], "en": [...], "oc": [...] }
-        for idioma in ("ca", "es", "en", "oc"):
-            docs = seccion.get(idioma) or []
-            for doc in docs:
-                if doc.get("id") and doc.get("hash"):
-                    return {
-                        "id": doc["id"],
-                        "hash": doc["hash"],
-                        "titol": doc.get("titol", ""),
-                        "mida": doc.get("mida"),
-                        "idioma": doc.get("idioma", idioma),
-                        "campo_origen": field,
-                    }
-    return None
+    docs: list[dict[str, Any]] = []
+
+    pcap = _primer_doc_de_seccion(dades.get(PLIEGO_CORE_FIELD), PLIEGO_CORE_FIELD)
+    if pcap is not None:
+        docs.append(pcap)
+
+    for campo in PLIEGO_COMPLEMENTARY_FIELDS:
+        ppt = _primer_doc_de_seccion(dades.get(campo), campo)
+        if ppt is None:
+            continue
+        # Guard de tamaño — PPT en obras grandes son proyectos técnicos
+        # con planos que disparan coste sin aportar al motor.
+        mida = ppt.get("mida")
+        if mida and mida > MAX_PPT_BYTES:
+            logger.info(
+                "PPT skipped por tamaño: %s (%s bytes > %s)",
+                ppt.get("titol"), mida, MAX_PPT_BYTES,
+            )
+            continue
+        docs.append(ppt)
+
+    return docs
 
 
 def construir_url_descarga(doc_id: int | str, doc_hash: str) -> str:
@@ -106,19 +147,21 @@ def construir_url_descarga(doc_id: int | str, doc_hash: str) -> str:
     return f"{PORTAL_API}/descarrega-document/{doc_id}/{doc_hash}"
 
 
-async def descubrir_pdf_pliego_url(
+async def descubrir_documentos_pliego(
     db: AsyncSession,
     licitacion_id: UUID,
-) -> dict[str, Any]:
-    """Resuelve la URL pública directa del PCAP/PPT de una licitación.
+) -> list[dict[str, Any]]:
+    """Resuelve la lista de documentos del pliego para análisis: PCAP + (PPT si existe).
 
     Returns:
-        dict con keys: `url`, `titol`, `mida`, `idioma`, `campo_origen`.
+        Lista de dicts con keys: `url`, `titol`, `mida`, `idioma`, `campo_origen`.
+        El primer elemento siempre es el PCAP. El PPT (si existe) viene segundo.
 
     Raises:
         PscpDocumentNotFoundError: si la licitación no tiene url_placsp,
-            si el JSON del expediente no tiene pliegos accesibles, o si
-            la URL PSCP no encaja con el patrón esperado.
+            si el JSON del expediente no tiene PCAP accesible, o si la URL
+            PSCP no encaja con el patrón esperado. La ausencia de PPT NO
+            es error — se devuelve solo el PCAP.
     """
     lic = (
         await db.execute(select(Licitacion).where(Licitacion.id == licitacion_id))
@@ -140,26 +183,34 @@ async def descubrir_pdf_pliego_url(
             f"PSCP devolvió {e.response.status_code} para num={num}"
         ) from e
 
-    doc = _extraer_doc_principal(data)
-    if doc is None:
+    docs = _extraer_docs_para_motor(data)
+    if not docs:
         raise PscpDocumentNotFoundError(
-            f"Expediente PSCP num={num} no expone pliego (PCAP/PPT) descargable"
+            f"Expediente PSCP num={num} no expone PCAP descargable"
         )
 
-    url = construir_url_descarga(doc["id"], doc["hash"])
-    logger.info(
-        "PSCP discover OK licitacion=%s num=%s doc=%s mida=%s campo=%s url=%s",
-        licitacion_id,
-        num,
-        doc["titol"],
-        doc.get("mida"),
-        doc["campo_origen"],
-        url,
-    )
-    return {
-        "url": url,
-        "titol": doc["titol"],
-        "mida": doc.get("mida"),
-        "idioma": doc.get("idioma"),
-        "campo_origen": doc["campo_origen"],
-    }
+    out = []
+    for doc in docs:
+        url = construir_url_descarga(doc["id"], doc["hash"])
+        out.append({
+            "url": url,
+            "titol": doc["titol"],
+            "mida": doc.get("mida"),
+            "idioma": doc.get("idioma"),
+            "campo_origen": doc["campo_origen"],
+        })
+        logger.info(
+            "PSCP discover licitacion=%s num=%s doc=%s mida=%s campo=%s",
+            licitacion_id, num, doc["titol"], doc.get("mida"), doc["campo_origen"],
+        )
+    return out
+
+
+# Wrapper backward-compat — devuelve solo el primero (PCAP). Lo mantengo
+# por si algún caller externo aún lo usa, pero internamente ya no se llama.
+async def descubrir_pdf_pliego_url(
+    db: AsyncSession,
+    licitacion_id: UUID,
+) -> dict[str, Any]:
+    docs = await descubrir_documentos_pliego(db, licitacion_id)
+    return docs[0]

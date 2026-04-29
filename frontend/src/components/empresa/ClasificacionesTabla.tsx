@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -16,6 +16,7 @@ import {
   type ClasificacionRolece,
   type ClasificacionUpdate,
 } from "@/lib/api/clasificaciones";
+import type { ClasificacionRelic } from "@/lib/api/relic";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 import {
   CATALOGO_JCCPE,
@@ -23,6 +24,34 @@ import {
   getSubgrupos,
   getNombreSubgrupo,
 } from "@/lib/jccpe";
+
+function clavesClasificacion(
+  grupo: string,
+  subgrupo: string | null,
+  categoria: string | number | null,
+): string {
+  const g = (grupo ?? "").toUpperCase();
+  const s = (subgrupo ?? "").toString();
+  const c = categoria == null ? "" : String(categoria);
+  return `${g}|${s}|${c}`;
+}
+
+function FuenteBadges({ manual, relic }: { manual: boolean; relic: boolean }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {manual && (
+        <span className="inline-flex items-center rounded-full bg-foreground/[0.06] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-foreground/70 ring-1 ring-inset ring-foreground/10">
+          Manual
+        </span>
+      )}
+      {relic && (
+        <span className="inline-flex items-center rounded-full bg-info/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-info ring-1 ring-inset ring-info/20">
+          RELIC
+        </span>
+      )}
+    </div>
+  );
+}
 
 // ─── Estado de caducidad ──────────────────────────────────────────────────────
 
@@ -149,7 +178,7 @@ function EditRow({
 
   return (
     <tr className={`bg-muted/60 ${animate ? "animate-fade-in" : ""}`}>
-      <td colSpan={7} className="px-4 py-3">
+      <td colSpan={8} className="px-4 py-3">
         {/* Fila 1: Grupo · Subgrupo · Categoría */}
         <div className="grid grid-cols-3 gap-3 mb-3">
           <div>
@@ -270,9 +299,23 @@ export interface ClasificacionesTablaHandle {
 
 export const ClasificacionesTabla = forwardRef<
   ClasificacionesTablaHandle,
-  { clasificaciones: ClasificacionRolece[] }
->(function ClasificacionesTablaInner({ clasificaciones }, ref) {
+  {
+    clasificaciones: ClasificacionRolece[];
+    relicClasificaciones?: ClasificacionRelic[];
+  }
+>(function ClasificacionesTablaInner(
+  { clasificaciones, relicClasificaciones = [] },
+  ref,
+) {
   const qc = useQueryClient();
+
+  const relicKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of relicClasificaciones) {
+      set.add(clavesClasificacion(r.grupo, r.subgrupo, r.categoria));
+    }
+    return set;
+  }, [relicClasificaciones]);
 
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
   const [form, setForm] = useState<RowForm>(emptyForm);
@@ -366,6 +409,7 @@ export const ClasificacionesTabla = forwardRef<
             <th className={thCls}>Grupo</th>
             <th className={thCls}>Subgrupo</th>
             <th className={thCls}>Categoría</th>
+            <th className={thCls}>Fuente</th>
             <th className={thCls}>Obtenida</th>
             <th className={thCls}>Caduca</th>
             <th className={thCls}>Estado</th>
@@ -417,6 +461,16 @@ export const ClasificacionesTabla = forwardRef<
                 {/* Categoría */}
                 <td className={`${tdCls} tabular-nums`}>
                   {c.categoria}
+                </td>
+
+                {/* Fuente */}
+                <td className={tdCls}>
+                  <FuenteBadges
+                    manual
+                    relic={relicKeys.has(
+                      clavesClasificacion(c.grupo, c.subgrupo, c.categoria),
+                    )}
+                  />
                 </td>
 
                 {/* Fechas */}
@@ -476,10 +530,10 @@ export const ClasificacionesTabla = forwardRef<
           {clasificaciones.length === 0 && editingId !== "new" && (
             <tr>
               <td
-                colSpan={7}
+                colSpan={8}
                 className="px-4 py-10 text-center text-sm text-muted-foreground"
               >
-                No hay clasificaciones registradas. Añade la primera.
+                No has añadido clasificaciones manuales todavía.
               </td>
             </tr>
           )}

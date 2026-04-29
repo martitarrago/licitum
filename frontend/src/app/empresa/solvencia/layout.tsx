@@ -31,8 +31,10 @@ export default function SolvenciaLayout({
           solvencia
         </h1>
         <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-          Qué has hecho y cuánto facturas. Filtro hard del motor de match
-          (clasificación + volumen) y bloque IV del DEUC.
+          Qué has hecho y qué acreditas: certificados de obra y clasificaciones
+          (manuales + RELIC). Alimenta el filtro hard del motor (clasificación)
+          y el bloque IV del DEUC. El volumen de negocio se declara en
+          Identidad.
         </p>
       </header>
 

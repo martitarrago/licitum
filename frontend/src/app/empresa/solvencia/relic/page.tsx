@@ -21,10 +21,11 @@ export default function RelicPage() {
   return (
     <>
       <p className="mb-8 max-w-2xl text-sm text-muted-foreground">
-        Sincronización con el Registre Electrònic d&apos;Empreses Licitadores
-        i Classificades de Catalunya. Si tu empresa está inscrita, conéctala
-        aquí: ahorra 30-60 minutos en cada Sobre A y mantiene tus
-        clasificaciones siempre al día.
+        Sincronización <strong>automática</strong> con el Registre Electrònic
+        d&apos;Empreses Licitadores i Classificades de Catalunya. Si tu empresa
+        está inscrita, conéctala aquí: ahorra 30-60 minutos en cada Sobre A y
+        mantiene tus clasificaciones siempre al día. Las clasificaciones
+        introducidas a mano viven en la pestaña Clasificaciones.
       </p>
 
       {isLoading ? (
@@ -170,8 +171,12 @@ function Conectado({
           <div className="mb-4 flex items-end justify-between">
             <div>
               <h2 className="font-display text-xl font-bold tracking-tight">
-                Clasificaciones empresariales
+                Sincronización · clasificaciones recibidas
               </h2>
+              <p className="mt-1 max-w-xl text-xs text-muted-foreground">
+                Vista de auditoría tras el último sync. Para gestionarlas junto
+                con tus manuales, ve a la pestaña Clasificaciones.
+              </p>
             </div>
             <p className="text-xs tabular-nums text-muted-foreground">
               {relic.clasificaciones_relic.length} grupos vigentes

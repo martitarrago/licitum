@@ -76,10 +76,10 @@ export function SolvenciaResumen() {
         <div className="flex-1 rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm px-5 py-4">
           <div className="flex items-center gap-1.5">
             <p className="text-[11px] font-medium text-muted-foreground">
-              Anualidad media
+              Anualidad media de obra
             </p>
             <span
-              title="Importe medio anual de obra certificada en los últimos 5 años (LCSP art. 88). Determina el tamaño máximo de licitación a la que puedes optar."
+              title="Importe medio anual de OBRA EJECUTADA según tus certificados de los últimos 5 años (LCSP art. 88, solvencia técnica). No confundir con el volumen de negocio anual de tus cuentas — eso es solvencia económica (art. 87) y se declara en Identidad."
               className="text-muted-foreground/70 hover:text-muted-foreground cursor-help"
             >
               <Info className="h-3 w-3" />
@@ -89,17 +89,17 @@ export function SolvenciaResumen() {
             {eur.format(Number(data.anualidad_media))}
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            últimos 5 años
+            obra ejecutada · últimos 5 años
           </p>
         </div>
 
         <div className="flex-1 rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm px-5 py-4">
           <div className="flex items-center gap-1.5">
             <p className="text-[11px] font-medium text-muted-foreground">
-              Año pico
+              Año pico de obra
             </p>
             <span
-              title="Importe ejecutado en el mejor año del quinquenio (LCSP art. 88.1.a). Muchos pliegos usan esta cifra en lugar de la media."
+              title="Importe de OBRA EJECUTADA en tu mejor año del quinquenio (LCSP art. 88.1.a). Muchos pliegos usan esta cifra en lugar de la media."
               className="text-muted-foreground/70 hover:text-muted-foreground cursor-help"
             >
               <Info className="h-3 w-3" />
@@ -135,7 +135,7 @@ export function SolvenciaResumen() {
       {data.por_grupo.length > 0 && (
         <div className="rounded-2xl bg-surface-raised ring-1 ring-border shadow-sm px-5 py-4">
           <p className="mb-3 text-[11px] font-medium text-muted-foreground">
-            Desglose por grupo ROLECE
+            Obra ejecutada por grupo
           </p>
           <div className="space-y-2.5">
             {data.por_grupo.map((g, idx) => {

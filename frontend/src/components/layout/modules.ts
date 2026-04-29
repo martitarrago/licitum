@@ -97,6 +97,14 @@ export const MODULE_GROUPS: ModuleGroup[] = [
     label: "Mi empresa",
     modules: [
       {
+        id: "empresa-resumen",
+        code: "",
+        label: "Resumen",
+        href: "/empresa",
+        icon: LayoutDashboard,
+        available: true,
+      },
+      {
         id: "identidad",
         code: "",
         label: "Identidad",

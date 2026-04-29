@@ -7,26 +7,28 @@ export default function SolvenciaResumenPage() {
   return (
     <div className="space-y-8">
       <section>
-        <p className="eyebrow mb-2">Solvencia técnica calculada</p>
+        <p className="eyebrow mb-2">Solvencia técnica · LCSP art. 88</p>
         <h2 className="font-serif text-lg font-medium">
-          Anualidad media derivada de tus certificados
+          Obra ejecutada por año (calculada con tus certificados)
         </h2>
         <p className="mt-2 mb-6 max-w-2xl text-sm text-muted-foreground">
-          KPIs calculados con tus certificados validados de los últimos
-          5 años. Es lo que acreditas sin más papeleo en cualquier pliego
-          que pida solvencia técnica por anualidad media (LCSP art. 88).
+          Importe medio de obra que has ejecutado al año en los últimos
+          5 años, calculado a partir de tus certificados validados. Es la
+          cifra que acreditas en pliegos que piden solvencia técnica por
+          anualidad media de obra similar.
         </p>
         <SolvenciaResumen />
       </section>
 
       <section className="rounded-2xl bg-surface-raised p-6 ring-1 ring-border">
-        <p className="eyebrow">Solvencia económica declarada</p>
+        <p className="eyebrow">Solvencia económica · LCSP art. 87</p>
         <h2 className="font-serif text-lg font-medium">
-          Volumen anual de los últimos tres ejercicios
+          Volumen anual de negocio (cuentas anuales)
         </h2>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Esto NO se calcula con los certificados de obra: es la facturación
-          total de cuentas anuales. Se introduce en{" "}
+          Es tu <strong>facturación total</strong> declarada en cuentas
+          anuales — no se calcula con certificados de obra. Se introduce a
+          mano en{" "}
           <Link
             href="/empresa/perfil"
             className="font-medium text-foreground underline-offset-2 hover:underline"

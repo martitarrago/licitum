@@ -554,11 +554,11 @@ function BloqueSolvencia({ d }: { d: PliegoExtracted }) {
     <Bloque eyebrow="Requisitos" titulo="Solvencia exigida">
       <Row label="Clasificación" value={clasif ?? "No exige"} />
       <Row
-        label="Volumen anual mínimo"
+        label="Vol. anual de negocio mínimo (econ. art. 87)"
         value={fmtEur(d.solvencia_economica_volumen_anual)}
       />
       <Row
-        label="Obras similares — importe"
+        label="Obras similares — importe (téc. art. 88)"
         value={fmtEur(d.solvencia_tecnica_obras_similares_importe)}
       />
       <Row

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Loader2, Save } from "lucide-react";
+import { CheckCircle2, ChevronRight, Loader2, Save } from "lucide-react";
 import {
   empresaApi,
   TAMANO_PYME_LABELS,
@@ -13,6 +13,7 @@ import {
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 import { CustomSelect } from "@/components/ui/CustomSelect";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { PROVINCIAS } from "@/lib/api/preferencias";
 
 const QUERY_KEY = ["empresa", EMPRESA_DEMO_ID] as const;
 
@@ -32,6 +33,7 @@ type FormState = {
   direccion_codigo_postal: string;
   direccion_ciudad: string;
   direccion_provincia: string;
+  direccion_provincia_codigo: string;
   direccion_pais: string;
   representante_nombre: string;
   representante_nif: string;
@@ -59,6 +61,7 @@ const empty: FormState = {
   direccion_codigo_postal: "",
   direccion_ciudad: "",
   direccion_provincia: "",
+  direccion_provincia_codigo: "",
   direccion_pais: "ES",
   representante_nombre: "",
   representante_nif: "",
@@ -87,6 +90,7 @@ function fromEmpresa(e: Empresa): FormState {
     direccion_codigo_postal: e.direccion_codigo_postal ?? "",
     direccion_ciudad: e.direccion_ciudad ?? "",
     direccion_provincia: e.direccion_provincia ?? "",
+    direccion_provincia_codigo: e.direccion_provincia_codigo ?? "",
     direccion_pais: e.direccion_pais ?? "ES",
     representante_nombre: e.representante_nombre ?? "",
     representante_nif: e.representante_nif ?? "",
@@ -155,6 +159,11 @@ function toPatch(form: FormState, original: Empresa): EmpresaPatch {
     "direccion_provincia",
     form.direccion_provincia,
     original.direccion_provincia,
+  );
+  setStr(
+    "direccion_provincia_codigo",
+    form.direccion_provincia_codigo,
+    original.direccion_provincia_codigo,
   );
   setStr("direccion_pais", form.direccion_pais, original.direccion_pais);
   setStr(
@@ -243,16 +252,43 @@ export default function PerfilPage() {
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  const idenFilled = countFilled([
+    form.nombre,
+    form.cif,
+    form.email,
+    form.telefono,
+    form.iae,
+    form.cnae,
+    form.tamano_pyme,
+  ]);
+  const dirFilled = countFilled([
+    form.direccion_calle,
+    form.direccion_codigo_postal,
+    form.direccion_ciudad,
+    form.direccion_provincia,
+    form.direccion_pais,
+  ]);
+  const repFilled = countFilled([
+    form.representante_nombre,
+    form.representante_nif,
+    form.representante_cargo,
+    form.poder_notario,
+    form.poder_fecha_escritura,
+    form.poder_protocolo,
+    form.poder_registro_mercantil,
+  ]);
+  const ssFilled = countFilled([form.ccc_seguridad_social]);
+  const solvFilled = countFilled([
+    form.volumen_negocio_n,
+    form.volumen_negocio_n1,
+    form.volumen_negocio_n2,
+    form.plantilla_media,
+  ]);
+
   return (
     <form onSubmit={submit} className="mx-auto w-full max-w-3xl">
-      <p className="mb-8 max-w-2xl text-sm text-muted-foreground">
-        Datos identificativos, dirección, representante legal y volumen de
-        negocio. Alimentan el DEUC del Sobre A y la solvencia económica
-        declarada en cada licitación.
-      </p>
-
-      <div className="space-y-8">
-        <Section title="Identificación">
+      <div className="space-y-4">
+        <Section title="Identificación" filled={idenFilled} total={7}>
           <Field label="Razón social" required>
             <Input value={form.nombre} onChange={(v) => set("nombre", v)} />
           </Field>
@@ -294,7 +330,7 @@ export default function PerfilPage() {
           </Two>
         </Section>
 
-        <Section title="Dirección">
+        <Section title="Dirección" filled={dirFilled} total={5}>
           <Field label="Calle y número">
             <Input
               value={form.direccion_calle}
@@ -316,9 +352,20 @@ export default function PerfilPage() {
               />
             </Field>
             <Field label="Provincia">
-              <Input
-                value={form.direccion_provincia}
-                onChange={(v) => set("direccion_provincia", v)}
+              <CustomSelect
+                value={form.direccion_provincia_codigo}
+                options={[
+                  { value: "", label: "Selecciona…" },
+                  ...PROVINCIAS.map((p) => ({ value: p.codigo, label: p.nombre })),
+                ]}
+                onChange={(codigo) => {
+                  const found = PROVINCIAS.find((p) => p.codigo === codigo);
+                  setForm((f) => ({
+                    ...f,
+                    direccion_provincia_codigo: codigo,
+                    direccion_provincia: found?.nombre ?? "",
+                  }));
+                }}
               />
             </Field>
           </div>
@@ -334,8 +381,10 @@ export default function PerfilPage() {
         </Section>
 
         <Section
-          title="Representante legal"
-          help="La persona física que firma en nombre de la empresa (apoderado/a)."
+          title="Representante legal y poder"
+          help="La persona física que firma en nombre de la empresa (apoderado/a) y la escritura notarial que la apodera. Va literal en el DEUC del Sobre A (Parte II.B)."
+          filled={repFilled}
+          total={7}
         >
           <Field label="Nombre completo">
             <Input
@@ -358,12 +407,6 @@ export default function PerfilPage() {
               />
             </Field>
           </Two>
-        </Section>
-
-        <Section
-          title="Datos del poder"
-          help="Escritura notarial que apodera al representante. Va literal en el DEUC del Sobre A (Parte II.B)."
-        >
           <Two>
             <Field label="Notario otorgante">
               <Input
@@ -400,6 +443,9 @@ export default function PerfilPage() {
         <Section
           title="Seguridad Social"
           help="Código de cuenta de cotización principal. Algunos pliegos lo piden en la documentación administrativa."
+          defaultOpen={false}
+          filled={ssFilled}
+          total={1}
         >
           <Field label="CCC principal">
             <Input
@@ -412,25 +458,28 @@ export default function PerfilPage() {
         </Section>
 
         <Section
-          title="Solvencia económica"
-          help="Volumen anual de negocio (tres últimos ejercicios) y plantilla media. Acredita solvencia económica/técnica en pliegos sin clasificación obligatoria."
+          title="Solvencia económica · LCSP art. 87"
+          help="Volumen ANUAL DE NEGOCIO de las cuentas anuales (tres últimos ejercicios). Es tu facturación total — distinto de la anualidad media de obra ejecutada que se calcula desde tus certificados. Los pliegos suelen exigir vol. anual ≥ 1,5× presupuesto base."
+          defaultOpen={false}
+          filled={solvFilled}
+          total={4}
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Field label="Año actual (€)">
+            <Field label="Volumen de negocio · año actual (€)">
               <Input
                 value={form.volumen_negocio_n}
                 onChange={(v) => set("volumen_negocio_n", v)}
                 mono
               />
             </Field>
-            <Field label="Año anterior (€)">
+            <Field label="Volumen de negocio · año anterior (€)">
               <Input
                 value={form.volumen_negocio_n1}
                 onChange={(v) => set("volumen_negocio_n1", v)}
                 mono
               />
             </Field>
-            <Field label="Hace dos años (€)">
+            <Field label="Volumen de negocio · hace 2 años (€)">
               <Input
                 value={form.volumen_negocio_n2}
                 onChange={(v) => set("volumen_negocio_n2", v)}
@@ -490,20 +539,66 @@ export default function PerfilPage() {
 
 // ─── Helpers de UI ──────────────────────────────────────────────────────────
 
+function countFilled(values: Array<string | null | undefined>): number {
+  return values.filter((v) => v != null && String(v).trim() !== "").length;
+}
+
 function Section({
   title,
   help,
   children,
+  defaultOpen = true,
+  filled,
+  total,
 }: {
   title: string;
   help?: string;
   children: React.ReactNode;
+  defaultOpen?: boolean;
+  filled?: number;
+  total?: number;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const pct =
+    typeof filled === "number" && typeof total === "number" && total > 0
+      ? Math.round((filled / total) * 100)
+      : null;
+  const dotColor =
+    pct == null
+      ? "bg-muted-foreground/40"
+      : pct >= 80
+        ? "bg-success"
+        : pct >= 40
+          ? "bg-warning"
+          : "bg-muted-foreground/50";
+
   return (
-    <section className="rounded-2xl bg-surface-raised p-6 ring-1 ring-border">
-      <h2 className="font-serif text-lg font-medium">{title}</h2>
-      {help && <p className="mt-1 text-xs text-muted-foreground">{help}</p>}
-      <div className="mt-5 space-y-4">{children}</div>
+    <section className="overflow-hidden rounded-2xl bg-surface-raised ring-1 ring-border">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-6 py-4 text-left transition-colors hover:bg-muted/30"
+      >
+        <ChevronRight
+          className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
+          strokeWidth={2}
+          aria-hidden="true"
+        />
+        <h2 className="flex-1 font-serif text-lg font-medium">{title}</h2>
+        {pct !== null && (
+          <span className="flex shrink-0 items-center gap-2 text-xs tabular-nums text-muted-foreground">
+            <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} aria-hidden="true" />
+            {pct}%
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="border-t border-border px-6 pb-6 pt-5">
+          {help && <p className="-mt-1 mb-5 text-xs text-muted-foreground">{help}</p>}
+          <div className="space-y-4">{children}</div>
+        </div>
+      )}
     </section>
   );
 }

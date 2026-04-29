@@ -1,31 +1,107 @@
 "use client";
 
-const KPIS: { label: string; valor: string; nota: string }[] = [
-  { label: "Personal técnico", valor: "—", nota: "jefes obra · encargados · PRL · técnicos" },
-  { label: "Maquinaria", valor: "—", nota: "equipos propios · leasing · alquiler" },
-  { label: "Sistemas de gestión", valor: "—", nota: "ISOs · planes propios · CAE" },
-  { label: "Obras destacadas", valor: "—", nota: "subset narrado para Sobre B" },
-];
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowRight } from "lucide-react";
+import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { personalApi } from "@/lib/api/personal";
+import { maquinariaApi } from "@/lib/api/maquinaria";
+import { sistemasGestionApi } from "@/lib/api/sistemas_gestion";
+import { certificadosApi } from "@/lib/api/certificados";
+
+interface KpiSpec {
+  label: string;
+  nota: string;
+  href: string;
+  count: number | null;
+  loading: boolean;
+}
+
+function Kpi({ k }: { k: KpiSpec }) {
+  const empty = !k.loading && (k.count ?? 0) === 0;
+  return (
+    <Link
+      href={k.href}
+      className="card-interactive group rounded-2xl bg-surface-raised p-5 ring-1 ring-border transition-colors hover:bg-surface"
+    >
+      <p className="eyebrow">{k.label}</p>
+      <div className="mt-2 flex items-baseline gap-2">
+        {k.loading ? (
+          <span className="display-num inline-block h-9 w-12 animate-pulse rounded bg-muted" />
+        ) : (
+          <span className="display-num text-3xl tabular-nums">{k.count ?? 0}</span>
+        )}
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">{k.nota}</p>
+      <p className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-foreground/80 transition-colors group-hover:text-foreground">
+        {empty ? "Añadir el primero" : "Ver y editar"}
+        <ArrowRight className="h-3 w-3" strokeWidth={2.5} />
+      </p>
+    </Link>
+  );
+}
 
 export default function RecursosResumenPage() {
+  const personal = useQuery({
+    queryKey: ["personal", EMPRESA_DEMO_ID],
+    queryFn: () => personalApi.list(EMPRESA_DEMO_ID),
+  });
+  const maquinaria = useQuery({
+    queryKey: ["maquinaria", EMPRESA_DEMO_ID],
+    queryFn: () => maquinariaApi.list(EMPRESA_DEMO_ID),
+  });
+  const sistemas = useQuery({
+    queryKey: ["sistemas-gestion", EMPRESA_DEMO_ID],
+    queryFn: () => sistemasGestionApi.list(EMPRESA_DEMO_ID),
+  });
+  const obrasDestacadas = useQuery({
+    queryKey: ["certificados-destacados", EMPRESA_DEMO_ID],
+    queryFn: () => certificadosApi.list({ empresa_id: EMPRESA_DEMO_ID }),
+    select: (items) => items.filter((c) => c.destacado_sobre_b).length,
+  });
+
+  const kpis: KpiSpec[] = [
+    {
+      label: "Personal técnico",
+      nota: "jefes obra · encargados · PRL · técnicos",
+      href: "/empresa/recursos/personal",
+      count: personal.data?.length ?? null,
+      loading: personal.isLoading,
+    },
+    {
+      label: "Maquinaria",
+      nota: "equipos propios · leasing · alquiler",
+      href: "/empresa/recursos/maquinaria",
+      count: maquinaria.data?.length ?? null,
+      loading: maquinaria.isLoading,
+    },
+    {
+      label: "Sistemas de gestión",
+      nota: "ISOs · planes propios · CAE",
+      href: "/empresa/recursos/sistemas",
+      count: sistemas.data?.length ?? null,
+      loading: sistemas.isLoading,
+    },
+    {
+      label: "Obras destacadas",
+      nota: "subset narrado para Sobre B",
+      href: "/empresa/recursos/obras-destacadas",
+      count: obrasDestacadas.data ?? null,
+      loading: obrasDestacadas.isLoading,
+    },
+  ];
+
   return (
     <div className="space-y-8">
       <p className="max-w-2xl text-sm text-muted-foreground">
-        Backend en producción tras migración 0018. La UI de cada bloque
-        empieza a poblarse en sprint 4 — junto con los pilotos catalanes
-        que validen granularidad de personal y maquinaria.
+        Equipo, maquinaria y sistemas de gestión que adscribes a obra. Es lo que
+        habilitará la generación automática de la memoria técnica del Sobre B
+        (M5, próximamente).
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {KPIS.map((k) => (
-          <div
-            key={k.label}
-            className="rounded-2xl bg-surface-raised p-5 ring-1 ring-border"
-          >
-            <p className="eyebrow">{k.label}</p>
-            <p className="display-num mt-2 text-3xl">{k.valor}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{k.nota}</p>
-          </div>
+        {kpis.map((k) => (
+          <Kpi key={k.label} k={k} />
         ))}
       </div>
     </div>

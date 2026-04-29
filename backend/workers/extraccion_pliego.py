@@ -324,21 +324,25 @@ def extraer_pliego_desde_pscp(self, licitacion_id: str) -> None:
 
 
 async def _ejecutar_desde_pscp(licitacion_id: UUID) -> None:
-    """Descubre el PCAP/PPT en PSCP y delega al pipeline de extracción.
+    """Descubre PCAP (+ PPT si existe) en PSCP y ejecuta extracción concatenada.
 
-    Cierra el bucle del Phase 2 B1: cuando termina la extracción, el cron
-    de scoring (B2) re-scoreará automáticamente al detectar la nueva fila
-    en `licitacion_analisis_ia` con estado=completado.
+    Phase 2 B1.1: PCAP siempre + PPT (Plec Tècnic) opcional concatenado en una
+    sola llamada Claude. El PPT en obras públicas suele incluir criterios
+    técnicos puntuables y solvencia técnica detallada que el PCAP referencia.
+
+    Cierra el bucle del Phase 2 B1: cuando termina, el cron de scoring (B2)
+    re-scoreará automáticamente al detectar la fila completada.
     """
     from app.services.pscp_attachment_downloader import (
         PscpDocumentNotFoundError,
-        descubrir_pdf_pliego_url,
+        descubrir_documentos_pliego,
     )
 
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
     session_factory = async_sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
     )
+    docs_info: list[dict] = []
     try:
         async with session_factory() as session:
             # Upsert análisis pendiente
@@ -357,13 +361,12 @@ async def _ejecutar_desde_pscp(licitacion_id: UUID) -> None:
                 await session.commit()
                 await session.refresh(analisis)
 
-            # Descubrir URL PSCP del PCAP/PPT
+            # Descubrir docs PSCP (PCAP + PPT si existe)
             try:
-                doc_info = await descubrir_pdf_pliego_url(session, licitacion_id)
+                docs_info = await descubrir_documentos_pliego(session, licitacion_id)
             except PscpDocumentNotFoundError as e:
-                # Marcamos como fallido con prefijo distintivo que el frontend
-                # puede detectar para mostrar el estado "documento no disponible"
-                # sin necesidad de migrar el enum (Phase 2 mvp).
+                # Estado fallido con prefijo DOCUMENTO_NO_DISPONIBLE: que el
+                # frontend distingue del fallido genérico (mvp sin migrar enum).
                 analisis.estado = EstadoAnalisisPliego.fallido
                 analisis.error_mensaje = f"DOCUMENTO_NO_DISPONIBLE: {e}"
                 await session.commit()
@@ -373,8 +376,9 @@ async def _ejecutar_desde_pscp(licitacion_id: UUID) -> None:
                 )
                 return
 
-            # URL descubierta — escribir en pdf_url y delegar al pipeline existente
-            analisis.pdf_url = doc_info["url"]
+            # `pdf_url` apunta al PCAP — la UI lo usa para enlazar al PDF
+            # original. Los PDFs adicionales (PPT) se descargan en runtime.
+            analisis.pdf_url = docs_info[0]["url"]
             analisis.estado = EstadoAnalisisPliego.pendiente
             analisis.error_mensaje = None
             await session.commit()
@@ -382,12 +386,17 @@ async def _ejecutar_desde_pscp(licitacion_id: UUID) -> None:
     finally:
         await engine.dispose()
 
-    # Llamar al pipeline existente de forma síncrona (mismo proceso, sin
-    # encolar otra tarea Celery — más simple y evita race con M2 trigger).
-    await _ejecutar(licitacion_id)
+    # Ejecutar extracción con todas las URLs descubiertas (concatena texto)
+    urls_extra = [d["url"] for d in docs_info[1:]]  # PPT y siguientes
+    titulos = [d["titol"] for d in docs_info]
+    await _ejecutar(licitacion_id, urls_extra=urls_extra, titulos_concatenados=titulos)
 
 
-async def _ejecutar(licitacion_id: UUID) -> None:
+async def _ejecutar(
+    licitacion_id: UUID,
+    urls_extra: list[str] | None = None,
+    titulos_concatenados: list[str] | None = None,
+) -> None:
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
     session_factory = async_sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
@@ -416,14 +425,34 @@ async def _ejecutar(licitacion_id: UUID) -> None:
 
             error_msg: str | None = None
             try:
-                pdf_bytes = _descargar_pdf(analisis.pdf_url)
-                texto = _extraer_texto(pdf_bytes)
+                # B1.1: si hay urls_extra (PPT u otros), descargar todos y
+                # concatenar texto en orden con marcadores de sección.
+                # El PCAP es siempre primero (analisis.pdf_url).
+                urls_to_fetch: list[str] = [analisis.pdf_url]
+                if urls_extra:
+                    urls_to_fetch.extend(urls_extra)
+                titulos = titulos_concatenados or []
+
+                fragments: list[str] = []
+                for idx, url in enumerate(urls_to_fetch):
+                    pdf_bytes = _descargar_pdf(url)
+                    text_doc = _extraer_texto(pdf_bytes)
+                    titulo = (
+                        titulos[idx] if idx < len(titulos)
+                        else f"DOCUMENTO {idx + 1}"
+                    )
+                    marker = (
+                        "=== INICIO PCAP (Plec Cláusulas Administratives) ==="
+                        if idx == 0
+                        else f"=== INICIO {titulo} ==="
+                    )
+                    fragments.append(f"{marker}\n{text_doc}\n=== FIN {titulo} ===")
+
+                texto = "\n\n".join(fragments)
                 if len(texto) > MAX_TEXT_CHARS:
                     logger.warning(
-                        "Pliego %s: texto truncado de %d a %d chars",
-                        licitacion_id,
-                        len(texto),
-                        MAX_TEXT_CHARS,
+                        "Pliego %s: texto truncado de %d a %d chars (%d docs)",
+                        licitacion_id, len(texto), MAX_TEXT_CHARS, len(urls_to_fetch),
                     )
                     texto = texto[:MAX_TEXT_CHARS]
                 datos = await _extraer_con_claude(texto)
