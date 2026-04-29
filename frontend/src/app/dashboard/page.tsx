@@ -3,17 +3,12 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
-  certificadosApi,
-  type ResumenSolvencia,
-} from "@/lib/api/certificados";
-import {
   licitacionesApi,
   type LicitacionRead,
 } from "@/lib/api/licitaciones";
 import {
   documentosApi,
   TIPO_DOCUMENTO_LABELS,
-  type DocumentoEmpresa,
   type ResumenSaludDocumental,
 } from "@/lib/api/documentos";
 import {
@@ -24,8 +19,22 @@ import {
   type TrackerFeedItem,
   type TrackerResumen,
 } from "@/lib/api/tracker";
+import { empresaApi, type Empresa } from "@/lib/api/empresa";
 import { LicitacionRow } from "@/components/ui/LicitacionRow";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
+
+// ─── Paleta "centros de mando" ──────────────────────────────────────────────
+// 5 acentos de color para los widgets del panel. Negro mantiene títulos,
+// métricas grandes y body. Cada card usa SU color en: border-top stripe,
+// eyebrow, micro-dots, y a lo sumo un elemento principal tintado.
+
+const C = {
+  matches: "#638ccc",   // azul acero — match excelente (continuidad tier azul Radar)
+  next: "#ca5670",      // carmesí — soft-urgency, next steps
+  pipeline: "#ab62c0",  // púrpura — pipeline en movimiento
+  health: "#72a555",    // verde oliva — salud documental
+  plan: "#c57c3c",      // ocre — plan / cuota
+} as const;
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -39,7 +48,6 @@ const eurCompact = new Intl.NumberFormat("es-ES", {
 const fechaCorta = new Intl.DateTimeFormat("es-ES", {
   day: "numeric",
   month: "short",
-  year: "numeric",
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -76,7 +84,6 @@ function parseLicitacion(l: LicitacionRead) {
   };
 }
 
-// Pipeline activo — orden visual: estados con plazo legal abierto primero.
 const ACTIVE_STATES: EstadoTracker[] = [
   "en_subsanacion",
   "documentacion_previa",
@@ -84,24 +91,10 @@ const ACTIVE_STATES: EstadoTracker[] = [
   "presentada",
 ];
 
-// Tailwind no soporta clases dinámicas por concatenación — mapping estático.
-const STATE_BAR_CLASS: Partial<Record<EstadoTracker, string>> = {
-  en_subsanacion: "bg-danger",
-  documentacion_previa: "bg-danger",
-  en_preparacion: "bg-foreground/85",
-  presentada: "bg-foreground/45",
-};
-
 // ─── Página ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const now = new Date();
-
-  const solvencia = useQuery({
-    queryKey: ["resumen-solvencia"],
-    queryFn: () => certificadosApi.resumenSolvencia(EMPRESA_DEMO_ID),
-    staleTime: 60_000,
-  });
 
   const tracker = useQuery({
     queryKey: ["dashboard-tracker-resumen"],
@@ -115,31 +108,20 @@ export default function DashboardPage() {
     staleTime: 60_000,
   });
 
-  const cierran = useQuery({
-    queryKey: ["dashboard-cierran-pronto"],
-    queryFn: () =>
-      licitacionesApi.list({
-        semaforo: "verde",
-        plazo_min_dias: 0,
-        plazo_max_dias: 14,
-        page_size: 5,
-      }),
+  const empresa = useQuery({
+    queryKey: ["dashboard-empresa"],
+    queryFn: () => empresaApi.get(EMPRESA_DEMO_ID),
     staleTime: 60_000,
   });
 
-  const nuevas = useQuery({
-    queryKey: ["dashboard-nuevas"],
+  const matches = useQuery({
+    queryKey: ["dashboard-matches-azules"],
     queryFn: () =>
       licitacionesApi.list({
-        semaforo: "verde",
+        min_score: 80,
+        order_by: "score",
         page_size: 5,
       }),
-    staleTime: 60_000,
-  });
-
-  const verdes = useQuery({
-    queryKey: ["dashboard-verdes"],
-    queryFn: () => licitacionesApi.list({ semaforo: "verde", page_size: 1 }),
     staleTime: 60_000,
   });
 
@@ -158,206 +140,62 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-12 sm:px-10">
       {/* HERO */}
-      <header className="mb-10 animate-fade-up">
+      <header className="mb-8 animate-fade-up">
         <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">
           {saludo(now)}.
         </h1>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
-          Lo que requiere tu atención hoy, antes que cualquier otra cosa.
+        <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted-foreground">
+          Tu empresa de un vistazo.
         </p>
       </header>
 
-      {/* 1 ── PLAZOS CRÍTICOS al frente — grita cuando hay vencimientos próximos */}
-      <PlazosCriticos data={tracker.data} loading={tracker.isLoading} />
+      {/* FRANJA ROJA SLIM — sólo aparece si hay vencimientos críticos */}
+      <FranjaPlazos data={tracker.data} loading={tracker.isLoading} />
 
-      {/* 2 ── PIPELINE HEROÍNA — KPI principal con visualización */}
-      <PipelineHeroina
-        items={pipelineActivo.data}
-        loading={pipelineActivo.isLoading}
-      />
+      {/* GRID — 2 cols arriba, 1 wide en medio, 2 cols abajo */}
+      <div className="stagger grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Top-left — Nuevos matches */}
+        <NuevosMatchesCard
+          loading={matches.isLoading}
+          items={matches.data?.items ?? []}
+          total={matches.data?.total ?? 0}
+        />
 
-      {/* 3 ── KPIs DE SOPORTE — contexto secundario */}
-      <section
-        aria-label="Indicadores de soporte"
-        className="stagger mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3"
-      >
-        <KpiSolvencia data={solvencia.data} loading={solvencia.isLoading} />
-        <KpiOportunidades
-          verde={verdes.data?.total ?? 0}
-          loading={verdes.isLoading}
+        {/* Top-right — Next steps */}
+        <NextStepsCard
+          tracker={tracker.data}
+          docs={saludDocs.data}
+          empresa={empresa.data}
+          loading={
+            tracker.isLoading || saludDocs.isLoading || empresa.isLoading
+          }
         />
-        <KpiSaludDocumental data={saludDocs.data} loading={saludDocs.isLoading} />
-      </section>
 
-      {/* 4 ── DOS LISTAS */}
-      <section className="mb-10 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ListaLicitaciones
-          titulo="Cierran esta semana"
-          ctaHref="/radar?semaforo=verde&plazo_max_dias=14"
-          ctaLabel="Ver todas"
-          loading={cierran.isLoading}
-          items={cierran.data?.items ?? []}
-          emptyMsg="No tienes licitaciones verdes con cierre próximo."
-        />
-        <ListaLicitaciones
-          titulo="Nuevas oportunidades"
-          ctaHref="/radar?semaforo=verde"
-          ctaLabel="Ir al Radar"
-          loading={nuevas.isLoading}
-          items={nuevas.data?.items ?? []}
-          emptyMsg="Aún no hay licitaciones compatibles. Pulsa «Actualizar» en el Radar."
-        />
-      </section>
+        {/* Middle — Seguimiento en vivo (full width) */}
+        <div className="lg:col-span-2">
+          <SeguimientoEnVivoCard
+            items={pipelineActivo.data}
+            loading={pipelineActivo.isLoading}
+          />
+        </div>
 
-      {/* 5 ── VENCIMIENTOS DOCUMENTALES — accionable: pedir renovación a tiempo */}
-      <section aria-label="Próximos vencimientos documentales">
-        <VencimientosDocumentales
-          data={saludDocs.data}
-          loading={saludDocs.isLoading}
+        {/* Bottom-left — Salud documental + datos perfil */}
+        <SaludEmpresaCard
+          docs={saludDocs.data}
+          empresa={empresa.data}
+          loading={saludDocs.isLoading || empresa.isLoading}
         />
-      </section>
+
+        {/* Bottom-right — Plan / cuota (hardcoded) */}
+        <PlanCuotaCard now={now} />
+      </div>
     </div>
   );
 }
 
-// ─── KPI: Solvencia ─────────────────────────────────────────────────────────
+// ─── Franja roja slim — vencimientos críticos esta semana ───────────────────
 
-function KpiSolvencia({
-  data,
-  loading,
-}: {
-  data: ResumenSolvencia | undefined;
-  loading: boolean;
-}) {
-  if (loading) return <KpiSkeleton />;
-
-  const tieneObras = (data?.total_obras ?? 0) > 0;
-  const anualidad = Number(data?.anualidad_media ?? 0);
-  const pico = Number(data?.anualidad_pico ?? 0);
-
-  return (
-    <KpiTile
-      label="Solvencia anual"
-      tooltip="Anualidad media de obra certificada (LCSP art. 88). Determina el techo de licitación al que puedes optar."
-    >
-      {tieneObras ? (
-        <>
-          <p className="display-num text-[2.75rem] leading-none text-foreground">
-            {eurCompact.format(anualidad)}
-          </p>
-          <p className="mt-3 text-xs tabular-nums text-muted-foreground">
-            Pico {eurCompact.format(pico)}
-            {data?.anio_pico ? ` · ${data.anio_pico}` : ""}
-          </p>
-        </>
-      ) : (
-        <KpiEmpty
-          number="—"
-          ctaLabel="Subir certificados"
-          ctaHref="/empresa/solvencia/certificados"
-        />
-      )}
-    </KpiTile>
-  );
-}
-
-// ─── KPI: Oportunidades ─────────────────────────────────────────────────────
-
-function KpiOportunidades({
-  verde,
-  loading,
-}: {
-  verde: number;
-  loading: boolean;
-}) {
-  if (loading) return <KpiSkeleton />;
-
-  return (
-    <KpiTile
-      label="Oportunidades"
-      tooltip="Licitaciones del Radar para las que cumples solvencia (verde) y siguen abiertas."
-    >
-      <p className="display-num text-[2.75rem] leading-none text-foreground">
-        {verde}
-      </p>
-      <p className="mt-3 text-xs tabular-nums text-muted-foreground">
-        {verde === 0
-          ? "ninguna abierta"
-          : `verde${verde === 1 ? "" : "s"} en el Radar`}
-      </p>
-      {verde > 0 && (
-        <Link
-          href="/radar?semaforo=verde"
-          className="mt-3 inline-block text-xs font-medium text-foreground/80 underline-offset-4 transition-colors hover:text-foreground hover:underline"
-        >
-          Ver Radar →
-        </Link>
-      )}
-    </KpiTile>
-  );
-}
-
-// ─── KPI: Salud documental (M2) ─────────────────────────────────────────────
-
-function KpiSaludDocumental({
-  data,
-  loading,
-}: {
-  data: ResumenSaludDocumental | undefined;
-  loading: boolean;
-}) {
-  if (loading) return <KpiSkeleton />;
-  const total = data?.total ?? 0;
-  const vigentes = data?.vigentes ?? 0;
-  const aCaducar = data?.a_caducar ?? 0;
-  const caducados = data?.caducados ?? 0;
-  const noVigentes = aCaducar + caducados;
-  const pct = total === 0 ? null : Math.round((vigentes / total) * 100);
-
-  return (
-    <KpiTile
-      label="Salud documental"
-      tooltip="Porcentaje de documentos administrativos al día (Hacienda, SS, pólizas, ISOs). Cuando ganas adjudicación tienes 10 días hábiles para presentarlos."
-    >
-      {total === 0 ? (
-        <KpiEmpty
-          number="—"
-          ctaLabel="Añadir documentos"
-          ctaHref="/empresa/documentos"
-        />
-      ) : (
-        <>
-          <p className="display-num text-[2.75rem] leading-none text-foreground">
-            {pct}%
-          </p>
-          <p className="mt-3 text-xs tabular-nums text-muted-foreground">
-            {vigentes} vigente{vigentes === 1 ? "" : "s"} de {total}
-          </p>
-          {noVigentes > 0 && (
-            <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
-              <span className="flex items-center gap-1.5 font-semibold text-danger">
-                <span
-                  className="h-1.5 w-1.5 rounded-full bg-danger"
-                  aria-hidden="true"
-                />
-                {noVigentes} requier{noVigentes === 1 ? "e" : "en"} acción
-              </span>
-              {caducados > 0 && (
-                <span className="text-muted-foreground">
-                  · {caducados} caducad{caducados === 1 ? "o" : "os"}
-                </span>
-              )}
-            </p>
-          )}
-        </>
-      )}
-    </KpiTile>
-  );
-}
-
-// ─── Plazos críticos ────────────────────────────────────────────────────────
-
-function PlazosCriticos({
+function FranjaPlazos({
   data,
   loading,
 }: {
@@ -365,98 +203,339 @@ function PlazosCriticos({
   loading: boolean;
 }) {
   if (loading) {
-    return (
-      <section className="mb-8">
-        <div className="skeleton h-24 rounded-2xl" />
-      </section>
-    );
+    return <div className="skeleton mb-6 h-9 rounded-lg" />;
   }
-
   const items = data?.deadlines_semana ?? [];
+  if (items.length === 0) return null;
 
-  // Empty: línea slim con dot verde — no roba protagonismo.
-  if (items.length === 0) {
-    return (
-      <section className="mb-10 flex items-center gap-2.5 border-y border-border/60 px-1 py-3">
+  const detalle = items
+    .slice(0, 2)
+    .map(
+      (i) =>
+        `${ESTADO_LABELS[i.estado as EstadoTracker] ?? i.estado} · ${
+          i.titulo ?? "(sin título)"
+        }`,
+    )
+    .join(" · ");
+
+  return (
+    <Link
+      href="/tracker"
+      className="mb-6 flex items-center justify-between gap-4 rounded-lg border-l-[3px] border-danger bg-danger/5 px-4 py-2.5 text-sm transition-colors hover:bg-danger/10"
+    >
+      <div className="flex min-w-0 items-center gap-2.5">
         <span
-          className="h-1.5 w-1.5 rounded-full bg-success"
+          className="h-1.5 w-1.5 shrink-0 rounded-full bg-danger"
           aria-hidden="true"
         />
-        <p className="text-sm text-muted-foreground">
-          Estás al día.{" "}
-          <span className="text-foreground">Sin vencimientos esta semana.</span>
-        </p>
-      </section>
-    );
-  }
-
-  // Active: card con borde rojo izquierdo. Grita.
-  return (
-    <section className="mb-10 animate-fade-up">
-      <article className="overflow-hidden rounded-2xl border-l-[3px] border-danger bg-surface-raised shadow-card ring-1 ring-border">
-        <header className="flex items-baseline justify-between gap-4 border-b border-border px-6 py-4">
-          <div className="flex items-baseline gap-3">
-            <span
-              className="h-2 w-2 translate-y-[-2px] rounded-full bg-danger"
-              aria-hidden="true"
-            />
-            <h2 className="font-display text-base font-bold tracking-tight text-danger">
-              {items.length} plazo{items.length === 1 ? "" : "s"} vence
-              {items.length === 1 ? "" : "n"} esta semana
-            </h2>
-          </div>
-          <Link
-            href="/tracker"
-            className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-          >
-            Ver seguimiento →
-          </Link>
-        </header>
-        <ul className="divide-y divide-border">
-          {items.slice(0, 4).map((item) => {
-            const dias = diasHasta(item.deadline_actual);
-            return (
-              <li key={item.id}>
-                <Link
-                  href={`/radar/${encodeURIComponent(item.expediente)}`}
-                  className="flex items-center justify-between gap-4 px-6 py-3.5 transition-colors hover:bg-muted/30"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-1 text-sm font-medium leading-snug">
-                      {item.titulo ?? "(sin título)"}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {ESTADO_LABELS[item.estado as EstadoTracker] ??
-                        item.estado}
-                      {item.organismo ? ` · ${item.organismo}` : ""}
-                    </p>
-                  </div>
-                  <DeadlinePill dias={dias} />
-                </Link>
-              </li>
-            );
-          })}
-          {items.length > 4 && (
-            <li className="border-t border-border bg-muted/20 px-6 py-2.5 text-center">
-              <Link
-                href="/tracker"
-                className="text-[11px] font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-              >
-                +{items.length - 4} más en seguimiento →
-              </Link>
-            </li>
-          )}
-        </ul>
-      </article>
-    </section>
+        <span className="font-semibold text-danger">
+          {items.length} plazo{items.length === 1 ? "" : "s"} esta semana
+        </span>
+        <span className="hidden truncate text-muted-foreground sm:inline">
+          — {detalle}
+          {items.length > 2 ? ` · +${items.length - 2}` : ""}
+        </span>
+      </div>
+      <span className="shrink-0 text-xs font-medium text-danger">Ver →</span>
+    </Link>
   );
 }
 
-function DeadlinePill({ dias }: { dias: number | null }) {
+// ─── Card primitive con stripe de color ─────────────────────────────────────
+
+function CommandCard({
+  color,
+  eyebrow,
+  title,
+  cta,
+  ctaHref,
+  children,
+  className = "",
+}: {
+  color: string;
+  eyebrow: string;
+  title: string;
+  cta?: string;
+  ctaHref?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <article
+      className={`card overflow-hidden border-t-[3px] ${className}`}
+      style={{ borderTopColor: color }}
+    >
+      <div className="p-6">
+        <header className="mb-5 flex items-baseline justify-between gap-4">
+          <div>
+            <p
+              className="text-[11px] font-semibold uppercase tracking-[0.08em]"
+              style={{ color }}
+            >
+              {eyebrow}
+            </p>
+            <h2 className="mt-1.5 font-display text-xl font-bold leading-tight tracking-tight">
+              {title}
+            </h2>
+          </div>
+          {cta && ctaHref && (
+            <Link
+              href={ctaHref}
+              className="shrink-0 text-xs font-semibold underline-offset-4 transition-all hover:underline"
+              style={{ color }}
+            >
+              {cta} →
+            </Link>
+          )}
+        </header>
+        {children}
+      </div>
+    </article>
+  );
+}
+
+// ─── Nuevos matches para tu empresa (azul acero) ────────────────────────────
+
+function NuevosMatchesCard({
+  loading,
+  items,
+  total,
+}: {
+  loading: boolean;
+  items: LicitacionRead[];
+  total: number;
+}) {
+  return (
+    <CommandCard
+      color={C.matches}
+      eyebrow="Nuevos matches para tu empresa"
+      title="Excelentes para ti"
+      cta={total > 0 ? "Ver todos" : undefined}
+      ctaHref={total > 0 ? "/radar?min_score=80" : undefined}
+    >
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <RowSkeleton key={i} />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <EmptyState
+          message="Aún no hay matches azules. Pulsa «Actualizar» en el Radar."
+          ctaLabel="Ir al Radar"
+          ctaHref="/radar"
+          color={C.matches}
+        />
+      ) : (
+        <>
+          <div className="mb-3 flex items-baseline gap-2">
+            <span
+              className="display-num text-3xl leading-none"
+              style={{ color: C.matches }}
+            >
+              {total}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {total === 1 ? "oportunidad" : "oportunidades"} con score ≥ 80
+            </span>
+          </div>
+          <div className="space-y-1.5">
+            {items.slice(0, 4).map((l) => {
+              const p = parseLicitacion(l);
+              return (
+                <Link
+                  key={p.id}
+                  href={`/radar/${encodeURIComponent(p.expediente)}`}
+                  className="block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
+                >
+                  <LicitacionRow
+                    titulo={p.titulo}
+                    organismo={p.organismo}
+                    importe={p.importe}
+                    fechaLimite={p.fechaLimite}
+                    semaforo={p.semaforo}
+                    afinidad={p.afinidad}
+                  />
+                </Link>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </CommandCard>
+  );
+}
+
+// ─── Next steps (carmesí) ───────────────────────────────────────────────────
+
+type NextStep = {
+  id: string;
+  kind: "deadline" | "doc" | "profile";
+  title: string;
+  detail: string;
+  href: string;
+  dias: number | null;
+};
+
+function camposPerfilFaltantes(e: Empresa): string[] {
+  const missing: string[] = [];
+  if (!e.cif) missing.push("CIF");
+  if (!e.ccc_seguridad_social) missing.push("CCC Seguridad Social");
+  if (!e.representante_nombre || !e.representante_nif)
+    missing.push("Representante legal");
+  if (!e.iae) missing.push("IAE");
+  if (!e.cnae) missing.push("CNAE");
+  if (!e.direccion_calle) missing.push("Dirección");
+  if (!e.volumen_negocio_n) missing.push("Volumen de negocio");
+  if (!e.plantilla_media) missing.push("Plantilla media");
+  return missing;
+}
+
+const TOTAL_CAMPOS_CRITICOS = 8;
+
+function synthesizeNextSteps(
+  tracker: TrackerResumen | undefined,
+  docs: ResumenSaludDocumental | undefined,
+  empresa: Empresa | undefined,
+): NextStep[] {
+  const steps: NextStep[] = [];
+
+  for (const item of tracker?.deadlines_semana ?? []) {
+    const dias = diasHasta(item.deadline_actual);
+    const estadoLabel =
+      ESTADO_LABELS[item.estado as EstadoTracker] ?? item.estado;
+    const reloj = ESTADOS_RELOJ_LEGAL.has(item.estado as EstadoTracker);
+    steps.push({
+      id: `t-${item.id}`,
+      kind: "deadline",
+      title: reloj
+        ? `${estadoLabel}: presenta a tiempo`
+        : `${estadoLabel}: revisa plazo`,
+      detail: item.titulo ?? "(sin título)",
+      href: `/radar/${encodeURIComponent(item.expediente)}`,
+      dias,
+    });
+  }
+
+  for (const doc of docs?.proximos_a_caducar ?? []) {
+    const tipoLabel = TIPO_DOCUMENTO_LABELS[doc.tipo];
+    const dias = doc.dias_a_caducidad;
+    steps.push({
+      id: `d-${doc.id}`,
+      kind: "doc",
+      title:
+        dias != null && dias < 0
+          ? `Renueva ${tipoLabel} (caducó)`
+          : `Renueva ${tipoLabel}`,
+      detail: doc.titulo ?? "Documento administrativo",
+      href: "/empresa/documentos",
+      dias,
+    });
+  }
+
+  if (empresa) {
+    const missing = camposPerfilFaltantes(empresa);
+    if (missing.length > 0) {
+      steps.push({
+        id: "p-missing",
+        kind: "profile",
+        title: `Completa ${missing.length} dato${
+          missing.length === 1 ? "" : "s"
+        } de tu empresa`,
+        detail:
+          missing.slice(0, 2).join(" · ") + (missing.length > 2 ? "…" : ""),
+        href: "/empresa/perfil",
+        dias: null,
+      });
+    }
+  }
+
+  // Orden: vencidos primero (negativos), luego por urgencia, perfil al final.
+  const score = (s: NextStep) => (s.dias == null ? 1000 : s.dias);
+  steps.sort((a, b) => score(a) - score(b));
+
+  return steps.slice(0, 5);
+}
+
+function NextStepsCard({
+  tracker,
+  docs,
+  empresa,
+  loading,
+}: {
+  tracker: TrackerResumen | undefined;
+  docs: ResumenSaludDocumental | undefined;
+  empresa: Empresa | undefined;
+  loading: boolean;
+}) {
+  const steps = synthesizeNextSteps(tracker, docs, empresa);
+
+  return (
+    <CommandCard
+      color={C.next}
+      eyebrow="Next steps"
+      title="Lo siguiente que toca"
+    >
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="skeleton h-12 rounded-lg" />
+          ))}
+        </div>
+      ) : steps.length === 0 ? (
+        <p className="flex items-center gap-2 px-1 py-6 text-sm text-muted-foreground">
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: C.health }}
+            aria-hidden="true"
+          />
+          Estás al día. Sin acciones urgentes.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {steps.map((s) => (
+            <li key={s.id}>
+              <Link
+                href={s.href}
+                className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/40"
+              >
+                <div className="flex min-w-0 items-start gap-2.5">
+                  <span
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: C.next }}
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium leading-snug">
+                      {s.title}
+                    </p>
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                      {s.detail}
+                    </p>
+                  </div>
+                </div>
+                <NextStepPill dias={s.dias} kind={s.kind} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </CommandCard>
+  );
+}
+
+function NextStepPill({
+  dias,
+  kind,
+}: {
+  dias: number | null;
+  kind: NextStep["kind"];
+}) {
   if (dias == null) {
+    const label = kind === "profile" ? "perfil" : "—";
     return (
-      <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
-        sin plazo
+      <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground">
+        {label}
       </span>
     );
   }
@@ -468,25 +547,37 @@ function DeadlinePill({ dias }: { dias: number | null }) {
         : dias === 1
           ? "mañana"
           : `${dias} d`;
-  // Sin amber: ≤2d sólido rojo, ≤7d soft red, resto neutro.
-  const cls =
-    dias <= 2
-      ? "bg-danger text-surface"
-      : dias <= 7
-        ? "bg-danger/10 text-danger"
-        : "bg-muted text-muted-foreground";
+  // ≤2d sólido carmesí, ≤7d soft tint, resto neutro.
+  if (dias <= 2) {
+    return (
+      <span
+        className="shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold tabular-nums text-white"
+        style={{ backgroundColor: C.next }}
+      >
+        {label}
+      </span>
+    );
+  }
+  if (dias <= 7) {
+    return (
+      <span
+        className="shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold tabular-nums"
+        style={{ backgroundColor: `${C.next}1a`, color: C.next }}
+      >
+        {label}
+      </span>
+    );
+  }
   return (
-    <span
-      className={`shrink-0 rounded-md px-2.5 py-1 text-[11px] font-semibold tabular-nums ${cls}`}
-    >
+    <span className="shrink-0 rounded-md bg-muted px-2.5 py-1 text-[11px] font-semibold tabular-nums text-muted-foreground">
       {label}
     </span>
   );
 }
 
-// ─── Pipeline heroína ───────────────────────────────────────────────────────
+// ─── Seguimiento en vivo (púrpura) ──────────────────────────────────────────
 
-function PipelineHeroina({
+function SeguimientoEnVivoCard({
   items,
   loading,
 }: {
@@ -495,28 +586,23 @@ function PipelineHeroina({
 }) {
   if (loading) {
     return (
-      <section className="mb-10">
-        <div className="card p-8">
-          <div className="skeleton h-3 w-32 rounded" />
-          <div className="mt-7 grid grid-cols-1 gap-10 lg:grid-cols-[auto_1fr] lg:gap-12">
-            <div className="space-y-3">
-              <div className="skeleton h-20 w-32 rounded" />
-              <div className="skeleton h-3 w-40 rounded" />
-            </div>
-            <div className="space-y-5">
-              <div className="skeleton h-3 rounded-full" />
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="space-y-1.5">
-                    <div className="skeleton h-2.5 w-16 rounded" />
-                    <div className="skeleton h-6 w-8 rounded" />
-                  </div>
-                ))}
-              </div>
+      <CommandCard
+        color={C.pipeline}
+        eyebrow="Seguimiento en vivo"
+        title="En marcha ahora"
+      >
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[auto_1fr] lg:gap-12">
+          <div className="skeleton h-20 w-32 rounded" />
+          <div className="space-y-4">
+            <div className="skeleton h-3 rounded-full" />
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="skeleton h-10 rounded" />
+              ))}
             </div>
           </div>
         </div>
-      </section>
+      </CommandCard>
     );
   }
 
@@ -527,80 +613,59 @@ function PipelineHeroina({
     },
     {} as Record<EstadoTracker, number>,
   );
-
   for (const item of items ?? []) {
     const e = item.estado as EstadoTracker;
     if (e in counts) counts[e] += 1;
   }
-
   const total = ACTIVE_STATES.reduce((acc, s) => acc + counts[s], 0);
 
   if (total === 0) {
     return (
-      <section className="mb-10 animate-fade-up">
-        <article className="card p-8">
-          <header className="mb-4 flex items-baseline justify-between gap-4">
-            <h2 className="font-display text-2xl font-bold tracking-tight">
-              Aún no hay licitaciones en marcha.
-            </h2>
-            <Link
-              href="/tracker"
-              className="text-sm font-semibold text-[#f56930] underline-offset-4 transition-all hover:underline"
-            >
-              Ver tracker →
-            </Link>
-          </header>
-          <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Desde el{" "}
-            <Link
-              href="/radar"
-              className="font-medium text-foreground underline-offset-4 hover:underline"
-            >
-              Radar
-            </Link>
-            , abre una oportunidad y pulsa{" "}
-            <strong className="font-semibold text-foreground">
-              añadir al seguimiento
-            </strong>{" "}
-            para verla aquí.
-          </p>
-        </article>
-      </section>
+      <CommandCard
+        color={C.pipeline}
+        eyebrow="Seguimiento en vivo"
+        title="Aún no hay licitaciones en marcha"
+        cta="Ir al Radar"
+        ctaHref="/radar"
+      >
+        <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
+          Desde el Radar, abre una oportunidad y pulsa{" "}
+          <strong className="font-semibold text-foreground">
+            añadir al seguimiento
+          </strong>{" "}
+          para verla aquí.
+        </p>
+      </CommandCard>
     );
   }
 
   return (
-    <section className="mb-10 animate-fade-up">
-      <article className="card p-8">
-        <header className="mb-7 flex items-baseline justify-between gap-4">
-          <p className="eyebrow">En seguimiento</p>
-          <Link
-            href="/tracker"
-            className="text-sm font-semibold text-[#f56930] underline-offset-4 transition-all hover:underline"
+    <CommandCard
+      color={C.pipeline}
+      eyebrow="Seguimiento en vivo"
+      title="En marcha ahora"
+      cta="Ver seguimiento"
+      ctaHref="/tracker"
+    >
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[auto_1fr] lg:items-center lg:gap-14">
+        <div>
+          <p
+            className="display-num text-[4.5rem] leading-[0.9] sm:text-[5.5rem]"
+            style={{ color: C.pipeline }}
           >
-            Ver tracker →
-          </Link>
-        </header>
-
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[auto_1fr] lg:items-center lg:gap-14">
-          {/* Columna izquierda — número heroína */}
-          <div>
-            <p className="display-num text-[5.5rem] leading-[0.9] text-foreground sm:text-[6.5rem]">
-              {total}
-            </p>
-            <p className="mt-3 text-sm text-muted-foreground">
-              licitaci{total === 1 ? "ón" : "ones"} en marcha
-            </p>
-          </div>
-
-          {/* Columna derecha — bar + legend */}
-          <div>
-            <PipelineBar counts={counts} total={total} />
-            <PipelineLegend counts={counts} />
-          </div>
+            {total}
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            licitaci{total === 1 ? "ón" : "ones"} en marcha
+          </p>
         </div>
-      </article>
-    </section>
+
+        <div>
+          <PipelineBar counts={counts} total={total} />
+          <PipelineLegend counts={counts} />
+        </div>
+      </div>
+    </CommandCard>
   );
 }
 
@@ -611,6 +676,11 @@ function PipelineBar({
   counts: Record<EstadoTracker, number>;
   total: number;
 }) {
+  const colorFor = (estado: EstadoTracker): string => {
+    if (ESTADOS_RELOJ_LEGAL.has(estado)) return "#DC2626"; // danger — plazo legal
+    if (estado === "en_preparacion") return C.pipeline;
+    return `${C.pipeline}80`; // pipeline tint para "presentada"
+  };
   return (
     <div
       className="flex h-3 w-full overflow-hidden rounded-full bg-muted shadow-inset-soft"
@@ -624,8 +694,8 @@ function PipelineBar({
         return (
           <div
             key={estado}
-            className={`h-full transition-all duration-700 ease-out-soft ${STATE_BAR_CLASS[estado] ?? "bg-foreground/40"}`}
-            style={{ width: `${pct}%` }}
+            className="h-full transition-all duration-700 ease-out-soft"
+            style={{ width: `${pct}%`, backgroundColor: colorFor(estado) }}
             title={`${ESTADO_LABELS[estado]}: ${value}`}
           />
         );
@@ -640,22 +710,25 @@ function PipelineLegend({
   counts: Record<EstadoTracker, number>;
 }) {
   return (
-    <ul className="mt-7 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+    <ul className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
       {ACTIVE_STATES.map((estado) => {
         const value = counts[estado];
         const reloj = ESTADOS_RELOJ_LEGAL.has(estado);
         const tieneItems = value > 0;
+        const dotColor = reloj
+          ? "#DC2626"
+          : tieneItems
+            ? C.pipeline
+            : "transparent";
+        const numColor = reloj && tieneItems ? "#DC2626" : "inherit";
         return (
           <li key={estado}>
             <div className="flex items-center gap-1.5">
               <span
                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                  reloj
-                    ? "bg-danger"
-                    : tieneItems
-                      ? "bg-foreground/55"
-                      : "bg-border"
+                  !tieneItems && !reloj ? "ring-1 ring-border" : ""
                 }`}
+                style={{ backgroundColor: dotColor }}
                 aria-hidden="true"
               />
               <p
@@ -670,12 +743,9 @@ function PipelineLegend({
             </div>
             <p
               className={`mt-1 font-display text-2xl font-bold tabular-nums tracking-tight ${
-                reloj && tieneItems
-                  ? "text-danger"
-                  : tieneItems
-                    ? "text-foreground"
-                    : "text-muted-foreground/40"
+                tieneItems ? "" : "text-muted-foreground/40"
               }`}
+              style={tieneItems ? { color: numColor } : undefined}
             >
               {value}
             </p>
@@ -686,128 +756,228 @@ function PipelineLegend({
   );
 }
 
-// ─── KPI primitives ─────────────────────────────────────────────────────────
+// ─── Salud documental + datos perfil (verde oliva) ──────────────────────────
 
-function KpiTile({
+function SaludEmpresaCard({
+  docs,
+  empresa,
+  loading,
+}: {
+  docs: ResumenSaludDocumental | undefined;
+  empresa: Empresa | undefined;
+  loading: boolean;
+}) {
+  const total = docs?.total ?? 0;
+  const vigentes = docs?.vigentes ?? 0;
+  const aCaducar = docs?.a_caducar ?? 0;
+  const caducados = docs?.caducados ?? 0;
+  const pctDocs = total === 0 ? 0 : Math.round((vigentes / total) * 100);
+
+  const camposFaltantes = empresa ? camposPerfilFaltantes(empresa) : [];
+  const camposCompletos = TOTAL_CAMPOS_CRITICOS - camposFaltantes.length;
+  const pctPerfil = Math.round(
+    (camposCompletos / TOTAL_CAMPOS_CRITICOS) * 100,
+  );
+
+  return (
+    <CommandCard
+      color={C.health}
+      eyebrow="Salud documental"
+      title="Tu empresa preparada"
+      cta="Ver detalle"
+      ctaHref="/empresa/documentos"
+    >
+      {loading ? (
+        <div className="space-y-3">
+          <div className="skeleton h-16 rounded" />
+          <div className="skeleton h-16 rounded" />
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {/* Documentos */}
+          <SaludRow
+            label="Documentos vigentes"
+            pct={total === 0 ? null : pctDocs}
+            detail={
+              total === 0
+                ? "Aún no has añadido documentos"
+                : `${vigentes} de ${total}${
+                    aCaducar + caducados > 0
+                      ? ` · ${aCaducar + caducados} requieren acción`
+                      : ""
+                  }`
+            }
+            color={C.health}
+            href="/empresa/documentos"
+            ctaEmpty={total === 0 ? "Añadir documentos" : undefined}
+          />
+
+          {/* Datos de empresa */}
+          <SaludRow
+            label="Perfil completo"
+            pct={pctPerfil}
+            detail={
+              camposFaltantes.length === 0
+                ? "Todos los datos críticos están completos"
+                : `Faltan: ${camposFaltantes.slice(0, 3).join(" · ")}${
+                    camposFaltantes.length > 3 ? "…" : ""
+                  }`
+            }
+            color={C.health}
+            href="/empresa/perfil"
+            ctaEmpty={
+              camposFaltantes.length > 0 ? "Completar perfil" : undefined
+            }
+          />
+        </div>
+      )}
+    </CommandCard>
+  );
+}
+
+function SaludRow({
   label,
-  tooltip,
-  children,
+  pct,
+  detail,
+  color,
+  href,
+  ctaEmpty,
 }: {
   label: string;
-  tooltip?: string;
-  children: React.ReactNode;
+  pct: number | null;
+  detail: string;
+  color: string;
+  href: string;
+  ctaEmpty?: string;
 }) {
   return (
-    <div className="card p-6 transition-all duration-200 ease-out-soft hover:-translate-y-px hover:shadow-card-hover">
-      <p className="eyebrow" title={tooltip}>
-        {label}
-      </p>
-      <div className="mt-5">{children}</div>
+    <div>
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <p
+          className="display-num text-2xl leading-none"
+          style={{ color: pct == null ? undefined : color }}
+        >
+          {pct == null ? "—" : `${pct}%`}
+        </p>
+      </div>
+      {pct != null && (
+        <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full transition-all duration-700 ease-out-soft"
+            style={{ width: `${pct}%`, backgroundColor: color }}
+          />
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span className="truncate">{detail}</span>
+        {ctaEmpty && (
+          <Link
+            href={href}
+            className="shrink-0 font-semibold underline-offset-4 hover:underline"
+            style={{ color }}
+          >
+            {ctaEmpty} →
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
 
-function KpiEmpty({
-  number,
+// ─── Plan / cuota mensual (ocre) — HARDCODED provisional ────────────────────
+
+function PlanCuotaCard({ now }: { now: Date }) {
+  // HARDCODED hasta tener billing real
+  const plan = "Plus";
+  const usados = 7;
+  const total = 20;
+  const restantes = total - usados;
+  const pct = Math.round((usados / total) * 100);
+
+  // Reset el día 1 del mes siguiente
+  const reset = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  return (
+    <CommandCard
+      color={C.plan}
+      eyebrow={`Plan ${plan}`}
+      title="Cuota mensual de pliegos"
+      cta="Ampliar plan"
+      ctaHref="/empresa/preferencias"
+    >
+      <div className="space-y-5">
+        <div className="flex items-baseline gap-3">
+          <p
+            className="display-num text-[3rem] leading-none"
+            style={{ color: C.plan }}
+          >
+            {restantes}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            pliego{restantes === 1 ? "" : "s"} disponible
+            {restantes === 1 ? "" : "s"} este mes
+          </p>
+        </div>
+
+        <div>
+          <div className="mb-1.5 flex items-baseline justify-between text-[11px] tabular-nums text-muted-foreground">
+            <span>
+              {usados} de {total} analizados
+            </span>
+            <span>{pct}%</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full transition-all duration-700 ease-out-soft"
+              style={{ width: `${pct}%`, backgroundColor: C.plan }}
+            />
+          </div>
+        </div>
+
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span
+            className="h-1 w-1 rounded-full"
+            style={{ backgroundColor: C.plan }}
+            aria-hidden="true"
+          />
+          Renueva el {fechaCorta.format(reset)}
+        </p>
+      </div>
+    </CommandCard>
+  );
+}
+
+// ─── Empty state primitive ──────────────────────────────────────────────────
+
+function EmptyState({
+  message,
   ctaLabel,
   ctaHref,
+  color,
 }: {
-  number: string;
+  message: string;
   ctaLabel: string;
   ctaHref: string;
+  color: string;
 }) {
   return (
-    <>
-      <p className="display-num text-[2.75rem] leading-none text-muted-foreground/40">
-        {number}
-      </p>
+    <div className="px-1 py-6">
+      <p className="text-sm text-muted-foreground">{message}</p>
       <Link
         href={ctaHref}
-        className="mt-3 inline-block text-xs font-medium text-foreground underline-offset-4 transition-colors hover:underline"
+        className="mt-2 inline-block text-xs font-semibold underline-offset-4 hover:underline"
+        style={{ color }}
       >
         {ctaLabel} →
       </Link>
-    </>
-  );
-}
-
-function KpiSkeleton() {
-  return (
-    <div className="card p-6">
-      <div className="skeleton h-3 w-20 rounded" />
-      <div className="skeleton mt-6 h-10 w-32 rounded" />
-      <div className="skeleton mt-3 h-2.5 w-24 rounded" />
     </div>
   );
 }
 
-// ─── Lista de licitaciones ──────────────────────────────────────────────────
-
-function ListaLicitaciones({
-  titulo,
-  ctaHref,
-  ctaLabel,
-  loading,
-  items,
-  emptyMsg,
-}: {
-  titulo: string;
-  ctaHref: string;
-  ctaLabel: string;
-  loading: boolean;
-  items: LicitacionRead[];
-  emptyMsg: string;
-}) {
-  return (
-    <div className="card p-6">
-      <header className="mb-5 flex items-end justify-between gap-4">
-        <h2 className="font-display text-xl font-bold leading-tight tracking-tight">
-          {titulo}
-        </h2>
-        <Link
-          href={ctaHref}
-          className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-        >
-          {ctaLabel} →
-        </Link>
-      </header>
-
-      {loading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <RowSkeleton key={i} />
-          ))}
-        </div>
-      ) : items.length === 0 ? (
-        <p className="px-1 py-8 text-center text-sm text-muted-foreground">
-          {emptyMsg}
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {items.map((l) => {
-            const p = parseLicitacion(l);
-            return (
-              <Link
-                key={p.id}
-                href={`/radar/${encodeURIComponent(p.expediente)}`}
-                className="block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
-              >
-                <LicitacionRow
-                  titulo={p.titulo}
-                  organismo={p.organismo}
-                  importe={p.importe}
-                  fechaLimite={p.fechaLimite}
-                  semaforo={p.semaforo}
-                  afinidad={p.afinidad}
-                />
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
+// ─── Skeletons ──────────────────────────────────────────────────────────────
 
 function RowSkeleton() {
   return (
@@ -822,142 +992,3 @@ function RowSkeleton() {
   );
 }
 
-// ─── Vencimientos documentales ──────────────────────────────────────────────
-
-function VencimientosDocumentales({
-  data,
-  loading,
-}: {
-  data: ResumenSaludDocumental | undefined;
-  loading: boolean;
-}) {
-  if (loading) {
-    return (
-      <div className="card p-6">
-        <div className="skeleton h-3 w-56 rounded" />
-        <div className="mt-5 space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="skeleton h-12 rounded-lg" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const total = data?.total ?? 0;
-  const items = data?.proximos_a_caducar ?? [];
-
-  // Sin documentos aún — empuja al usuario a sembrar M2.
-  if (total === 0) {
-    return (
-      <div className="card p-6">
-        <h2 className="font-display text-xl font-bold tracking-tight">
-          Próximos vencimientos documentales
-        </h2>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Aún no has añadido documentos administrativos. Súbelos desde{" "}
-          <Link
-            href="/empresa/documentos"
-            className="font-medium text-foreground underline-offset-4 hover:underline"
-          >
-            Empresa → Documentos
-          </Link>{" "}
-          para activar avisos de caducidad.
-        </p>
-      </div>
-    );
-  }
-
-  // Todo vigente — sin caducidades próximas.
-  if (items.length === 0) {
-    return (
-      <div className="card p-6">
-        <header className="mb-3 flex items-baseline justify-between gap-4">
-          <h2 className="font-display text-xl font-bold tracking-tight">
-            Próximos vencimientos documentales
-          </h2>
-          <Link
-            href="/empresa/documentos"
-            className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-          >
-            Ver todos →
-          </Link>
-        </header>
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span
-            className="h-1.5 w-1.5 rounded-full bg-success"
-            aria-hidden="true"
-          />
-          Todos al día. Sin caducidades próximas.
-        </p>
-      </div>
-    );
-  }
-
-  // Lista de documentos próximos a caducar / caducados.
-  const visibles = items.slice(0, 6);
-  const restantes = items.length - visibles.length;
-
-  return (
-    <div className="card p-6">
-      <header className="mb-5 flex items-baseline justify-between gap-4">
-        <h2 className="font-display text-xl font-bold tracking-tight">
-          Próximos vencimientos documentales
-        </h2>
-        <Link
-          href="/empresa/documentos"
-          className="text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-        >
-          Ver todos →
-        </Link>
-      </header>
-      <ul className="divide-y divide-border">
-        {visibles.map((doc) => (
-          <li key={doc.id}>
-            <DocumentoVencimientoRow doc={doc} />
-          </li>
-        ))}
-      </ul>
-      {restantes > 0 && (
-        <div className="mt-3 border-t border-border pt-3 text-center">
-          <Link
-            href="/empresa/documentos"
-            className="text-[11px] font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
-          >
-            +{restantes} más en Empresa →
-          </Link>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DocumentoVencimientoRow({ doc }: { doc: DocumentoEmpresa }) {
-  const tipoLabel = TIPO_DOCUMENTO_LABELS[doc.tipo];
-  const fecha = doc.fecha_caducidad ? new Date(doc.fecha_caducidad) : null;
-  const dias = doc.dias_a_caducidad;
-
-  return (
-    <Link
-      href="/empresa/documentos"
-      className="-mx-2 flex items-center justify-between gap-4 rounded-lg px-2 py-3 transition-colors hover:bg-muted/30"
-    >
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium leading-snug">{tipoLabel}</p>
-        {doc.titulo && (
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-            {doc.titulo}
-          </p>
-        )}
-      </div>
-      <div className="flex shrink-0 items-center gap-3">
-        {fecha && (
-          <span className="hidden text-xs tabular-nums text-muted-foreground sm:inline">
-            {fechaCorta.format(fecha)}
-          </span>
-        )}
-        <DeadlinePill dias={dias} />
-      </div>
-    </Link>
-  );
-}

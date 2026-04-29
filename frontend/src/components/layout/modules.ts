@@ -41,7 +41,7 @@ export const MODULE_GROUPS: ModuleGroup[] = [
       {
         id: "inicio",
         code: "",
-        label: "Inicio",
+        label: "Panel de control",
         href: "/dashboard",
         icon: LayoutDashboard,
         available: true,
