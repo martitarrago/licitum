@@ -306,6 +306,87 @@ def extraer_pliego(self, licitacion_id: str) -> None:
     asyncio.run(_ejecutar(UUID(licitacion_id)))
 
 
+@celery_app.task(name="workers.extraccion_pliego.extraer_pliego_desde_pscp", bind=True)
+def extraer_pliego_desde_pscp(self, licitacion_id: str) -> None:
+    """Phase 2 B1 — descubre el PCAP/PPT en PSCP y dispara la extracción.
+
+    Crea o resetea `licitacion_analisis_ia` con `pdf_url` apuntando a la URL
+    pública de descarga directa (`/portal-api/descarrega-document/{id}/{hash}`).
+    Reutiliza todo el pipeline existente — el worker `extraer_pliego` ya sabe
+    descargar de cualquier URL HTTPS pública.
+
+    Estados resultantes:
+      - documento_no_disponible: el expediente PSCP no expone PCAP/PPT
+        accesible (falta url_placsp, num inválido, JSON sin pliegos).
+      - completado / fallido: igual que upload manual.
+    """
+    asyncio.run(_ejecutar_desde_pscp(UUID(licitacion_id)))
+
+
+async def _ejecutar_desde_pscp(licitacion_id: UUID) -> None:
+    """Descubre el PCAP/PPT en PSCP y delega al pipeline de extracción.
+
+    Cierra el bucle del Phase 2 B1: cuando termina la extracción, el cron
+    de scoring (B2) re-scoreará automáticamente al detectar la nueva fila
+    en `licitacion_analisis_ia` con estado=completado.
+    """
+    from app.services.pscp_attachment_downloader import (
+        PscpDocumentNotFoundError,
+        descubrir_pdf_pliego_url,
+    )
+
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
+    )
+    try:
+        async with session_factory() as session:
+            # Upsert análisis pendiente
+            analisis = await session.scalar(
+                select(LicitacionAnalisisIA).where(
+                    LicitacionAnalisisIA.licitacion_id == licitacion_id
+                )
+            )
+            if analisis is None:
+                analisis = LicitacionAnalisisIA(
+                    licitacion_id=licitacion_id,
+                    estado=EstadoAnalisisPliego.pendiente,
+                    extracted_data={},
+                )
+                session.add(analisis)
+                await session.commit()
+                await session.refresh(analisis)
+
+            # Descubrir URL PSCP del PCAP/PPT
+            try:
+                doc_info = await descubrir_pdf_pliego_url(session, licitacion_id)
+            except PscpDocumentNotFoundError as e:
+                # Marcamos como fallido con prefijo distintivo que el frontend
+                # puede detectar para mostrar el estado "documento no disponible"
+                # sin necesidad de migrar el enum (Phase 2 mvp).
+                analisis.estado = EstadoAnalisisPliego.fallido
+                analisis.error_mensaje = f"DOCUMENTO_NO_DISPONIBLE: {e}"
+                await session.commit()
+                logger.info(
+                    "Pliego %s: documento no disponible en PSCP — %s",
+                    licitacion_id, e,
+                )
+                return
+
+            # URL descubierta — escribir en pdf_url y delegar al pipeline existente
+            analisis.pdf_url = doc_info["url"]
+            analisis.estado = EstadoAnalisisPliego.pendiente
+            analisis.error_mensaje = None
+            await session.commit()
+
+    finally:
+        await engine.dispose()
+
+    # Llamar al pipeline existente de forma síncrona (mismo proceso, sin
+    # encolar otra tarea Celery — más simple y evita race con M2 trigger).
+    await _ejecutar(licitacion_id)
+
+
 async def _ejecutar(licitacion_id: UUID) -> None:
     engine = create_async_engine(settings.database_url, poolclass=NullPool)
     session_factory = async_sessionmaker(
