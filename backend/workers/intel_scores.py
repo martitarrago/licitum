@@ -73,16 +73,29 @@ def _licitacion_to_input(lic: Licitacion) -> LicitacionInput:
 async def _has_fresh_scores(
     session: AsyncSession, empresa_id: uuid.UUID, hash_actual: str
 ) -> bool:
-    """¿Tenemos scores con este hash para la empresa? (Sample 1 fila)."""
+    """¿Todas las licitaciones abiertas tienen score con el hash actual?
+
+    Comprueba que no haya licitaciones nuevas sin score (no solo que exista
+    alguna fila con el hash), evitando que la ingesta diaria quede sin scorear.
+    """
+    # Contar licitaciones abiertas sin score para esta empresa+hash
     r = await session.execute(
-        select(func.count(LicitacionScoreEmpresa.id))
-        .where(
-            LicitacionScoreEmpresa.empresa_id == empresa_id,
-            LicitacionScoreEmpresa.empresa_context_hash == hash_actual,
-        )
-        .limit(1)
+        text(
+            """
+            SELECT COUNT(*) FROM licitaciones l
+            WHERE l.fecha_limite > now()
+              AND NOT EXISTS (
+                SELECT 1 FROM licitacion_score_empresa lse
+                WHERE lse.licitacion_id = l.id
+                  AND lse.empresa_id = :emp
+                  AND lse.empresa_context_hash = :h
+              )
+            """
+        ),
+        {"emp": empresa_id, "h": hash_actual},
     )
-    return r.scalar_one() > 0
+    unscored = r.scalar_one()
+    return unscored == 0
 
 
 async def _run_recalc_empresa(
