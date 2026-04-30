@@ -289,36 +289,37 @@ function UploadEmpty({
         <div className="mt-4 text-xs text-muted-foreground">o sube el PDF manualmente:</div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/pdf"
-          onChange={onChange}
-          className="hidden"
-          disabled={upload.isPending}
-        />
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={upload.isPending}
-          className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-surface transition-colors hover:bg-foreground/90 disabled:opacity-50"
-        >
-          {upload.isPending ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Subiendo…
-            </>
-          ) : (
-            <>
-              <FileUp className="h-4 w-4" strokeWidth={2} />
-              Subir PCAP (PDF)
-            </>
-          )}
-        </button>
-        <span className="text-xs text-muted-foreground">
-          Máx. 50 MB · solo PDF
-        </span>
-      </div>
+      {pscp_fallido && (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/pdf"
+            onChange={onChange}
+            className="hidden"
+            disabled={upload.isPending}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={upload.isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-surface transition-colors hover:bg-foreground/90 disabled:opacity-50"
+          >
+            {upload.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Subiendo…
+              </>
+            ) : (
+              <>
+                <FileUp className="h-4 w-4" strokeWidth={2} />
+                Subir PCAP (PDF)
+              </>
+            )}
+          </button>
+          <span className="text-xs text-muted-foreground">
+            Máx. 50 MB · solo PDF
+          </span>
+        </div>
       )}
 
       {error && (
