@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   ESTADO_LABELS,
-  ESTADOS_RELOJ_LEGAL,
   trackerApi,
   type EstadoTracker,
   type TrackerFeedItem,
