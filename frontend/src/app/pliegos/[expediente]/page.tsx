@@ -71,7 +71,12 @@ export default function PliegoPage({
 
   const reextract = useMutation({
     mutationFn: () => pliegosApi.reextraer(expediente),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pliego", expediente] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pliego", expediente] });
+      qc.invalidateQueries({
+        queryKey: ["pliego-recomendacion", expediente, EMPRESA_DEMO_ID],
+      });
+    },
   });
 
   const remove = useMutation({
@@ -971,7 +976,7 @@ function Acciones({
           <span>
             Confianza extracción:{" "}
             <span className="font-mono text-foreground">
-              {analisis.confianza_global}
+              {Math.round(parseFloat(analisis.confianza_global) * 100)}%
             </span>{" "}
             ·{" "}
           </span>
