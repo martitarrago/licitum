@@ -197,7 +197,9 @@ function NavItem({
               key={sub.href}
               sub={sub}
               isActive={
-                pathname === sub.href || pathname.startsWith(sub.href + "/")
+                sub.exact
+                  ? pathname === sub.href
+                  : pathname === sub.href || pathname.startsWith(sub.href + "/")
               }
             />
           ))}

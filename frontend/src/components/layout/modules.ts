@@ -15,6 +15,7 @@ import {
 export interface SubModule {
   label: string;
   href: string;
+  exact?: boolean;
 }
 
 export interface Module {
@@ -103,6 +104,7 @@ export const MODULE_GROUPS: ModuleGroup[] = [
         href: "/empresa",
         icon: LayoutDashboard,
         available: true,
+        exact: true,
       },
       {
         id: "identidad",
