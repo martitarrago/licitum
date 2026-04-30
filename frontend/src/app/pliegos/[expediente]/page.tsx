@@ -1040,8 +1040,12 @@ function fmtFecha(v: string | null | undefined): string {
 
 function diasHasta(fecha: string | null | undefined): number | null {
   if (!fecha) return null;
-  const ms = new Date(fecha).getTime() - Date.now();
-  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+  const d = new Date(fecha);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  const hoyUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const fechaUtc = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return Math.ceil((fechaUtc - hoyUtc) / (1000 * 60 * 60 * 24));
 }
 
 function fmtRelativo(value: string | null): string {

@@ -79,7 +79,7 @@ export type PliegoEstado =
   | "fallido"
   | "documento_no_disponible";
 
-export type PliegoVeredicto = "ir" | "ir_con_riesgo" | "incompleto";
+export type PliegoVeredicto = "ir" | "ir_con_riesgo" | "no_ir" | "incompleto";
 
 export interface LicitacionDetail extends LicitacionRead {
   organismo_id: string | null;

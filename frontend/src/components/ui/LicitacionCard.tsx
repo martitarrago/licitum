@@ -7,7 +7,7 @@ type PliegoEstado =
   | "fallido"
   | "documento_no_disponible";
 
-type PliegoVeredicto = "ir" | "ir_con_riesgo" | "incompleto";
+type PliegoVeredicto = "ir" | "ir_con_riesgo" | "no_ir" | "incompleto";
 
 interface LicitacionCardProps {
   titulo: string;
@@ -68,6 +68,9 @@ function pliegoBadge(
   }
   if (veredicto === "ir_con_riesgo") {
     return { glyph: "⚠", tone: "text-warning", title: "Pliego con matices a vigilar" };
+  }
+  if (veredicto === "no_ir") {
+    return { glyph: "✗", tone: "text-danger", title: "No recomendado presentarse" };
   }
   // incompleto o veredicto null
   return { glyph: "⚪", tone: "text-muted-foreground", title: "Pliego analizado parcialmente" };
