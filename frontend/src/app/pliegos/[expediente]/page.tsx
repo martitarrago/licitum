@@ -852,7 +852,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 function Literal({ texto }: { texto: string }) {
   return (
-    <blockquote className="mt-1 rounded-md bg-muted/40 px-4 py-3 font-serif text-sm leading-relaxed text-foreground/90">
+    <blockquote className="mt-1 rounded-md bg-muted/40 px-4 py-3 text-sm leading-relaxed text-foreground/90">
       &ldquo;{texto}&rdquo;
     </blockquote>
   );
