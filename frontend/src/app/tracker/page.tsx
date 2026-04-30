@@ -164,6 +164,43 @@ export default function TrackerPage() {
   );
 }
 
+// ─── Info tooltip ─────────────────────────────────────────────────────────
+
+function InfoTooltip() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative shrink-0">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Cómo funciona el seguimiento"
+        className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-surface text-[11px] font-bold text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+      >
+        i
+      </button>
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setOpen(false)}
+            aria-hidden
+          />
+          <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl bg-surface-raised p-4 shadow-elev-2 ring-1 ring-border">
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-foreground">
+              Cómo funciona
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              El seguimiento es <strong className="text-foreground">manual</strong>. Tú decides cuándo avanzar el estado de cada licitación — la app no se conecta al PSCP ni detecta cambios automáticamente.
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              Cuando el órgano notifique una apertura, una adjudicación o un requerimiento, actualiza el estado desde el detalle de la licitación. Los relojes legales se calculan solos.
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Hero narrativo ────────────────────────────────────────────────────────
 
 function Hero({
@@ -177,10 +214,15 @@ function Hero({
 }) {
   return (
     <header className="mb-10 animate-fade-up">
-      <p className="eyebrow mb-3">seguimiento</p>
-      <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">
-        control del pipeline
-      </h1>
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">
+          seguimiento en vivo
+        </h1>
+        <InfoTooltip />
+      </div>
+      <p className="mt-3 text-sm text-muted-foreground">
+        Sigue en tiempo real el estado de tus licitaciones.
+      </p>
       <div className="mt-5 max-w-3xl">
         {loading ? (
           <div className="space-y-2">
@@ -315,14 +357,14 @@ function KpiStrip({ grouped }: { grouped: GroupedFeed }) {
   }> = [
     {
       color: "relojes",
-      label: "relojes legales",
+      label: "plazos legales",
       n: grouped.relojes.length,
       sublabel:
         grouped.relojes.length === 0
-          ? "ninguno corriendo"
+          ? "ninguno activo"
           : grouped.relojes.length === 1
-          ? "plazo activo"
-          : "plazos activos",
+          ? "plazo corriendo"
+          : "plazos corriendo",
     },
     {
       color: "preparando",
