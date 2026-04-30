@@ -5,21 +5,21 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   ESTADO_LABELS,
+  ESTADOS_RELOJ_LEGAL,
   trackerApi,
   type EstadoTracker,
   type TrackerFeedItem,
 } from "@/lib/api/tracker";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
-// ─── Estructura: 4 fases + relojes + cerradas ──────────────────────────────
+// ─── Estructura: fases + relojes + cerradas ────────────────────────────────
 
-type Fase = "preparando" | "mesa" | "decidiendo";
+type Fase = "preparando" | "esperando";
 type ColorKey = Fase | "relojes" | "cerradas";
 
 const FASES_ESTADOS: Record<Fase, EstadoTracker[]> = {
   preparando: ["en_preparacion"],
-  mesa: ["presentada", "apertura_sobres"],
-  decidiendo: ["adjudicacion_provisional", "adjudicada"],
+  esperando: ["presentada", "en_resolucion"],
 };
 
 const RELOJES_ESTADOS: EstadoTracker[] = [
@@ -27,29 +27,22 @@ const RELOJES_ESTADOS: EstadoTracker[] = [
   "documentacion_previa",
 ];
 
-const CERRADAS_ESTADOS: EstadoTracker[] = [
-  "formalizada",
-  "perdida",
-  "rechazada",
-];
+const CERRADAS_ESTADOS: EstadoTracker[] = ["ganada", "perdida", "excluida"];
 
 const FASE_LABEL: Record<Fase, string> = {
   preparando: "preparando",
-  mesa: "en mesa",
-  decidiendo: "decidiendo",
+  esperando: "esperando resolución",
 };
 
 const FASE_DESC: Record<Fase, string> = {
-  preparando: "Aún no presentadas. Cierra Sobre A + C.",
-  mesa: "Presentadas. La mesa decide.",
-  decidiendo: "Adjudicación en curso.",
+  preparando: "Documentación aún abierta. Cierra los tres sobres.",
+  esperando: "Presentadas. Esperando decisión del órgano.",
 };
 
 const FASE_EMPTY_COPY: Record<Fase, string> = {
   preparando:
     "Nada en preparación. Cuando guardes una licitación desde el Radar aparecerá aquí.",
-  mesa: "Ninguna propuesta presentada todavía.",
-  decidiendo: "Sin adjudicaciones en curso.",
+  esperando: "Ninguna propuesta presentada ni en resolución todavía.",
 };
 
 const RELOJ_PLAZO: Record<string, { label: string; habiles: string }> = {
@@ -60,8 +53,8 @@ const RELOJ_PLAZO: Record<string, { label: string; habiles: string }> = {
   },
 };
 
-// Paleta cromática por fase. Cyan/amber/rose para identidad visual,
-// neutro zinc para "esperando". Verde solo para formalizadas.
+// Paleta cromática — amber para relojes (urgencia sin alarma), sky para
+// preparando (acción), zinc para espera pasiva. Rojo solo en countdown vencido.
 const COLORS: Record<
   ColorKey,
   {
@@ -74,36 +67,28 @@ const COLORS: Record<
   }
 > = {
   relojes: {
-    dot: "bg-rose-500",
-    text: "text-rose-600 dark:text-rose-400",
-    stripe: "bg-rose-500",
-    chip: "bg-rose-500/15 text-rose-600 dark:text-rose-300",
-    ringSoft: "ring-rose-500/30",
-    bgSoft: "bg-rose-500/[0.04]",
+    dot: "bg-amber-500",
+    text: "text-amber-700 dark:text-amber-400",
+    stripe: "bg-amber-500",
+    chip: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+    ringSoft: "ring-amber-500/30",
+    bgSoft: "bg-amber-500/[0.04]",
   },
   preparando: {
-    dot: "bg-cyan-500",
-    text: "text-cyan-600 dark:text-cyan-400",
-    stripe: "bg-cyan-500",
-    chip: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
-    ringSoft: "ring-cyan-500/25",
-    bgSoft: "bg-cyan-500/[0.04]",
+    dot: "bg-sky-500",
+    text: "text-sky-600 dark:text-sky-400",
+    stripe: "bg-sky-500",
+    chip: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+    ringSoft: "ring-sky-500/25",
+    bgSoft: "bg-sky-500/[0.04]",
   },
-  mesa: {
+  esperando: {
     dot: "bg-zinc-400",
     text: "text-zinc-600 dark:text-zinc-300",
     stripe: "bg-zinc-400",
     chip: "bg-zinc-200/60 text-zinc-700 dark:bg-zinc-700/40 dark:text-zinc-200",
     ringSoft: "ring-border",
     bgSoft: "bg-zinc-500/[0.03]",
-  },
-  decidiendo: {
-    dot: "bg-amber-500",
-    text: "text-amber-700 dark:text-amber-400",
-    stripe: "bg-amber-500",
-    chip: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-    ringSoft: "ring-amber-500/25",
-    bgSoft: "bg-amber-500/[0.04]",
   },
   cerradas: {
     dot: "bg-zinc-400",
@@ -118,8 +103,7 @@ const COLORS: Record<
 function colorForEstado(estado: EstadoTracker): ColorKey {
   if (RELOJES_ESTADOS.includes(estado)) return "relojes";
   if (FASES_ESTADOS.preparando.includes(estado)) return "preparando";
-  if (FASES_ESTADOS.mesa.includes(estado)) return "mesa";
-  if (FASES_ESTADOS.decidiendo.includes(estado)) return "decidiendo";
+  if (FASES_ESTADOS.esperando.includes(estado)) return "esperando";
   return "cerradas";
 }
 
@@ -135,8 +119,7 @@ export default function TrackerPage() {
   const totalActivos =
     grouped.relojes.length +
     grouped.preparando.length +
-    grouped.mesa.length +
-    grouped.decidiendo.length;
+    grouped.esperando.length;
 
   const isEmpty = !feed.isLoading && (feed.data?.length ?? 0) === 0;
 
@@ -167,8 +150,7 @@ export default function TrackerPage() {
           {totalActivos > 0 && (
             <section className="space-y-10">
               <Rail fase="preparando" items={grouped.preparando} />
-              <Rail fase="mesa" items={grouped.mesa} />
-              <Rail fase="decidiendo" items={grouped.decidiendo} />
+              <Rail fase="esperando" items={grouped.esperando} />
             </section>
           )}
 
@@ -239,21 +221,17 @@ function NarrativaEstado({ grouped }: { grouped: GroupedFeed }) {
     });
   if (grouped.preparando.length > 0)
     partes.push({ n: grouped.preparando.length, label: "en preparación" });
-  if (grouped.mesa.length > 0)
+  if (grouped.esperando.length > 0)
     partes.push({
-      n: grouped.mesa.length,
+      n: grouped.esperando.length,
       label:
-        grouped.mesa.length === 1 ? "propuesta en mesa" : "propuestas en mesa",
-    });
-  if (grouped.decidiendo.length > 0)
-    partes.push({
-      n: grouped.decidiendo.length,
-      label: "esperando adjudicación",
+        grouped.esperando.length === 1
+          ? "propuesta esperando resolución"
+          : "propuestas esperando resolución",
     });
 
-  // Subline: el reloj más urgente (o estado limpio en verde)
   const masUrgente = grouped.relojes[0];
-  let subline: { texto: string; tono: "danger" | "success" } | null = null;
+  let subline: { texto: string; tono: "alerta" | "success" } | null = null;
   if (masUrgente) {
     const dias = diasHasta(masUrgente.deadline_actual);
     const plazo = RELOJ_PLAZO[masUrgente.estado];
@@ -269,7 +247,7 @@ function NarrativaEstado({ grouped }: { grouped: GroupedFeed }) {
       const org = organismoCorto(masUrgente.organismo);
       subline = {
         texto: `${plazo.label} de ${org} ${cuando}.`,
-        tono: "danger",
+        tono: "alerta",
       };
     }
   } else if (partes.length > 0) {
@@ -305,23 +283,18 @@ function NarrativaEstado({ grouped }: { grouped: GroupedFeed }) {
       {subline && (
         <p
           className={`mt-2.5 flex items-center gap-2 text-sm font-medium ${
-            subline.tono === "danger"
-              ? "text-rose-600 dark:text-rose-400"
+            subline.tono === "alerta"
+              ? "text-amber-700 dark:text-amber-400"
               : "text-emerald-600 dark:text-emerald-400"
           }`}
         >
-          <span
-            className={`relative flex h-2 w-2 ${
-              subline.tono === "danger" ? "" : ""
-            }`}
-            aria-hidden
-          >
-            {subline.tono === "danger" && (
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-60" />
+          <span className="relative flex h-2 w-2" aria-hidden>
+            {subline.tono === "alerta" && (
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-60" />
             )}
             <span
               className={`relative inline-flex h-2 w-2 rounded-full ${
-                subline.tono === "danger" ? "bg-rose-500" : "bg-emerald-500"
+                subline.tono === "alerta" ? "bg-amber-500" : "bg-emerald-500"
               }`}
             />
           </span>
@@ -349,31 +322,25 @@ function KpiStrip({ grouped }: { grouped: GroupedFeed }) {
         grouped.relojes.length === 0
           ? "ninguno corriendo"
           : grouped.relojes.length === 1
-          ? "vencimiento crítico"
-          : "vencimientos críticos",
+          ? "plazo activo"
+          : "plazos activos",
     },
     {
       color: "preparando",
       label: "preparando",
       n: grouped.preparando.length,
-      sublabel: "Sobre A + C abiertos",
+      sublabel: "Sobres en curso",
     },
     {
-      color: "mesa",
-      label: "en mesa",
-      n: grouped.mesa.length,
-      sublabel: "esperando decisión",
-    },
-    {
-      color: "decidiendo",
-      label: "decidiendo",
-      n: grouped.decidiendo.length,
-      sublabel: "adjudicación en curso",
+      color: "esperando",
+      label: "esperando",
+      n: grouped.esperando.length,
+      sublabel: "Decisión del órgano",
     },
   ];
 
   return (
-    <div className="stagger grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="stagger grid grid-cols-3 gap-3">
       {tiles.map((t) => (
         <KpiTile key={t.color} {...t} />
       ))}
@@ -408,12 +375,9 @@ function KpiTile({
       )}
       <div className="relative">
         <div className="flex items-center gap-2">
-          <span
-            className={`relative flex h-2 w-2`}
-            aria-hidden
-          >
+          <span className="relative flex h-2 w-2" aria-hidden>
             {color === "relojes" && active && (
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-60" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-60" />
             )}
             <span
               className={`relative inline-flex h-2 w-2 rounded-full ${
@@ -444,18 +408,18 @@ function KpiTile({
 
 function BandaRelojes({ items }: { items: TrackerFeedItem[] }) {
   return (
-    <div className="card relative overflow-hidden p-6 ring-2 ring-rose-500/40 shadow-card-hover">
+    <div className="card relative overflow-hidden p-6 ring-2 ring-amber-500/40 shadow-card-hover">
       <div
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-rose-500/[0.06] via-transparent to-transparent"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/[0.06] via-transparent to-transparent"
         aria-hidden
       />
       <header className="relative mb-5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
           <span className="relative flex h-2.5 w-2.5" aria-hidden>
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-70" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-70" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
           </span>
-          <p className="font-display text-sm font-bold uppercase tracking-[0.1em] text-rose-600 dark:text-rose-400">
+          <p className="font-display text-sm font-bold uppercase tracking-[0.1em] text-amber-700 dark:text-amber-400">
             relojes legales · {items.length} corriendo
           </p>
         </div>
@@ -480,18 +444,18 @@ function RelojItem({ item }: { item: TrackerFeedItem }) {
   return (
     <Link
       href={`/radar/${encodeURIComponent(item.expediente)}`}
-      className="group relative flex items-stretch gap-4 overflow-hidden rounded-xl bg-surface-raised p-4 pl-5 ring-1 ring-rose-500/30 transition-all duration-200 ease-out-soft hover:-translate-y-0.5 hover:ring-rose-500/60 hover:shadow-card-hover"
+      className="group relative flex items-stretch gap-4 overflow-hidden rounded-xl bg-surface-raised p-4 pl-5 ring-1 ring-amber-500/30 transition-all duration-200 ease-out-soft hover:-translate-y-0.5 hover:ring-amber-500/60 hover:shadow-card-hover"
     >
       <span
-        className="absolute left-0 top-0 h-full w-1 bg-rose-500"
+        className="absolute left-0 top-0 h-full w-1 bg-amber-500"
         aria-hidden
       />
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-rose-600 dark:text-rose-400">
+        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-amber-700 dark:text-amber-400">
           {plazo?.label ?? ESTADO_LABELS[item.estado as EstadoTracker]}
         </p>
         {plazo && (
-          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-rose-500/70 dark:text-rose-400/70">
+          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-amber-600/70 dark:text-amber-400/70">
             {plazo.habiles}
           </p>
         )}
@@ -507,10 +471,22 @@ function RelojItem({ item }: { item: TrackerFeedItem }) {
       <div className="flex min-w-[72px] flex-col items-end justify-center pl-1 text-right">
         {dias != null ? (
           <>
-            <p className="display-num text-[2.5rem] leading-none text-rose-600 dark:text-rose-400">
+            <p
+              className={`display-num text-[2.5rem] leading-none ${
+                vencido
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-amber-700 dark:text-amber-400"
+              }`}
+            >
               {vencido ? `−${Math.abs(dias)}` : dias}
             </p>
-            <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-rose-500/80 dark:text-rose-400/80">
+            <p
+              className={`mt-1 text-[10px] font-bold uppercase tracking-wider ${
+                vencido
+                  ? "text-red-500/80 dark:text-red-400/80"
+                  : "text-amber-600/80 dark:text-amber-400/80"
+              }`}
+            >
               {vencido ? "vencido" : Math.abs(dias) === 1 ? "día" : "días"}
             </p>
           </>
@@ -530,10 +506,7 @@ function Rail({ fase, items }: { fase: Fase; items: TrackerFeedItem[] }) {
   return (
     <div className="animate-fade-up">
       <header className="mb-4 flex items-center gap-3">
-        <span
-          className={`h-2 w-2 rounded-full ${c.dot}`}
-          aria-hidden
-        />
+        <span className={`h-2 w-2 rounded-full ${c.dot}`} aria-hidden />
         <p className={`eyebrow ${c.text}`}>{FASE_LABEL[fase]}</p>
         <span
           className={`rounded-md px-1.5 py-0.5 font-mono text-[11px] font-medium tabular-nums ${
@@ -594,9 +567,7 @@ function ItemCard({
         className={`absolute left-0 top-0 h-full w-1 ${c.stripe}`}
         aria-hidden
       />
-      <p
-        className={`text-[10px] font-bold uppercase tracking-[0.08em] ${c.text}`}
-      >
+      <p className={`text-[10px] font-bold uppercase tracking-[0.08em] ${c.text}`}>
         {ESTADO_LABELS[estado]}
       </p>
       <h3 className="mt-1.5 line-clamp-2 text-sm font-semibold leading-snug text-foreground">
@@ -626,11 +597,13 @@ function ItemCard({
 function DeadlineBadge({ dias }: { dias: number }) {
   const cls =
     dias < 0
-      ? "bg-rose-500 text-white"
+      ? "bg-red-500 text-white"
+      : dias === 0
+      ? "bg-amber-600/20 text-amber-800 dark:text-amber-300"
       : dias <= 3
-      ? "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+      ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
       : dias <= 7
-      ? "bg-amber-500/20 text-amber-700 dark:text-amber-400"
+      ? "bg-yellow-500/15 text-yellow-700 dark:text-yellow-500"
       : "bg-muted text-muted-foreground";
 
   const label =
@@ -665,13 +638,11 @@ function CerradasPlegadas({ items }: { items: TrackerFeedItem[] }) {
     {},
   );
 
-  const ganadas = counts.formalizada ?? 0;
-  const adjudicadas = counts.adjudicada ?? 0;
+  const ganadas = counts.ganada ?? 0;
   const perdidas = counts.perdida ?? 0;
-  const rechazadas = counts.rechazada ?? 0;
-  const decididas = ganadas + perdidas;
-  const tasaWin =
-    decididas > 0 ? Math.round((ganadas / decididas) * 100) : null;
+  const excluidas = counts.excluida ?? 0;
+  const total = ganadas + perdidas + excluidas;
+  const tasaWin = total > 0 ? Math.round((ganadas / total) * 100) : null;
 
   return (
     <div className="card p-5">
@@ -691,16 +662,7 @@ function CerradasPlegadas({ items }: { items: TrackerFeedItem[] }) {
                   className="h-1.5 w-1.5 rounded-full bg-emerald-500"
                   aria-hidden
                 />
-                {ganadas} formalizada{ganadas === 1 ? "" : "s"}
-              </span>
-            )}
-            {adjudicadas > 0 && (
-              <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                <span
-                  className="h-1.5 w-1.5 rounded-full bg-amber-500"
-                  aria-hidden
-                />
-                {adjudicadas} adjudicada{adjudicadas === 1 ? "" : "s"}
+                {ganadas} ganada{ganadas === 1 ? "" : "s"}
               </span>
             )}
             {perdidas > 0 && (
@@ -712,18 +674,18 @@ function CerradasPlegadas({ items }: { items: TrackerFeedItem[] }) {
                 {perdidas} perdida{perdidas === 1 ? "" : "s"}
               </span>
             )}
-            {rechazadas > 0 && (
-              <span className="flex items-center gap-1.5 text-muted-foreground">
+            {excluidas > 0 && (
+              <span className="flex items-center gap-1.5 text-pink-600 dark:text-pink-400">
                 <span
-                  className="h-1.5 w-1.5 rounded-full bg-zinc-400"
+                  className="h-1.5 w-1.5 rounded-full bg-pink-400"
                   aria-hidden
                 />
-                {rechazadas} rechazada{rechazadas === 1 ? "" : "s"}
+                {excluidas} excluida{excluidas === 1 ? "" : "s"}
               </span>
             )}
             {tasaWin !== null && (
               <span className="text-muted-foreground">
-                tasa adjudicación{" "}
+                tasa de adjudicación{" "}
                 <strong className="font-semibold tabular-nums text-foreground">
                   {tasaWin}%
                 </strong>
@@ -756,12 +718,12 @@ function CerradasPlegadas({ items }: { items: TrackerFeedItem[] }) {
 function Skeleton() {
   return (
     <div className="space-y-10">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
+      <div className="grid grid-cols-3 gap-3">
+        {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="skeleton h-28 rounded-2xl" />
         ))}
       </div>
-      {Array.from({ length: 3 }).map((_, i) => (
+      {Array.from({ length: 2 }).map((_, i) => (
         <div key={i} className="space-y-3">
           <div className="skeleton h-3 w-32 rounded" />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -799,8 +761,7 @@ function EmptyState() {
 interface GroupedFeed {
   relojes: TrackerFeedItem[];
   preparando: TrackerFeedItem[];
-  mesa: TrackerFeedItem[];
-  decidiendo: TrackerFeedItem[];
+  esperando: TrackerFeedItem[];
   cerradas: TrackerFeedItem[];
 }
 
@@ -808,8 +769,7 @@ function groupFeed(feed: TrackerFeedItem[]): GroupedFeed {
   const result: GroupedFeed = {
     relojes: [],
     preparando: [],
-    mesa: [],
-    decidiendo: [],
+    esperando: [],
     cerradas: [],
   };
 
@@ -817,8 +777,7 @@ function groupFeed(feed: TrackerFeedItem[]): GroupedFeed {
     const e = item.estado as EstadoTracker;
     if (RELOJES_ESTADOS.includes(e)) result.relojes.push(item);
     else if (FASES_ESTADOS.preparando.includes(e)) result.preparando.push(item);
-    else if (FASES_ESTADOS.mesa.includes(e)) result.mesa.push(item);
-    else if (FASES_ESTADOS.decidiendo.includes(e)) result.decidiendo.push(item);
+    else if (FASES_ESTADOS.esperando.includes(e)) result.esperando.push(item);
     else if (CERRADAS_ESTADOS.includes(e)) result.cerradas.push(item);
   }
 

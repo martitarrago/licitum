@@ -13,13 +13,11 @@ EstadoTracker = Literal[
     "en_preparacion",
     "presentada",
     "en_subsanacion",
-    "apertura_sobres",
-    "adjudicacion_provisional",
+    "en_resolucion",
     "documentacion_previa",
-    "adjudicada",
-    "formalizada",
+    "ganada",
     "perdida",
-    "rechazada",
+    "excluida",
 ]
 
 # Estados con reloj legal que disparan auto-deadline al transicionar.

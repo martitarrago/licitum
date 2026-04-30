@@ -28,8 +28,7 @@ ESTADOS_ACTIVOS = {
     "en_preparacion",
     "presentada",
     "en_subsanacion",
-    "apertura_sobres",
-    "adjudicacion_provisional",
+    "en_resolucion",
     "documentacion_previa",
 }
 

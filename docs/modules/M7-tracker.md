@@ -28,13 +28,17 @@ Tested E2E con 4 licitaciones reales: 4 estados creados, auto-deadlines correcto
 
 ## Estados modelados
 ```
-en preparación → presentada → en subsanación (3d hábiles) →
-apertura sobres → adjudicación provisional →
-documentación previa (10d hábiles) → adjudicada →
-formalizada / en ejecución → perdida / rechazada
+en preparación → presentada → [en subsanación (3d hábiles)] →
+en resolución → [documentación previa (10d hábiles)] →
+ganada / perdida / excluida
 ```
 
-Estados con plazo legal marcados visualmente (rojo + countdown). El resto son estados informativos (gris/azul/verde).
+8 estados (simplificado desde 10). Estados con reloj legal marcados con countdown amber; rojo solo cuando el plazo está vencido. Terminales diferenciados: `ganada` (verde), `perdida` (zinc), `excluida` (rosa — exclusión en Mesa, error documental propio).
+
+**Decisiones de simplificación vs. v1:**
+- `apertura_sobres` + `adjudicacion_provisional` → fusionados en `en_resolucion` (ambos eran espera pasiva sin acción del usuario)
+- `adjudicada` + `formalizada` → colapsados en `ganada` (formalización ocurre fuera del producto)
+- `rechazada` → renombrado `excluida` (semánticamente correcto: exclusión en Mesa de Sobre A)
 
 ## Modelo de datos
 
@@ -42,7 +46,7 @@ Tabla `licitacion_estado_empresa` (multi-tenant desde el principio aunque hoy so
 ```
 empresa_id            uuid FK   — se queda bien para auth real
 licitacion_id         uuid FK
-estado                enum      — los 9 estados del ciclo
+estado                String(32) — los 8 estados del ciclo (no PG enum → sin migración al cambiar)
 deadline_actual       date      — fecha del próximo reloj legal (nullable)
 nota                  text      — opcional
 estado_actualizado_at timestamptz
@@ -55,7 +59,7 @@ UniqueConstraint(empresa_id, licitacion_id)
 ## Vistas
 
 ### Kanban (default)
-- Columnas: en preparación / presentada / subsanación / apertura / provisional / documentación previa / adjudicada / formalizada / perdida
+- Columnas: en preparación / presentada / en subsanación / en resolución / documentación previa / ganada / perdida / excluida
 - Cards: nombre licitación, organismo, deadline próximo (con countdown si <7 días), iconos de tareas pendientes
 - Drag & drop entre columnas (manual — sin automatismos en MVP)
 - Filtros: por organismo, por importe, por estado activo

@@ -669,12 +669,10 @@ const PIPELINE_COLOR: Record<EstadoTracker, string> = {
   documentacion_previa: C.plan,  // ocre — reloj legal 10d
   en_preparacion: C.pipeline,    // púrpura — en taller
   presentada: C.matches,         // azul acero — entregado
-  apertura_sobres: C.health,
-  adjudicacion_provisional: C.health,
-  adjudicada: C.health,
-  formalizada: C.health,
+  en_resolucion: C.health,       // verde oliva — espera pasiva
+  ganada: "#16A34A",
   perdida: "#A1A1AA",
-  rechazada: "#A1A1AA",
+  excluida: "#F9A8D4",
 };
 
 function PipelineBar({

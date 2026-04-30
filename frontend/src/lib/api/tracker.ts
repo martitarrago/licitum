@@ -4,38 +4,32 @@ export type EstadoTracker =
   | "en_preparacion"
   | "presentada"
   | "en_subsanacion"
-  | "apertura_sobres"
-  | "adjudicacion_provisional"
+  | "en_resolucion"
   | "documentacion_previa"
-  | "adjudicada"
-  | "formalizada"
+  | "ganada"
   | "perdida"
-  | "rechazada";
+  | "excluida";
 
 export const ESTADO_LABELS: Record<EstadoTracker, string> = {
   en_preparacion: "En preparación",
   presentada: "Presentada",
   en_subsanacion: "En subsanación",
-  apertura_sobres: "Apertura de sobres",
-  adjudicacion_provisional: "Adjudicación provisional",
+  en_resolucion: "En resolución",
   documentacion_previa: "Documentación previa",
-  adjudicada: "Adjudicada",
-  formalizada: "Formalizada",
+  ganada: "Ganada",
   perdida: "Perdida",
-  rechazada: "Rechazada",
+  excluida: "Excluida",
 };
 
 export const ESTADOS_ORDEN: EstadoTracker[] = [
   "en_preparacion",
   "presentada",
   "en_subsanacion",
-  "apertura_sobres",
-  "adjudicacion_provisional",
+  "en_resolucion",
   "documentacion_previa",
-  "adjudicada",
-  "formalizada",
+  "ganada",
   "perdida",
-  "rechazada",
+  "excluida",
 ];
 
 /** Estados con plazo legal (subsanación 3d, documentación previa 10d). */
@@ -49,8 +43,7 @@ export const ESTADOS_ACTIVOS = new Set<EstadoTracker>([
   "en_preparacion",
   "presentada",
   "en_subsanacion",
-  "apertura_sobres",
-  "adjudicacion_provisional",
+  "en_resolucion",
   "documentacion_previa",
 ]);
 
@@ -59,14 +52,12 @@ export type EstadoTono = "default" | "success" | "warning" | "danger" | "muted";
 export const ESTADO_TONO: Record<EstadoTracker, EstadoTono> = {
   en_preparacion: "default",
   presentada: "default",
-  en_subsanacion: "danger",
-  apertura_sobres: "default",
-  adjudicacion_provisional: "default",
-  documentacion_previa: "danger",
-  adjudicada: "success",
-  formalizada: "success",
+  en_subsanacion: "warning",
+  en_resolucion: "default",
+  documentacion_previa: "warning",
+  ganada: "success",
   perdida: "muted",
-  rechazada: "muted",
+  excluida: "muted",
 };
 
 export interface EstadoBasicoRead {
