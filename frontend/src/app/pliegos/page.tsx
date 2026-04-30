@@ -18,11 +18,8 @@ export default function PliegosListPage() {
           pliegos analizados
         </h1>
         <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-          El análisis del PCAP es <strong className="text-foreground">cache global</strong> —
-          una vez extraído por la IA, el resultado es el mismo para cualquier
-          usuario. La <strong className="text-foreground">recomendación ir/no ir</strong>{" "}
-          sí es por empresa: se calcula al abrir cada pliego cruzando con tus
-          datos de M2.
+          Aquí aparecen los contratos cuyo pliego ya ha leído la IA. Para cada uno
+          verás si te recomienda presentarte o no, y qué cláusulas debes vigilar.
         </p>
       </header>
 
@@ -54,7 +51,16 @@ function Item({ item }: { item: PliegoListItem }) {
               <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                 {item.expediente}
               </p>
-              <EstadoBadge estado={item.estado} />
+              {item.estado === "completado" && item.veredicto_recomendado ? (
+                <VeredictoBadge veredicto={item.veredicto_recomendado} />
+              ) : (
+                <EstadoBadge estado={item.estado} />
+              )}
+              {item.confianza_global && item.estado === "completado" && (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                  {Math.round(parseFloat(item.confianza_global) * 100)}% confianza
+                </span>
+              )}
               {item.idioma_detectado && (
                 <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
                   {item.idioma_detectado}
@@ -92,12 +98,7 @@ function Item({ item }: { item: PliegoListItem }) {
               )}
               {item.procesado_at && (
                 <span className="text-muted-foreground/70">
-                  · analizado {fmtRelativo(item.procesado_at)}
-                </span>
-              )}
-              {item.confianza_global && (
-                <span className="text-muted-foreground/70">
-                  · confianza {item.confianza_global}
+                  · hace {fmtRelativo(item.procesado_at)}
                 </span>
               )}
             </p>
@@ -111,6 +112,40 @@ function Item({ item }: { item: PliegoListItem }) {
         </div>
       </Link>
     </li>
+  );
+}
+
+function VeredictoBadge({ veredicto }: { veredicto: string }) {
+  if (veredicto === "ir") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+        <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
+        Presentarse
+      </span>
+    );
+  }
+  if (veredicto === "ir_con_riesgo") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning">
+        <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true" />
+        Con cautela
+      </span>
+    );
+  }
+  if (veredicto === "no_ir") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-md bg-danger/10 px-2 py-0.5 text-[11px] font-medium text-danger">
+        <span className="h-1.5 w-1.5 rounded-full bg-danger" aria-hidden="true" />
+        Descartar
+      </span>
+    );
+  }
+  // incompleto
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" aria-hidden="true" />
+      Sin recomendación
+    </span>
   );
 }
 
