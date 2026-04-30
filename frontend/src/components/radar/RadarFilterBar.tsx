@@ -31,10 +31,10 @@ import {
 
 const TIER_OPTS: { value: Tier; label: string; dot: string; subtitle: string }[] = [
   { value: "todas",     label: "Todas",         dot: TIER_DOT.todas,     subtitle: "" },
-  { value: "excelente", label: "Excelente",     dot: TIER_DOT.excelente, subtitle: "≥ 70" },
-  { value: "buena",     label: "Buena",         dot: TIER_DOT.buena,     subtitle: "50–69" },
-  { value: "raso",      label: "Aprobada raso", dot: TIER_DOT.raso,      subtitle: "40–49" },
-  { value: "no_apta",   label: "No apta",       dot: TIER_DOT.no_apta,   subtitle: "< 40" },
+  { value: "excelente", label: "Excelente",     dot: TIER_DOT.excelente, subtitle: "≥ 80" },
+  { value: "buena",     label: "Buena",         dot: TIER_DOT.buena,     subtitle: "65–79" },
+  { value: "raso",      label: "Aprobada raso", dot: TIER_DOT.raso,      subtitle: "50–64" },
+  { value: "no_apta",   label: "No apta",       dot: TIER_DOT.no_apta,   subtitle: "< 50" },
 ];
 
 const PROVINCIA_OPTS: CheckboxOption<Provincia>[] = PROVINCIAS.map((p) => ({

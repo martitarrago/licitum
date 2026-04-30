@@ -182,15 +182,9 @@ async def list_licitaciones(
             | (LicitacionScoreEmpresa.descartada.is_(False))
         )
     if min_score is not None:
-        stmt = stmt.where(
-            LicitacionScoreEmpresa.score.is_(None)
-            | (LicitacionScoreEmpresa.score >= min_score)
-        )
+        stmt = stmt.where(LicitacionScoreEmpresa.score >= min_score)
     if max_score is not None:
-        stmt = stmt.where(
-            LicitacionScoreEmpresa.score.is_(None)
-            | (LicitacionScoreEmpresa.score <= max_score)
-        )
+        stmt = stmt.where(LicitacionScoreEmpresa.score <= max_score)
 
     if semaforo:
         stmt = stmt.where(Licitacion.semaforo == semaforo)

@@ -109,7 +109,7 @@ export function tierToScoreRange(t: Tier): { min: number | null; max: number | n
     case "excelente": return { min: 80, max: null };
     case "buena":     return { min: 65, max: 79 };
     case "raso":      return { min: 50, max: 64 };
-    case "no_apta":   return { min: 0,  max: 49 };
+    case "no_apta":   return { min: null, max: 49 };
     default:          return { min: null, max: null };
   }
 }
