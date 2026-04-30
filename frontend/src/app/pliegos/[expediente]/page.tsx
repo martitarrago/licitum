@@ -384,9 +384,6 @@ function Completado({
       </div>
 
       <BloqueValoracion d={d} />
-      <Calculadora d={d} />
-      <BloqueEconomico d={d} />
-      <BloquePlazos d={d} />
       <BloqueGarantias d={d} />
       {d.docs_extra_sobre_a && d.docs_extra_sobre_a.length > 0 && (
         <BloqueSobreA items={d.docs_extra_sobre_a} />
@@ -420,12 +417,16 @@ function FichaRapida({ d }: { d: PliegoExtracted }) {
   stats.push({ label: "Clasificación exigida", value: clasif ?? "No exige" });
   if (d.fecha_limite_presentacion)
     stats.push({ label: "Fecha límite", value: fmtFecha(d.fecha_limite_presentacion) });
+  if (d.fecha_apertura_sobres)
+    stats.push({ label: "Apertura sobres", value: fmtFecha(d.fecha_apertura_sobres) });
+  if (d.fecha_visita_obra)
+    stats.push({ label: "Visita a obra", value: fmtFecha(d.fecha_visita_obra) });
 
   return (
     <section className="card p-6">
       <p className="eyebrow mb-5">Lo más importante del pliego</p>
 
-      <div className={`grid gap-5 ${stats.length >= 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3"} mb-5`}>
+      <div className="mb-5 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-6">
         {stats.map((s) => (
           <div key={s.label}>
             <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -810,48 +811,6 @@ function BloqueValoracion({ d }: { d: PliegoExtracted }) {
   );
 }
 
-function BloqueEconomico({ d }: { d: PliegoExtracted }) {
-  const empty =
-    d.presupuesto_base_sin_iva == null &&
-    d.iva_porcentaje == null &&
-    d.valor_estimado_contrato == null;
-  if (empty) return null;
-  return (
-    <Bloque eyebrow="Importes" titulo="Presupuesto y valor estimado">
-      <Row label="Presupuesto base (sin IVA)" value={fmtEur(d.presupuesto_base_sin_iva)} />
-      <Row
-        label="IVA aplicable"
-        value={d.iva_porcentaje != null ? `${d.iva_porcentaje}%` : "—"}
-      />
-      <Row label="Valor estimado contrato" value={fmtEur(d.valor_estimado_contrato)} />
-    </Bloque>
-  );
-}
-
-function BloquePlazos({ d }: { d: PliegoExtracted }) {
-  const empty =
-    d.plazo_ejecucion_meses == null &&
-    !d.fecha_limite_presentacion &&
-    !d.fecha_apertura_sobres &&
-    !d.fecha_visita_obra;
-  if (empty) return null;
-  return (
-    <Bloque eyebrow="Calendario" titulo="Plazos y fechas clave">
-      <Row
-        label="Plazo de ejecución"
-        value={
-          d.plazo_ejecucion_meses != null
-            ? `${d.plazo_ejecucion_meses} meses`
-            : "—"
-        }
-      />
-      <Row label="Fecha límite presentación" value={fmtFecha(d.fecha_limite_presentacion)} />
-      <Row label="Apertura de sobres" value={fmtFecha(d.fecha_apertura_sobres)} />
-      <Row label="Visita a obra" value={fmtFecha(d.fecha_visita_obra)} />
-    </Bloque>
-  );
-}
-
 function BloqueGarantias({ d }: { d: PliegoExtracted }) {
   const empty =
     d.garantia_provisional_pct == null && d.garantia_definitiva_pct == null;
@@ -893,172 +852,6 @@ function BloqueSobreA({ items }: { items: string[] }) {
   );
 }
 
-// ─── M5 Calculadora (vive dentro del flujo M3) ─────────────────────────────
-
-function parseTemerariaThreshold(text: string | null | undefined): number | null {
-  if (!text) return null;
-  const m1 = text.match(
-    /(\d+(?:[.,]\d+)?)\s*(?:unidades porcentuales|unitats percentuals)/i,
-  );
-  if (m1) {
-    const v = parseFloat(m1[1].replace(",", "."));
-    if (v >= 5 && v <= 50) return v;
-  }
-  const m2 = text.match(
-    /(?:m[áa]s\s+de|m[ée]s\s+d[e']?|superior(?:es)?\s+(?:al|en\s+m[áa]s\s+de)|inferior(?:es)?\s+(?:al|en\s+m[áa]s\s+de))\s+(?:un\s+|una\s+)?(\d+(?:[.,]\d+)?)\s*(?:%|por\s+ciento|per\s+cent)/i,
-  );
-  if (m2) {
-    const v = parseFloat(m2[1].replace(",", "."));
-    if (v >= 5 && v <= 50) return v;
-  }
-  return null;
-}
-
-function Calculadora({ d }: { d: PliegoExtracted }) {
-  const presupuesto = d.presupuesto_base_sin_iva;
-  const [bajaPct, setBajaPct] = useState(10);
-
-  if (!presupuesto || presupuesto <= 0) return null;
-
-  const importe = presupuesto * (1 - bajaPct / 100);
-  const importeAhorro = presupuesto * (bajaPct / 100);
-
-  const temerariaPct = parseTemerariaThreshold(d.baja_temeraria_extracto);
-  const distancia = temerariaPct != null ? temerariaPct - bajaPct : null;
-  const enZonaTemeraria = distancia != null && distancia <= 0;
-  const cercaDeTemeraria = distancia != null && distancia > 0 && distancia <= 2;
-
-  const saciedadPct = d.umbral_saciedad_pct ?? null;
-  const esLinealSaciedad =
-    d.formula_tipo === "lineal_con_saciedad" &&
-    saciedadPct != null &&
-    saciedadPct > 0;
-  const puntosPctEstimado = esLinealSaciedad
-    ? Math.min(bajaPct / saciedadPct!, 1) * 100
-    : null;
-  const enSaciedad = esLinealSaciedad && bajaPct >= saciedadPct!;
-
-  const setBajaSafe = (v: number) =>
-    setBajaPct(Math.max(0, Math.min(50, isFinite(v) ? v : 0)));
-
-  return (
-    <section className="overflow-hidden rounded-2xl bg-foreground p-6 text-surface">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-surface/60">
-            M5 · Calculadora de oferta
-          </p>
-          <h2 className="mt-1 font-display text-xl font-bold tracking-tight">
-            Tu oferta económica
-          </h2>
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_auto]">
-        <div>
-          <label className="block">
-            <span className="text-xs font-medium uppercase tracking-wider text-surface/60">
-              Baja sobre presupuesto base
-            </span>
-            <div className="mt-3 flex items-baseline gap-2">
-              <input
-                type="number"
-                min={0}
-                max={50}
-                step={0.5}
-                value={bajaPct}
-                onChange={(e) => setBajaSafe(Number(e.target.value))}
-                className="w-28 rounded-md bg-surface/10 px-2 py-1.5 font-mono text-3xl font-semibold text-surface focus:outline-none focus:ring-2 focus:ring-surface/30"
-              />
-              <span className="font-mono text-3xl font-semibold">%</span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={30}
-              step={0.5}
-              value={Math.min(bajaPct, 30)}
-              onChange={(e) => setBajaSafe(Number(e.target.value))}
-              className="mt-3 w-full accent-surface"
-            />
-            <div className="mt-1 flex justify-between text-[10px] text-surface/40">
-              <span>0%</span>
-              <span>10%</span>
-              <span>20%</span>
-              <span>30%</span>
-            </div>
-          </label>
-        </div>
-
-        <div className="md:text-right">
-          <p className="text-xs font-medium uppercase tracking-wider text-surface/60">
-            Importe oferta (sin IVA)
-          </p>
-          <p className="display-num mt-1 text-3xl text-surface">
-            {fmtEur(importe)}
-          </p>
-          <p className="mt-0.5 text-xs text-surface/60">
-            ahorro de {fmtEur(importeAhorro)} sobre el presupuesto base
-          </p>
-        </div>
-      </div>
-
-      {enZonaTemeraria && (
-        <div className="mt-5 rounded-lg bg-danger/30 px-3 py-2 text-sm">
-          <strong>Zona de baja temeraria.</strong> Tu baja del {bajaPct}% supera o iguala el umbral del {temerariaPct}%. Necesitarás justificación detallada (LCSP art. 149) o quedarás excluida.
-        </div>
-      )}
-      {!enZonaTemeraria && cercaDeTemeraria && (
-        <div className="mt-5 rounded-lg bg-warning/30 px-3 py-2 text-sm">
-          A {distancia!.toFixed(1)} pp del umbral temerario ({temerariaPct}%). Margen ajustado.
-        </div>
-      )}
-      {!enZonaTemeraria && !cercaDeTemeraria && temerariaPct != null && (
-        <div className="mt-5 rounded-lg bg-success/20 px-3 py-2 text-sm">
-          Oferta segura — {distancia!.toFixed(1)} pp por debajo del umbral temerario ({temerariaPct}%).
-        </div>
-      )}
-
-      {esLinealSaciedad && (
-        <div className="mt-3 rounded-lg bg-surface/10 px-3 py-2 text-sm">
-          {enSaciedad ? (
-            <>
-              Has alcanzado el umbral de saciedad del {saciedadPct}%. Bajar más
-              <strong> no aumenta</strong> tu puntuación económica.
-            </>
-          ) : (
-            <>
-              Estimación de puntos económicos asumiendo lineal con saciedad al{" "}
-              {saciedadPct}%: <strong>{Math.round(puntosPctEstimado!)}%</strong> del máximo.
-            </>
-          )}
-        </div>
-      )}
-
-      <div className="mt-5 border-t border-surface/10 pt-3 text-xs text-surface/60">
-        {temerariaPct == null && d.baja_temeraria_extracto && (
-          <p className="mb-1.5">
-            ⓘ No se pudo extraer un umbral numérico del literal del pliego — juzga manualmente con la cláusula del bloque &ldquo;Criterios de valoración&rdquo; arriba.
-          </p>
-        )}
-        {!d.baja_temeraria_extracto && (
-          <p className="mb-1.5">
-            ⓘ El pliego no parece definir un umbral de baja temeraria. Por defecto LCSP fija 25% bajo presupuesto base.
-          </p>
-        )}
-        <p>
-          Presupuesto base:{" "}
-          <span className="font-mono text-surface">{fmtEur(presupuesto)}</span>
-          {d.formula_tipo && d.formula_tipo !== "no_detectado" && (
-            <>
-              {" · "}Fórmula: {FORMULA_TIPO_LABELS[d.formula_tipo] ?? d.formula_tipo}
-            </>
-          )}
-        </p>
-      </div>
-    </section>
-  );
-}
 
 // ─── Acciones ──────────────────────────────────────────────────────────────
 
