@@ -182,9 +182,15 @@ async def list_licitaciones(
             | (LicitacionScoreEmpresa.descartada.is_(False))
         )
     if min_score is not None:
-        stmt = stmt.where(LicitacionScoreEmpresa.score >= min_score)
+        stmt = stmt.where(
+            LicitacionScoreEmpresa.score.is_(None)
+            | (LicitacionScoreEmpresa.score >= min_score)
+        )
     if max_score is not None:
-        stmt = stmt.where(LicitacionScoreEmpresa.score <= max_score)
+        stmt = stmt.where(
+            LicitacionScoreEmpresa.score.is_(None)
+            | (LicitacionScoreEmpresa.score <= max_score)
+        )
 
     if semaforo:
         stmt = stmt.where(Licitacion.semaforo == semaforo)
@@ -306,10 +312,12 @@ async def list_licitaciones(
                 item.pliego_estado = estado_str
 
         # Veredicto: leer del breakdown_json del score (entrada pliego_check.data_points.veredicto)
+        _valid_veredictos = frozenset({"ir", "ir_con_riesgo", "no_ir", "incompleto"})
         if lse_breakdown:
             for sig in lse_breakdown:
                 if sig.get("name") == "pliego_check":
-                    item.pliego_veredicto = (sig.get("data") or {}).get("veredicto")
+                    v = (sig.get("data") or {}).get("veredicto")
+                    item.pliego_veredicto = v if v in _valid_veredictos else None
                     break
 
         items.append(item)

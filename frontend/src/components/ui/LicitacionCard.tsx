@@ -86,8 +86,10 @@ const fechaFormatter = new Intl.DateTimeFormat("es-ES", {
 });
 
 function diasHasta(fecha: Date): number {
-  const ms = fecha.getTime() - Date.now();
-  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+  const now = new Date();
+  const hoyUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const fechaUtc = Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate());
+  return Math.ceil((fechaUtc - hoyUtc) / (1000 * 60 * 60 * 24));
 }
 
 function textoDiasRestantes(dias: number): string {

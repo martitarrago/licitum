@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
@@ -114,12 +114,25 @@ function RadarPageContent() {
     refetchOnWindowFocus: true,
   });
 
+  const pendingTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => pendingTimers.current.forEach(clearTimeout), []);
+
+  const scheduleRefetches = useCallback(
+    (delays: number[]) => {
+      delays.forEach((d) => {
+        const id = setTimeout(() => refetch(), d);
+        pendingTimers.current.push(id);
+      });
+    },
+    [refetch],
+  );
+
   const ingesta = useMutation({
     mutationFn: () => licitacionesApi.triggerIngesta(),
     onSuccess: () => {
       // El worker tarda 10-30s. Reintentos escalonados para capturar la
       // ventana en la que los datos quedan persistidos.
-      [3000, 8000, 15000, 30000].forEach((d) => setTimeout(() => refetch(), d));
+      scheduleRefetches([3000, 8000, 15000, 30000]);
     },
   });
 
@@ -127,7 +140,7 @@ function RadarPageContent() {
     mutationFn: () => licitacionesApi.triggerRecalcularSemaforo(),
     onSuccess: () => {
       // Recálculo masivo en BD suele tardar 1-3s; refetch escalonado.
-      [2000, 5000, 10000].forEach((d) => setTimeout(() => refetch(), d));
+      scheduleRefetches([2000, 5000, 10000]);
     },
   });
 
