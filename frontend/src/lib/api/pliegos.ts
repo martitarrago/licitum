@@ -122,6 +122,14 @@ export const pliegosApi = {
     return res.json();
   },
 
+  analizar: async (expediente: string): Promise<PliegoAnalisis> => {
+    const res = await fetch(`${API_BASE}/api/v1/pliegos/${expediente}/analizar`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error(await readError(res));
+    return res.json();
+  },
+
   upload: async (expediente: string, pdf: File): Promise<PliegoAnalisis> => {
     const fd = new FormData();
     fd.append("pdf", pdf);

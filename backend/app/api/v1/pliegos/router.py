@@ -28,7 +28,7 @@ from app.schemas.licitacion_analisis_ia import (
 )
 from app.services.recomendacion_evaluator import calcular_recomendacion
 from app.services.storage import R2Storage, get_storage
-from workers.extraccion_pliego import extraer_pliego
+from workers.extraccion_pliego import extraer_pliego, extraer_pliego_desde_pscp
 
 logger = logging.getLogger(__name__)
 
@@ -65,13 +65,11 @@ async def listar_pliegos(
             br = analisis.extracted_data.get("banderas_rojas") or []
             if isinstance(br, list):
                 banderas = len(br)
-            # Heurística rápida sobre la extracción para mostrar un veredicto
-            # resumido sin tener que cargar la recomendación por empresa.
-            # Indica fortaleza de la oportunidad bruta del pliego (no
-            # personalizada).
-            veredicto = "ok"
+            # Heurística rápida: usa los valores del tipo Veredicto para que
+            # el frontend pueda renderizar el badge sin llamada adicional.
+            veredicto = "ir"
             if banderas and banderas >= 3:
-                veredicto = "atencion"
+                veredicto = "ir_con_riesgo"
         items.append(
             PliegoListItem(
                 licitacion_id=analisis.licitacion_id,
@@ -260,6 +258,66 @@ async def proxy_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": "inline"},
     )
+
+
+@router.post(
+    "/{expediente:path}/analizar",
+    response_model=LicitacionAnalisisIARead,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Descarga el PCAP desde PSCP automáticamente y encola la extracción IA",
+)
+async def analizar_desde_pscp(
+    expediente: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> LicitacionAnalisisIA:
+    """Auto-descarga el pliego desde contractaciopublica.cat y lanza la extracción.
+
+    Si ya hay un análisis en curso (pendiente/procesando), devuelve el estado actual
+    sin re-encolar. Si ya está completado, también lo devuelve sin rehacer nada.
+    """
+    lic = await _get_licitacion_or_404(db, expediente)
+
+    analisis = (
+        await db.execute(
+            select(LicitacionAnalisisIA).where(
+                LicitacionAnalisisIA.licitacion_id == lic.id
+            )
+        )
+    ).scalar_one_or_none()
+
+    # Si ya hay un análisis activo o completado, no re-encolamos.
+    if analisis is not None and analisis.estado in (
+        EstadoAnalisisPliego.pendiente,
+        EstadoAnalisisPliego.procesando,
+        EstadoAnalisisPliego.completado,
+    ):
+        return analisis
+
+    # Crear fila pendiente (o resetear si estaba fallido).
+    if analisis is None:
+        analisis = LicitacionAnalisisIA(
+            licitacion_id=lic.id,
+            estado=EstadoAnalisisPliego.pendiente,
+            extracted_data={},
+        )
+        db.add(analisis)
+    else:
+        analisis.estado = EstadoAnalisisPliego.pendiente
+        analisis.error_mensaje = None
+        analisis.extracted_data = {}
+        analisis.procesado_at = None
+
+    await db.commit()
+    await db.refresh(analisis)
+
+    try:
+        extraer_pliego_desde_pscp.delay(str(lic.id))
+    except Exception as exc:
+        logger.warning(
+            "No se pudo encolar extracción PSCP para %s: %s", lic.id, exc
+        )
+
+    return analisis
 
 
 @router.post(

@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -38,6 +39,7 @@ export default function PliegoPage({
 }) {
   const expediente = decodeURIComponent(params.expediente);
   const qc = useQueryClient();
+  const router = useRouter();
 
   const licitacion = useQuery({
     queryKey: ["licitacion", expediente],
@@ -50,7 +52,8 @@ export default function PliegoPage({
     queryFn: () => pliegosApi.get(expediente),
     refetchInterval: (q) => {
       const data = q.state.data;
-      return data && (data.estado === "pendiente" || data.estado === "procesando")
+      return data &&
+        (data.estado === "pendiente" || data.estado === "procesando")
         ? POLL_MS
         : false;
     },
@@ -61,6 +64,19 @@ export default function PliegoPage({
     queryFn: () => pliegosApi.recomendacion(expediente, EMPRESA_DEMO_ID),
     enabled: analisis.data?.estado === "completado",
   });
+
+  const autoAnalizar = useMutation({
+    mutationFn: () => pliegosApi.analizar(expediente),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pliego", expediente] }),
+  });
+
+  // Cuando la página carga y no hay análisis previo, disparar auto-descarga desde PSCP.
+  useEffect(() => {
+    if (!analisis.isLoading && analisis.data === null) {
+      autoAnalizar.mutate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analisis.isLoading, analisis.data]);
 
   const reextract = useMutation({
     mutationFn: () => pliegosApi.reextraer(expediente),
@@ -79,13 +95,13 @@ export default function PliegoPage({
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
-      <Link
-        href={`/radar/${encodeURIComponent(expediente)}`}
+      <button
+        onClick={() => router.back()}
         className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Volver al detalle
-      </Link>
+        Volver
+      </button>
 
       <Header
         titulo={licitacion.data?.titulo ?? expediente}
@@ -93,20 +109,26 @@ export default function PliegoPage({
         fechaLimite={licitacion.data?.fecha_limite ?? null}
       />
 
-      {analisis.isLoading ? (
+      {analisis.isLoading || autoAnalizar.isPending ? (
         <Skeleton />
       ) : !analisis.data ? (
+        // autoAnalizar falló antes de crear la fila → mostrar upload manual
         <UploadEmpty expediente={expediente} />
       ) : analisis.data.estado === "pendiente" ||
         analisis.data.estado === "procesando" ? (
         <Procesando />
       ) : analisis.data.estado === "fallido" ? (
-        <Fallido
-          analisis={analisis.data}
-          onRetry={() => reextract.mutate()}
-          onDelete={() => remove.mutate()}
-          retrying={reextract.isPending}
-        />
+        analisis.data.error_mensaje?.startsWith("DOCUMENTO_NO_DISPONIBLE") ? (
+          // PSCP no tiene el documento → ofrecer upload manual
+          <UploadEmpty expediente={expediente} pscp_fallido />
+        ) : (
+          <Fallido
+            analisis={analisis.data}
+            onRetry={() => reextract.mutate()}
+            onDelete={() => remove.mutate()}
+            retrying={reextract.isPending}
+          />
+        )
       ) : (
         <Completado
           analisis={analisis.data}
@@ -114,7 +136,11 @@ export default function PliegoPage({
           recomendacionLoading={recomendacion.isLoading}
           onReextract={() => reextract.mutate()}
           onDelete={() => {
-            if (confirm("¿Borrar el análisis IA de este pliego? El PDF también se borrará.")) {
+            if (
+              confirm(
+                "¿Borrar el análisis IA de este pliego? El PDF también se borrará.",
+              )
+            ) {
               remove.mutate();
             }
           }}
@@ -141,7 +167,7 @@ function Header({
   return (
     <header className="mb-8">
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        M3 · Análisis de pliego
+        Análisis de pliego
       </p>
       <h1 className="display-h mt-2 text-3xl leading-[1.05] sm:text-4xl">
         {titulo}
@@ -154,7 +180,9 @@ function Header({
             {dias != null && dias >= 0 && (
               <span
                 className={
-                  dias <= 7 ? "font-semibold text-danger" : "text-muted-foreground"
+                  dias <= 7
+                    ? "font-semibold text-danger"
+                    : "text-muted-foreground"
                 }
               >
                 {" "}
@@ -185,7 +213,13 @@ function Skeleton() {
 
 // ─── Estado: sin análisis (subir PCAP) ─────────────────────────────────────
 
-function UploadEmpty({ expediente }: { expediente: string }) {
+function UploadEmpty({
+  expediente,
+  pscp_fallido,
+}: {
+  expediente: string;
+  pscp_fallido?: boolean;
+}) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -214,13 +248,14 @@ function UploadEmpty({ expediente }: { expediente: string }) {
         </div>
         <div className="flex-1">
           <h2 className="font-display text-xl font-bold">
-            Sube el PCAP para empezar
+            {pscp_fallido
+              ? "El pliego no está disponible automáticamente"
+              : "Sube el PCAP para empezar"}
           </h2>
           <p className="mt-1 text-base text-muted-foreground">
-            Sube el Pliego de Cláusulas Administrativas Particulares y la IA
-            extraerá en menos de 60 segundos: presupuesto, plazo, clasificación
-            exigida, fórmula de valoración, baja temeraria, fechas clave y
-            banderas rojas.
+            {pscp_fallido
+              ? "No hemos podido descargar el pliego desde el portal de la administración. Descárgalo tú manualmente y súbelo aquí."
+              : "Sube el Pliego de Cláusulas Administrativas Particulares y la IA extraerá en menos de 60 segundos: presupuesto, plazo, clasificación exigida, fórmula de valoración, baja temeraria, fechas clave y banderas rojas."}
           </p>
         </div>
       </div>
@@ -302,7 +337,10 @@ function Fallido({
   return (
     <div className="rounded-2xl bg-danger/5 p-6 ring-1 ring-danger/20">
       <div className="flex items-start gap-3">
-        <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-danger" strokeWidth={2} />
+        <XCircle
+          className="mt-0.5 h-5 w-5 shrink-0 text-danger"
+          strokeWidth={2}
+        />
         <div className="flex-1">
           <h2 className="text-base font-semibold">Falló la extracción</h2>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -358,7 +396,6 @@ function Completado({
 
   return (
     <div className="space-y-8">
-
       {/* ── 1. Lo más importante del pliego ─────────────────────────── */}
       <FichaRapida d={d} />
 
@@ -411,16 +448,31 @@ function FichaRapida({ d }: { d: PliegoExtracted }) {
 
   const stats: { label: string; value: string }[] = [];
   if (d.presupuesto_base_sin_iva != null)
-    stats.push({ label: "Presupuesto base", value: fmtEur(d.presupuesto_base_sin_iva) });
+    stats.push({
+      label: "Presupuesto base",
+      value: fmtEur(d.presupuesto_base_sin_iva),
+    });
   if (d.plazo_ejecucion_meses != null)
-    stats.push({ label: "Plazo de ejecución", value: `${d.plazo_ejecucion_meses} meses` });
+    stats.push({
+      label: "Plazo de ejecución",
+      value: `${d.plazo_ejecucion_meses} meses`,
+    });
   stats.push({ label: "Clasificación exigida", value: clasif ?? "No exige" });
   if (d.fecha_limite_presentacion)
-    stats.push({ label: "Fecha límite", value: fmtFecha(d.fecha_limite_presentacion) });
+    stats.push({
+      label: "Fecha límite",
+      value: fmtFecha(d.fecha_limite_presentacion),
+    });
   if (d.fecha_apertura_sobres)
-    stats.push({ label: "Apertura sobres", value: fmtFecha(d.fecha_apertura_sobres) });
+    stats.push({
+      label: "Apertura sobres",
+      value: fmtFecha(d.fecha_apertura_sobres),
+    });
   if (d.fecha_visita_obra)
-    stats.push({ label: "Visita a obra", value: fmtFecha(d.fecha_visita_obra) });
+    stats.push({
+      label: "Visita a obra",
+      value: fmtFecha(d.fecha_visita_obra),
+    });
 
   return (
     <section className="card p-8">
@@ -432,9 +484,7 @@ function FichaRapida({ d }: { d: PliegoExtracted }) {
             <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {s.label}
             </p>
-            <p className="display-num mt-1 text-2xl">
-              {s.value}
-            </p>
+            <p className="mt-1 font-display text-2xl font-bold leading-tight">{s.value}</p>
           </div>
         ))}
       </div>
@@ -446,10 +496,16 @@ function FichaRapida({ d }: { d: PliegoExtracted }) {
               key={i}
               className="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-3 py-1 text-xs font-medium text-warning ring-1 ring-warning/25"
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true" />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-warning"
+                aria-hidden="true"
+              />
               {BANDERA_TIPO_LABELS[b.tipo] ?? b.tipo}
               {b.descripcion && (
-                <span className="font-normal text-warning/70"> — {b.descripcion}</span>
+                <span className="font-normal text-warning/70">
+                  {" "}
+                  — {b.descripcion}
+                </span>
               )}
             </span>
           ))}
@@ -514,7 +570,10 @@ function EncajeEmpresa({
         <p className="eyebrow mb-5">Encaje con tu empresa</p>
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-14 animate-pulse rounded-lg bg-muted/40" />
+            <div
+              key={i}
+              className="h-14 animate-pulse rounded-lg bg-muted/40"
+            />
           ))}
         </div>
       </section>
@@ -543,19 +602,26 @@ function EncajeEmpresa({
                   <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                     {item.requisito}
                   </p>
-                  <p className="mt-1 text-base text-foreground">{item.exigido}</p>
+                  <p className="mt-1 text-base text-foreground">
+                    {item.exigido}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                     Tu empresa
                   </p>
-                  <p className="mt-1 text-base text-foreground">{item.empresa}</p>
+                  <p className="mt-1 text-base text-foreground">
+                    {item.empresa}
+                  </p>
                 </div>
                 <div className="flex sm:justify-end">
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 ${s.bg} ${s.ring}`}
                   >
-                    <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} aria-hidden="true" />
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${s.dot}`}
+                      aria-hidden="true"
+                    />
                     <span className={s.text}>{s.label}</span>
                   </span>
                 </div>
@@ -624,7 +690,9 @@ function ConclusionPanel({
     recomendacion.razones_no.length > 0;
 
   return (
-    <section className={`rounded-2xl p-8 shadow-card ring-1 ${style.bg} ${style.ring}`}>
+    <section
+      className={`rounded-2xl p-8 shadow-card ring-1 ${style.bg} ${style.ring}`}
+    >
       <p className={`eyebrow mb-4 ${style.color}`}>Conclusión</p>
 
       <div className="flex items-start gap-4">
@@ -690,23 +758,27 @@ function ReasonList({
     tone === "success"
       ? "bg-success"
       : tone === "warning"
-      ? "bg-warning"
-      : "bg-danger";
+        ? "bg-warning"
+        : "bg-danger";
   const labelColor =
     tone === "success"
       ? "text-success"
       : tone === "warning"
-      ? "text-warning"
-      : "text-danger";
+        ? "text-warning"
+        : "text-danger";
   return (
     <div>
-      <p className={`text-[11px] font-semibold uppercase tracking-wider ${labelColor}`}>
+      <p
+        className={`text-[11px] font-semibold uppercase tracking-wider ${labelColor}`}
+      >
         {label}
       </p>
       <ul className="mt-2 space-y-2">
         {items.map((r, i) => (
           <li key={i} className="flex items-start gap-2 text-base">
-            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
+            <span
+              className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`}
+            />
             <span>{r}</span>
           </li>
         ))}
@@ -737,13 +809,7 @@ function Bloque({
   );
 }
 
-function Row({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
       <dt className="w-full sm:w-56 shrink-0 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -774,7 +840,8 @@ function BloqueValoracion({ d }: { d: PliegoExtracted }) {
       <Row
         label="Ponderación"
         value={
-          d.pct_criterios_subjetivos != null || d.pct_criterios_objetivos != null
+          d.pct_criterios_subjetivos != null ||
+          d.pct_criterios_objetivos != null
             ? `Subjetivos ${d.pct_criterios_subjetivos ?? "—"}% · Objetivos ${
                 d.pct_criterios_objetivos ?? "—"
               }%`
@@ -785,7 +852,7 @@ function BloqueValoracion({ d }: { d: PliegoExtracted }) {
         label="Tipo de fórmula"
         value={
           d.formula_tipo
-            ? FORMULA_TIPO_LABELS[d.formula_tipo] ?? d.formula_tipo
+            ? (FORMULA_TIPO_LABELS[d.formula_tipo] ?? d.formula_tipo)
             : "—"
         }
       />
@@ -851,7 +918,6 @@ function BloqueSobreA({ items }: { items: string[] }) {
     </Bloque>
   );
 }
-
 
 // ─── Acciones ──────────────────────────────────────────────────────────────
 
