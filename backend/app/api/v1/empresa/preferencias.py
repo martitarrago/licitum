@@ -103,7 +103,8 @@ async def upsert(
 
     await db.commit()
     refreshed = await _load_full(db, empresa_id)
-    assert refreshed is not None
+    if refreshed is None:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "No se pudo recargar las preferencias tras guardar")
     # Las preferencias afectan a TODOS los hard filters + a la señal
     # preferencias_match. Cualquier upsert invalida los scores.
     disparar_recalculo_scores(empresa_id)
