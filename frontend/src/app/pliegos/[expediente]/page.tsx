@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -70,14 +70,6 @@ export default function PliegoPage({
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pliego", expediente] }),
   });
 
-  // Cuando la página carga y no hay análisis previo, disparar auto-descarga desde PSCP.
-  useEffect(() => {
-    if (!analisis.isLoading && analisis.data === null) {
-      autoAnalizar.mutate();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analisis.isLoading, analisis.data]);
-
   const reextract = useMutation({
     mutationFn: () => pliegosApi.reextraer(expediente),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pliego", expediente] }),
@@ -112,15 +104,22 @@ export default function PliegoPage({
       {analisis.isLoading || autoAnalizar.isPending ? (
         <Skeleton />
       ) : !analisis.data ? (
-        // autoAnalizar falló antes de crear la fila → mostrar upload manual
-        <UploadEmpty expediente={expediente} />
+        <UploadEmpty
+          expediente={expediente}
+          onAnalizar={() => autoAnalizar.mutate()}
+          analizando={autoAnalizar.isPending}
+        />
       ) : analisis.data.estado === "pendiente" ||
         analisis.data.estado === "procesando" ? (
         <Procesando />
       ) : analisis.data.estado === "fallido" ? (
         analisis.data.error_mensaje?.startsWith("DOCUMENTO_NO_DISPONIBLE") ? (
-          // PSCP no tiene el documento → ofrecer upload manual
-          <UploadEmpty expediente={expediente} pscp_fallido />
+          <UploadEmpty
+            expediente={expediente}
+            pscp_fallido
+            onAnalizar={() => autoAnalizar.mutate()}
+            analizando={autoAnalizar.isPending}
+          />
         ) : (
           <Fallido
             analisis={analisis.data}
@@ -216,9 +215,13 @@ function Skeleton() {
 function UploadEmpty({
   expediente,
   pscp_fallido,
+  onAnalizar,
+  analizando,
 }: {
   expediente: string;
   pscp_fallido?: boolean;
+  onAnalizar?: () => void;
+  analizando?: boolean;
 }) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -250,17 +253,43 @@ function UploadEmpty({
           <h2 className="font-display text-xl font-bold">
             {pscp_fallido
               ? "El pliego no está disponible automáticamente"
-              : "Sube el PCAP para empezar"}
+              : "Analizar este pliego con IA"}
           </h2>
           <p className="mt-1 text-base text-muted-foreground">
             {pscp_fallido
               ? "No hemos podido descargar el pliego desde el portal de la administración. Descárgalo tú manualmente y súbelo aquí."
-              : "Sube el Pliego de Cláusulas Administrativas Particulares y la IA extraerá en menos de 60 segundos: presupuesto, plazo, clasificación exigida, fórmula de valoración, baja temeraria, fechas clave y banderas rojas."}
+              : "La IA descargará el pliego automáticamente y extraerá en menos de 60 segundos: presupuesto, plazo, clasificación exigida, fórmula de valoración, baja temeraria y banderas rojas."}
           </p>
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      {!pscp_fallido && onAnalizar && (
+        <div className="mt-6">
+          <button
+            onClick={onAnalizar}
+            disabled={analizando}
+            className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-surface transition-colors hover:bg-foreground/90 disabled:opacity-50"
+          >
+            {analizando ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Buscando pliego…
+              </>
+            ) : (
+              <>
+                <FileUp className="h-4 w-4" strokeWidth={2} />
+                Analizar pliego con IA
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {pscp_fallido && (
+        <div className="mt-4 text-xs text-muted-foreground">o sube el PDF manualmente:</div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <input
           ref={fileRef}
           type="file"
@@ -290,6 +319,7 @@ function UploadEmpty({
           Máx. 50 MB · solo PDF
         </span>
       </div>
+      )}
 
       {error && (
         <p className="mt-4 flex items-start gap-2 text-sm text-danger">
@@ -513,7 +543,7 @@ function FichaRapida({ d }: { d: PliegoExtracted }) {
       )}
 
       {d.resumen_ejecutivo && (
-        <p className="font-serif text-base leading-relaxed text-foreground/90">
+        <p className="text-base leading-relaxed text-foreground/90">
           {d.resumen_ejecutivo}
         </p>
       )}
@@ -812,7 +842,7 @@ function Bloque({
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
-      <dt className="w-full sm:w-56 shrink-0 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+      <dt className="w-full sm:w-56 shrink-0 text-sm font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </dt>
       <dd className="min-w-0 flex-1 text-base">{value}</dd>
