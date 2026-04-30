@@ -48,9 +48,20 @@ class BanderaRoja(BaseModel):
     descripcion: str
 
 
+class EncajeItem(BaseModel):
+    """Comparación de un requisito del pliego contra los datos de la empresa."""
+
+    requisito: str
+    exigido: str
+    empresa: str
+    estado: Literal["cumple", "riesgo", "no_cumple", "sin_datos"]
+
+
 class RecomendacionRead(BaseModel):
     veredicto: Literal["ir", "ir_con_riesgo", "no_ir", "incompleto"]
     titulo: str
+    razon_principal: str
     razones_a_favor: list[str]
     razones_riesgo: list[str]
     razones_no: list[str]
+    encaje: list[EncajeItem] = []

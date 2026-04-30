@@ -255,6 +255,56 @@ function RadarPageContent() {
           </div>
           <div className="border-t border-border pt-4">
             <p className="mb-2 text-xs font-semibold text-foreground">
+              Qué significa el indicador del pliego
+            </p>
+            <ul className="space-y-1.5 text-muted-foreground">
+              <li className="flex items-baseline gap-2">
+                <span className="font-medium text-success">✓</span>
+                <span>
+                  <span className="font-medium text-foreground">Encaja</span> —
+                  el pliego ha sido analizado y confirma que cumples los requisitos.
+                </span>
+              </li>
+              <li className="flex items-baseline gap-2">
+                <span className="font-medium text-warning">⚠</span>
+                <span>
+                  <span className="font-medium text-foreground">Con matices</span> —
+                  analizado, pero hay algún requisito a revisar antes de presentar.
+                </span>
+              </li>
+              <li className="flex items-baseline gap-2">
+                <span className="font-medium text-muted-foreground">⚪</span>
+                <span>
+                  <span className="font-medium text-foreground">Parcial</span> —
+                  analizado, pero el documento no tenía suficiente información para
+                  un veredicto completo.
+                </span>
+              </li>
+              <li className="flex items-baseline gap-2">
+                <span className="font-medium text-muted-foreground">○</span>
+                <span>
+                  <span className="font-medium text-foreground">Pendiente</span> —
+                  el análisis del pliego está en cola o procesándose.
+                </span>
+              </li>
+              <li className="flex items-baseline gap-2">
+                <span className="font-medium text-muted-foreground">⊘</span>
+                <span>
+                  <span className="font-medium text-foreground">No disponible</span> —
+                  el pliego no es descargable desde el PSCP.
+                </span>
+              </li>
+              <li className="flex items-baseline gap-2">
+                <span className="font-medium text-danger">!</span>
+                <span>
+                  <span className="font-medium text-foreground">Error</span> —
+                  falló el análisis. Puedes reintentar desde la ficha de la licitación.
+                </span>
+              </li>
+            </ul>
+          </div>
+          <div className="border-t border-border pt-4">
+            <p className="mb-2 text-xs font-semibold text-foreground">
               Cómo afinar la búsqueda
             </p>
             <p className="text-muted-foreground">

@@ -71,7 +71,7 @@ export const MODULE_GROUPS: ModuleGroup[] = [
       {
         id: "pliegos",
         code: "",
-        label: "Pliegos",
+        label: "Análisis de pliegos",
         href: "/pliegos",
         icon: FileSearch,
         available: true,

@@ -59,12 +59,23 @@ export interface PliegoAnalisis {
 
 export type Veredicto = "ir" | "ir_con_riesgo" | "no_ir" | "incompleto";
 
+export type EstadoEncaje = "cumple" | "riesgo" | "no_cumple" | "sin_datos";
+
+export interface EncajeItem {
+  requisito: string;
+  exigido: string;
+  empresa: string;
+  estado: EstadoEncaje;
+}
+
 export interface Recomendacion {
   veredicto: Veredicto;
   titulo: string;
+  razon_principal: string;
   razones_a_favor: string[];
   razones_riesgo: string[];
   razones_no: string[];
+  encaje: EncajeItem[];
 }
 
 async function readError(res: Response): Promise<string> {

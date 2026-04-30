@@ -21,6 +21,7 @@ import {
   FORMULA_TIPO_LABELS,
   pliegosApi,
   type BanderaRoja,
+  type EncajeItem,
   type PliegoAnalisis,
   type PliegoExtracted,
   type Recomendacion,
@@ -78,7 +79,7 @@ export default function PliegoPage({
   });
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
+    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
       <Link
         href={`/radar/${encodeURIComponent(expediente)}`}
         className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -176,8 +177,9 @@ function Header({
 function Skeleton() {
   return (
     <div className="space-y-4">
+      <div className="h-48 animate-pulse rounded-2xl bg-muted/30" />
       <div className="h-32 animate-pulse rounded-2xl bg-muted/30" />
-      <div className="h-64 animate-pulse rounded-2xl bg-muted/30" />
+      <div className="h-40 animate-pulse rounded-2xl bg-muted/30" />
     </div>
   );
 }
@@ -356,99 +358,364 @@ function Completado({
   const d = analisis.extracted_data;
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
-      <div className="space-y-6">
-        {d.resumen_ejecutivo && (
-          <ResumenEjecutivo
-            texto={d.resumen_ejecutivo}
-            idioma={d.idioma_detectado}
-          />
-        )}
+    <div className="space-y-6">
 
-        {d.banderas_rojas && d.banderas_rojas.length > 0 && (
-          <BanderasRojas items={d.banderas_rojas} />
-        )}
+      {/* ── 1. Lo más importante del pliego ─────────────────────────── */}
+      <FichaRapida d={d} />
 
-        <BloqueEconomico d={d} />
-        <BloquePlazos d={d} />
-        <BloqueSolvencia d={d} />
-        <BloqueValoracion d={d} />
-        <Calculadora d={d} />
-        <BloqueGarantias d={d} />
-        {d.docs_extra_sobre_a && d.docs_extra_sobre_a.length > 0 && (
-          <BloqueSobreA items={d.docs_extra_sobre_a} />
-        )}
+      {/* ── 2. Encaje con tu empresa ─────────────────────────────────── */}
+      <EncajeEmpresa
+        encaje={recomendacion?.encaje ?? []}
+        loading={recomendacionLoading}
+      />
 
-        <Acciones
-          analisis={analisis}
-          onReextract={onReextract}
-          onDelete={onDelete}
-          reextracting={reextracting}
-          expediente={expediente}
-        />
+      {/* ── 3. Conclusión ────────────────────────────────────────────── */}
+      <ConclusionPanel
+        recomendacion={recomendacion}
+        loading={recomendacionLoading}
+      />
+
+      {/* ── Detalle del pliego ────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 pt-2">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Datos completos del pliego
+        </span>
+        <div className="h-px flex-1 bg-border" />
       </div>
 
-      <aside className="lg:sticky lg:top-6 lg:self-start">
-        <RecomendacionPanel
-          recomendacion={recomendacion}
-          loading={recomendacionLoading}
-        />
-      </aside>
+      <BloqueValoracion d={d} />
+      <Calculadora d={d} />
+      <BloqueEconomico d={d} />
+      <BloquePlazos d={d} />
+      <BloqueGarantias d={d} />
+      {d.docs_extra_sobre_a && d.docs_extra_sobre_a.length > 0 && (
+        <BloqueSobreA items={d.docs_extra_sobre_a} />
+      )}
+
+      <Acciones
+        analisis={analisis}
+        onReextract={onReextract}
+        onDelete={onDelete}
+        reextracting={reextracting}
+        expediente={expediente}
+      />
     </div>
   );
 }
 
-// ─── Resumen ejecutivo ─────────────────────────────────────────────────────
+// ─── Sección 1: Lo más importante del pliego ──────────────────────────────
 
-function ResumenEjecutivo({
-  texto,
-  idioma,
-}: {
-  texto: string;
-  idioma: string | undefined | null;
-}) {
+function FichaRapida({ d }: { d: PliegoExtracted }) {
+  const clasif = d.clasificacion_grupo
+    ? `${d.clasificacion_grupo}${d.clasificacion_subgrupo ?? ""}${
+        d.clasificacion_categoria ? "-" + d.clasificacion_categoria : ""
+      }`
+    : null;
+
+  const stats: { label: string; value: string }[] = [];
+  if (d.presupuesto_base_sin_iva != null)
+    stats.push({ label: "Presupuesto base", value: fmtEur(d.presupuesto_base_sin_iva) });
+  if (d.plazo_ejecucion_meses != null)
+    stats.push({ label: "Plazo de ejecución", value: `${d.plazo_ejecucion_meses} meses` });
+  stats.push({ label: "Clasificación exigida", value: clasif ?? "No exige" });
+  if (d.fecha_limite_presentacion)
+    stats.push({ label: "Fecha límite", value: fmtFecha(d.fecha_limite_presentacion) });
+
   return (
     <section className="card p-6">
-      <p className="eyebrow mb-3 flex items-center gap-2">
-        Resumen ejecutivo
-        {idioma && (
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
-            {idioma}
-          </span>
-        )}
-      </p>
-      <p className="font-serif text-lg leading-relaxed">{texto}</p>
+      <p className="eyebrow mb-5">Lo más importante del pliego</p>
+
+      <div className={`grid gap-5 ${stats.length >= 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3"} mb-5`}>
+        {stats.map((s) => (
+          <div key={s.label}>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              {s.label}
+            </p>
+            <p className="mt-1 font-display text-lg font-bold leading-tight">
+              {s.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {d.banderas_rojas && d.banderas_rojas.length > 0 && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          {d.banderas_rojas.map((b, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-3 py-1 text-xs font-medium text-warning ring-1 ring-warning/25"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden="true" />
+              {BANDERA_TIPO_LABELS[b.tipo] ?? b.tipo}
+              {b.descripcion && (
+                <span className="font-normal text-warning/70"> — {b.descripcion}</span>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {d.resumen_ejecutivo && (
+        <p className="font-serif text-base leading-relaxed text-foreground/90">
+          {d.resumen_ejecutivo}
+        </p>
+      )}
     </section>
   );
 }
 
-// ─── Banderas rojas ────────────────────────────────────────────────────────
+// ─── Sección 2: Encaje con tu empresa ─────────────────────────────────────
 
-function BanderasRojas({ items }: { items: BanderaRoja[] }) {
+const encajeStyle: Record<
+  string,
+  { dot: string; text: string; label: string; bg: string; ring: string }
+> = {
+  cumple: {
+    dot: "bg-success",
+    text: "text-success",
+    label: "Cumple",
+    bg: "bg-success/10",
+    ring: "ring-success/25",
+  },
+  riesgo: {
+    dot: "bg-warning",
+    text: "text-warning",
+    label: "Riesgo",
+    bg: "bg-warning/10",
+    ring: "ring-warning/25",
+  },
+  no_cumple: {
+    dot: "bg-danger",
+    text: "text-danger",
+    label: "No cumple",
+    bg: "bg-danger/10",
+    ring: "ring-danger/25",
+  },
+  sin_datos: {
+    dot: "bg-muted-foreground/40",
+    text: "text-muted-foreground",
+    label: "Sin datos",
+    bg: "bg-muted/40",
+    ring: "ring-border",
+  },
+};
+
+function EncajeEmpresa({
+  encaje,
+  loading,
+}: {
+  encaje: EncajeItem[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <section className="card p-6">
+        <p className="eyebrow mb-4">Encaje con tu empresa</p>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-12 animate-pulse rounded-lg bg-muted/40" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section className="rounded-2xl bg-warning/5 p-6 ring-1 ring-warning/20 shadow-card">
-      <p className="eyebrow mb-3 text-warning">Banderas rojas detectadas</p>
-      <ul className="space-y-2.5">
-        {items.map((b, i) => (
-          <li key={i} className="flex items-start gap-3 text-sm">
-            <span
-              className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
-              aria-hidden="true"
-            />
-            <div>
-              <span className="font-medium">
-                {BANDERA_TIPO_LABELS[b.tipo] ?? b.tipo}
-              </span>
-              <span className="text-muted-foreground"> — {b.descripcion}</span>
+    <section className="card p-6">
+      <p className="eyebrow mb-4">Encaje con tu empresa</p>
+
+      {encaje.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          El pliego no especifica clasificación ni solvencia mínima. No se han
+          detectado requisitos formales que comparar con tu empresa.
+        </p>
+      ) : (
+        <div className="divide-y divide-border">
+          {encaje.map((item, i) => {
+            const s = encajeStyle[item.estado] ?? encajeStyle.sin_datos;
+            return (
+              <div
+                key={i}
+                className="grid grid-cols-1 gap-2 py-4 sm:grid-cols-[1fr_1fr_auto] sm:items-center sm:gap-4"
+              >
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    {item.requisito}
+                  </p>
+                  <p className="mt-0.5 text-sm text-foreground">{item.exigido}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Tu empresa
+                  </p>
+                  <p className="mt-0.5 text-sm text-foreground">{item.empresa}</p>
+                </div>
+                <div className="flex sm:justify-end">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 ${s.bg} ${s.ring}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} aria-hidden="true" />
+                    <span className={s.text}>{s.label}</span>
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ─── Sección 3: Conclusión ─────────────────────────────────────────────────
+
+const veredictoStyle: Record<
+  Veredicto,
+  { color: string; bg: string; ring: string; icon: LucideIcon }
+> = {
+  ir: {
+    color: "text-success",
+    bg: "bg-success/10",
+    ring: "ring-success/25",
+    icon: CheckCircle2,
+  },
+  ir_con_riesgo: {
+    color: "text-warning",
+    bg: "bg-warning/10",
+    ring: "ring-warning/25",
+    icon: AlertTriangle,
+  },
+  no_ir: {
+    color: "text-danger",
+    bg: "bg-danger/10",
+    ring: "ring-danger/25",
+    icon: XCircle,
+  },
+  incompleto: {
+    color: "text-muted-foreground",
+    bg: "bg-muted/40",
+    ring: "ring-border",
+    icon: Info,
+  },
+};
+
+function ConclusionPanel({
+  recomendacion,
+  loading,
+}: {
+  recomendacion: Recomendacion | undefined;
+  loading: boolean;
+}) {
+  if (loading || !recomendacion) {
+    return (
+      <section className="card p-6">
+        <p className="eyebrow mb-3">Conclusión</p>
+        <div className="h-28 animate-pulse rounded-lg bg-muted/40" />
+      </section>
+    );
+  }
+
+  const style = veredictoStyle[recomendacion.veredicto];
+  const Icon = style.icon;
+  const tieneRazones =
+    recomendacion.razones_a_favor.length > 0 ||
+    recomendacion.razones_riesgo.length > 0 ||
+    recomendacion.razones_no.length > 0;
+
+  return (
+    <section className={`rounded-2xl p-6 shadow-card ring-1 ${style.bg} ${style.ring}`}>
+      <p className={`eyebrow mb-3 ${style.color}`}>Conclusión</p>
+
+      <div className="flex items-start gap-3">
+        <Icon
+          className={`mt-0.5 h-6 w-6 shrink-0 ${style.color}`}
+          strokeWidth={2}
+        />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-2xl font-bold leading-tight tracking-tight">
+            {recomendacion.titulo}
+          </h2>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {recomendacion.razon_principal}
+          </p>
+        </div>
+      </div>
+
+      {tieneRazones && (
+        <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:gap-6">
+          {recomendacion.razones_a_favor.length > 0 && (
+            <div className="flex-1">
+              <ReasonList
+                label="A favor"
+                tone="success"
+                items={recomendacion.razones_a_favor}
+              />
             </div>
+          )}
+          {recomendacion.razones_riesgo.length > 0 && (
+            <div className="flex-1">
+              <ReasonList
+                label="A vigilar"
+                tone="warning"
+                items={recomendacion.razones_riesgo}
+              />
+            </div>
+          )}
+          {recomendacion.razones_no.length > 0 && (
+            <div className="flex-1">
+              <ReasonList
+                label="En contra"
+                tone="danger"
+                items={recomendacion.razones_no}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ReasonList({
+  label,
+  tone,
+  items,
+}: {
+  label: string;
+  tone: "success" | "warning" | "danger";
+  items: string[];
+}) {
+  const dotColor =
+    tone === "success"
+      ? "bg-success"
+      : tone === "warning"
+      ? "bg-warning"
+      : "bg-danger";
+  const labelColor =
+    tone === "success"
+      ? "text-success"
+      : tone === "warning"
+      ? "text-warning"
+      : "text-danger";
+  return (
+    <div>
+      <p className={`text-[11px] font-semibold uppercase tracking-wider ${labelColor}`}>
+        {label}
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {items.map((r, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm">
+            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
+            <span>{r}</span>
           </li>
         ))}
       </ul>
-    </section>
+    </div>
   );
 }
 
-// ─── Bloques de datos ──────────────────────────────────────────────────────
+// ─── Bloques de datos (detalle) ────────────────────────────────────────────
 
 function Bloque({
   eyebrow,
@@ -490,8 +757,57 @@ function Row({
 function Literal({ texto }: { texto: string }) {
   return (
     <blockquote className="mt-1 rounded-md bg-muted/40 px-3 py-2 font-serif text-[13px] leading-relaxed text-foreground/90">
-      “{texto}”
+      "{texto}"
     </blockquote>
+  );
+}
+
+function BloqueValoracion({ d }: { d: PliegoExtracted }) {
+  const empty =
+    !d.formula_economica_extracto &&
+    !d.baja_temeraria_extracto &&
+    d.pct_criterios_subjetivos == null &&
+    d.pct_criterios_objetivos == null;
+  if (empty) return null;
+  return (
+    <Bloque eyebrow="Puntuación" titulo="Criterios y fórmulas de valoración">
+      <Row
+        label="Ponderación"
+        value={
+          d.pct_criterios_subjetivos != null || d.pct_criterios_objetivos != null
+            ? `Subjetivos ${d.pct_criterios_subjetivos ?? "—"}% · Objetivos ${
+                d.pct_criterios_objetivos ?? "—"
+              }%`
+            : "—"
+        }
+      />
+      <Row
+        label="Tipo de fórmula"
+        value={
+          d.formula_tipo
+            ? FORMULA_TIPO_LABELS[d.formula_tipo] ?? d.formula_tipo
+            : "—"
+        }
+      />
+      {d.formula_economica_extracto && (
+        <Row
+          label="Fórmula económica (literal)"
+          value={<Literal texto={d.formula_economica_extracto} />}
+        />
+      )}
+      {d.baja_temeraria_extracto && (
+        <Row
+          label="Baja temeraria (literal)"
+          value={<Literal texto={d.baja_temeraria_extracto} />}
+        />
+      )}
+      {d.umbral_saciedad_pct != null && (
+        <Row label="Umbral de saciedad" value={`${d.umbral_saciedad_pct}%`} />
+      )}
+      {d.mejoras_descripcion && (
+        <Row label="Mejoras valorables" value={d.mejoras_descripcion} />
+      )}
+    </Bloque>
   );
 }
 
@@ -537,39 +853,25 @@ function BloquePlazos({ d }: { d: PliegoExtracted }) {
   );
 }
 
-function BloqueSolvencia({ d }: { d: PliegoExtracted }) {
+function BloqueGarantias({ d }: { d: PliegoExtracted }) {
   const empty =
-    !d.clasificacion_grupo &&
-    d.solvencia_economica_volumen_anual == null &&
-    d.solvencia_tecnica_obras_similares_importe == null;
+    d.garantia_provisional_pct == null && d.garantia_definitiva_pct == null;
   if (empty) return null;
-
-  const clasif = d.clasificacion_grupo
-    ? `${d.clasificacion_grupo}${d.clasificacion_subgrupo ?? ""}${
-        d.clasificacion_categoria ? "-" + d.clasificacion_categoria : ""
-      }`
-    : null;
-
   return (
-    <Bloque eyebrow="Requisitos" titulo="Solvencia exigida">
-      <Row label="Clasificación" value={clasif ?? "No exige"} />
+    <Bloque eyebrow="Caución" titulo="Garantías exigidas">
       <Row
-        label="Vol. anual de negocio mínimo (econ. art. 87)"
-        value={fmtEur(d.solvencia_economica_volumen_anual)}
-      />
-      <Row
-        label="Obras similares — importe (téc. art. 88)"
-        value={fmtEur(d.solvencia_tecnica_obras_similares_importe)}
-      />
-      <Row
-        label="Obras similares — cantidad"
+        label="Provisional"
         value={
-          d.solvencia_tecnica_numero_obras != null
-            ? `${d.solvencia_tecnica_numero_obras} obras${
-                d.solvencia_tecnica_anos_referencia
-                  ? ` (últimos ${d.solvencia_tecnica_anos_referencia} años)`
-                  : ""
-              }`
+          d.garantia_provisional_pct != null
+            ? `${d.garantia_provisional_pct}% del presupuesto base`
+            : "No exige"
+        }
+      />
+      <Row
+        label="Definitiva"
+        value={
+          d.garantia_definitiva_pct != null
+            ? `${d.garantia_definitiva_pct}% de la adjudicación`
             : "—"
         }
       />
@@ -577,54 +879,17 @@ function BloqueSolvencia({ d }: { d: PliegoExtracted }) {
   );
 }
 
-function BloqueValoracion({ d }: { d: PliegoExtracted }) {
-  const empty =
-    !d.formula_economica_extracto &&
-    !d.baja_temeraria_extracto &&
-    d.pct_criterios_subjetivos == null &&
-    d.pct_criterios_objetivos == null;
-  if (empty) return null;
+function BloqueSobreA({ items }: { items: string[] }) {
   return (
-    <Bloque eyebrow="Puntuación" titulo="Criterios y fórmulas de valoración">
-      <Row
-        label="Ponderación"
-        value={
-          d.pct_criterios_subjetivos != null || d.pct_criterios_objetivos != null
-            ? `Subjetivos ${d.pct_criterios_subjetivos ?? "—"}% · Objetivos ${
-                d.pct_criterios_objetivos ?? "—"
-              }%`
-            : "—"
-        }
-      />
-      <Row
-        label="Tipo de fórmula"
-        value={
-          d.formula_tipo
-            ? FORMULA_TIPO_LABELS[d.formula_tipo] ?? d.formula_tipo
-            : "—"
-        }
-      />
-      {d.formula_economica_extracto && (
-        <Row
-          label="Fórmula económica (literal)"
-          value={<Literal texto={d.formula_economica_extracto} />}
-        />
-      )}
-      {d.baja_temeraria_extracto && (
-        <Row
-          label="Baja temeraria (literal)"
-          value={<Literal texto={d.baja_temeraria_extracto} />}
-        />
-      )}
-      {d.umbral_saciedad_pct != null && (
-        <Row
-          label="Umbral de saciedad"
-          value={`${d.umbral_saciedad_pct}%`}
-        />
-      )}
-      {d.mejoras_descripcion && (
-        <Row label="Mejoras valorables" value={d.mejoras_descripcion} />
-      )}
+    <Bloque eyebrow="Sobre A" titulo="Documentación adicional">
+      <ul className="space-y-1.5 text-sm">
+        {items.map((doc, i) => (
+          <li key={i} className="flex items-start gap-2">
+            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/60" />
+            <span>{doc}</span>
+          </li>
+        ))}
+      </ul>
     </Bloque>
   );
 }
@@ -632,11 +897,7 @@ function BloqueValoracion({ d }: { d: PliegoExtracted }) {
 // ─── M5 Calculadora (vive dentro del flujo M3) ─────────────────────────────
 
 function parseTemerariaThreshold(text: string | null | undefined): number | null {
-  // Best-effort regex sobre el extracto literal de baja temeraria. Cubre
-  // patrones comunes castellano + catalán. Devuelve null si no encuentra
-  // un umbral numérico claro — el frontend cae a "evalúa manualmente".
   if (!text) return null;
-  // "X unidades porcentuales" / "X unitats percentuals"
   const m1 = text.match(
     /(\d+(?:[.,]\d+)?)\s*(?:unidades porcentuales|unitats percentuals)/i,
   );
@@ -644,7 +905,6 @@ function parseTemerariaThreshold(text: string | null | undefined): number | null
     const v = parseFloat(m1[1].replace(",", "."));
     if (v >= 5 && v <= 50) return v;
   }
-  // "más de X%" / "superior(es) al X%" / "més d(e) X%"
   const m2 = text.match(
     /(?:m[áa]s\s+de|m[ée]s\s+d[e']?|superior(?:es)?\s+(?:al|en\s+m[áa]s\s+de)|inferior(?:es)?\s+(?:al|en\s+m[áa]s\s+de))\s+(?:un\s+|una\s+)?(\d+(?:[.,]\d+)?)\s*(?:%|por\s+ciento|per\s+cent)/i,
   );
@@ -744,7 +1004,6 @@ function Calculadora({ d }: { d: PliegoExtracted }) {
         </div>
       </div>
 
-      {/* Estado vs baja temeraria */}
       {enZonaTemeraria && (
         <div className="mt-5 rounded-lg bg-danger/30 px-3 py-2 text-sm">
           <strong>Zona de baja temeraria.</strong> Tu baja del {bajaPct}% supera o iguala el umbral del {temerariaPct}%. Necesitarás justificación detallada (LCSP art. 149) o quedarás excluida.
@@ -761,7 +1020,6 @@ function Calculadora({ d }: { d: PliegoExtracted }) {
         </div>
       )}
 
-      {/* Estimación de puntos económicos (solo si fórmula lineal con saciedad) */}
       {esLinealSaciedad && (
         <div className="mt-3 rounded-lg bg-surface/10 px-3 py-2 text-sm">
           {enSaciedad ? (
@@ -778,7 +1036,6 @@ function Calculadora({ d }: { d: PliegoExtracted }) {
         </div>
       )}
 
-      {/* Notas de referencia */}
       <div className="mt-5 border-t border-surface/10 pt-3 text-xs text-surface/60">
         {temerariaPct == null && d.baja_temeraria_extracto && (
           <p className="mb-1.5">
@@ -804,46 +1061,7 @@ function Calculadora({ d }: { d: PliegoExtracted }) {
   );
 }
 
-function BloqueGarantias({ d }: { d: PliegoExtracted }) {
-  const empty =
-    d.garantia_provisional_pct == null && d.garantia_definitiva_pct == null;
-  if (empty) return null;
-  return (
-    <Bloque eyebrow="Caución" titulo="Garantías exigidas">
-      <Row
-        label="Provisional"
-        value={
-          d.garantia_provisional_pct != null
-            ? `${d.garantia_provisional_pct}% del presupuesto base`
-            : "No exige"
-        }
-      />
-      <Row
-        label="Definitiva"
-        value={
-          d.garantia_definitiva_pct != null
-            ? `${d.garantia_definitiva_pct}% de la adjudicación`
-            : "—"
-        }
-      />
-    </Bloque>
-  );
-}
-
-function BloqueSobreA({ items }: { items: string[] }) {
-  return (
-    <Bloque eyebrow="Sobre A" titulo="Documentación adicional">
-      <ul className="space-y-1.5 text-sm">
-        {items.map((doc, i) => (
-          <li key={i} className="flex items-start gap-2">
-            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/60" />
-            <span>{doc}</span>
-          </li>
-        ))}
-      </ul>
-    </Bloque>
-  );
-}
+// ─── Acciones ──────────────────────────────────────────────────────────────
 
 function Acciones({
   analisis,
@@ -906,135 +1124,6 @@ function Acciones({
           Borrar
         </button>
       </div>
-    </div>
-  );
-}
-
-// ─── Recomendación panel ───────────────────────────────────────────────────
-
-const veredictoStyle: Record<
-  Veredicto,
-  { color: string; bg: string; ring: string; icon: LucideIcon }
-> = {
-  ir: { color: "text-success", bg: "bg-success/10", ring: "ring-success/25", icon: CheckCircle2 },
-  ir_con_riesgo: {
-    color: "text-warning",
-    bg: "bg-warning/10",
-    ring: "ring-warning/25",
-    icon: AlertTriangle,
-  },
-  no_ir: { color: "text-danger", bg: "bg-danger/10", ring: "ring-danger/25", icon: XCircle },
-  incompleto: {
-    color: "text-muted-foreground",
-    bg: "bg-muted/40",
-    ring: "ring-border",
-    icon: Info,
-  },
-};
-
-function RecomendacionPanel({
-  recomendacion,
-  loading,
-}: {
-  recomendacion: Recomendacion | undefined;
-  loading: boolean;
-}) {
-  if (loading || !recomendacion) {
-    return (
-      <div className="rounded-2xl bg-surface-raised p-6 ring-1 ring-border">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Recomendación
-        </p>
-        <div className="mt-3 h-32 animate-pulse rounded-lg bg-muted/40" />
-      </div>
-    );
-  }
-
-  const style = veredictoStyle[recomendacion.veredicto];
-  const Icon = style.icon;
-
-  return (
-    <div className={`rounded-2xl p-6 ring-1 ${style.bg} ${style.ring}`}>
-      <p className={`text-xs font-medium uppercase tracking-wider ${style.color}`}>
-        Recomendación
-      </p>
-      <div className="mt-2 flex items-start gap-2">
-        <Icon className={`mt-1 h-5 w-5 shrink-0 ${style.color}`} strokeWidth={2} />
-        <h2 className="font-serif text-xl font-medium leading-tight">
-          {recomendacion.titulo}
-        </h2>
-      </div>
-
-      {recomendacion.razones_a_favor.length > 0 && (
-        <ReasonList
-          label="A favor"
-          tone="success"
-          items={recomendacion.razones_a_favor}
-        />
-      )}
-      {recomendacion.razones_riesgo.length > 0 && (
-        <ReasonList
-          label="A vigilar"
-          tone="warning"
-          items={recomendacion.razones_riesgo}
-        />
-      )}
-      {recomendacion.razones_no.length > 0 && (
-        <ReasonList
-          label="En contra"
-          tone="danger"
-          items={recomendacion.razones_no}
-        />
-      )}
-
-      {recomendacion.razones_a_favor.length === 0 &&
-        recomendacion.razones_riesgo.length === 0 &&
-        recomendacion.razones_no.length === 0 && (
-          <p className="mt-4 text-sm text-muted-foreground">
-            La extracción no detectó suficiente información para evaluar
-            automáticamente. Revisa el pliego original.
-          </p>
-        )}
-    </div>
-  );
-}
-
-function ReasonList({
-  label,
-  tone,
-  items,
-}: {
-  label: string;
-  tone: "success" | "warning" | "danger";
-  items: string[];
-}) {
-  const dotColor =
-    tone === "success"
-      ? "bg-success"
-      : tone === "warning"
-      ? "bg-warning"
-      : "bg-danger";
-  const labelColor =
-    tone === "success"
-      ? "text-success"
-      : tone === "warning"
-      ? "text-warning"
-      : "text-danger";
-  return (
-    <div className="mt-5">
-      <p
-        className={`text-[11px] font-semibold uppercase tracking-wider ${labelColor}`}
-      >
-        {label}
-      </p>
-      <ul className="mt-2 space-y-1.5">
-        {items.map((r, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm">
-            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
-            <span>{r}</span>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
