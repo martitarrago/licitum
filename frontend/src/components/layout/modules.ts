@@ -25,6 +25,7 @@ export interface Module {
   href: string;
   icon: LucideIcon;
   available: boolean;
+  exact?: boolean;
   children?: SubModule[];
 }
 
