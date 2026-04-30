@@ -213,10 +213,10 @@ function UploadEmpty({ expediente }: { expediente: string }) {
           />
         </div>
         <div className="flex-1">
-          <h2 className="font-serif text-xl font-medium">
+          <h2 className="font-display text-xl font-bold">
             Sube el PCAP para empezar
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-base text-muted-foreground">
             Sube el Pliego de Cláusulas Administrativas Particulares y la IA
             extraerá en menos de 60 segundos: presupuesto, plazo, clasificación
             exigida, fórmula de valoración, baja temeraria, fechas clave y
@@ -275,10 +275,10 @@ function Procesando() {
         className="mx-auto h-10 w-10 animate-spin text-muted-foreground"
         strokeWidth={1.5}
       />
-      <h2 className="mt-4 font-serif text-xl font-medium">
+      <h2 className="mt-4 font-display text-xl font-bold">
         Analizando el pliego con IA
       </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+      <p className="mx-auto mt-2 max-w-md text-base text-muted-foreground">
         Suele tardar 30-60 segundos. La página se actualiza sola cuando termine
         — puedes seguir trabajando en otra cosa mientras tanto.
       </p>
@@ -357,7 +357,7 @@ function Completado({
   const d = analisis.extracted_data;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
 
       {/* ── 1. Lo más importante del pliego ─────────────────────────── */}
       <FichaRapida d={d} />
@@ -423,16 +423,16 @@ function FichaRapida({ d }: { d: PliegoExtracted }) {
     stats.push({ label: "Visita a obra", value: fmtFecha(d.fecha_visita_obra) });
 
   return (
-    <section className="card p-6">
-      <p className="eyebrow mb-5">Lo más importante del pliego</p>
+    <section className="card p-8">
+      <p className="eyebrow mb-6">Lo más importante del pliego</p>
 
-      <div className="mb-5 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mb-6 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-6">
         {stats.map((s) => (
           <div key={s.label}>
             <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               {s.label}
             </p>
-            <p className="mt-1 font-display text-lg font-bold leading-tight">
+            <p className="display-num mt-1 text-2xl">
               {s.value}
             </p>
           </div>
@@ -510,11 +510,11 @@ function EncajeEmpresa({
 }) {
   if (loading) {
     return (
-      <section className="card p-6">
-        <p className="eyebrow mb-4">Encaje con tu empresa</p>
+      <section className="card p-8">
+        <p className="eyebrow mb-5">Encaje con tu empresa</p>
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-12 animate-pulse rounded-lg bg-muted/40" />
+            <div key={i} className="h-14 animate-pulse rounded-lg bg-muted/40" />
           ))}
         </div>
       </section>
@@ -522,11 +522,11 @@ function EncajeEmpresa({
   }
 
   return (
-    <section className="card p-6">
-      <p className="eyebrow mb-4">Encaje con tu empresa</p>
+    <section className="card p-8">
+      <p className="eyebrow mb-5">Encaje con tu empresa</p>
 
       {encaje.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-base text-muted-foreground">
           El pliego no especifica clasificación ni solvencia mínima. No se han
           detectado requisitos formales que comparar con tu empresa.
         </p>
@@ -537,19 +537,19 @@ function EncajeEmpresa({
             return (
               <div
                 key={i}
-                className="grid grid-cols-1 gap-2 py-4 sm:grid-cols-[1fr_1fr_auto] sm:items-center sm:gap-4"
+                className="grid grid-cols-1 gap-2 py-5 sm:grid-cols-[1fr_1fr_auto] sm:items-center sm:gap-4"
               >
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                     {item.requisito}
                   </p>
-                  <p className="mt-0.5 text-sm text-foreground">{item.exigido}</p>
+                  <p className="mt-1 text-base text-foreground">{item.exigido}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                     Tu empresa
                   </p>
-                  <p className="mt-0.5 text-sm text-foreground">{item.empresa}</p>
+                  <p className="mt-1 text-base text-foreground">{item.empresa}</p>
                 </div>
                 <div className="flex sm:justify-end">
                   <span
@@ -609,8 +609,8 @@ function ConclusionPanel({
 }) {
   if (loading || !recomendacion) {
     return (
-      <section className="card p-6">
-        <p className="eyebrow mb-3">Conclusión</p>
+      <section className="card p-8">
+        <p className="eyebrow mb-4">Conclusión</p>
         <div className="h-28 animate-pulse rounded-lg bg-muted/40" />
       </section>
     );
@@ -624,19 +624,19 @@ function ConclusionPanel({
     recomendacion.razones_no.length > 0;
 
   return (
-    <section className={`rounded-2xl p-6 shadow-card ring-1 ${style.bg} ${style.ring}`}>
-      <p className={`eyebrow mb-3 ${style.color}`}>Conclusión</p>
+    <section className={`rounded-2xl p-8 shadow-card ring-1 ${style.bg} ${style.ring}`}>
+      <p className={`eyebrow mb-4 ${style.color}`}>Conclusión</p>
 
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-4">
         <Icon
-          className={`mt-0.5 h-6 w-6 shrink-0 ${style.color}`}
+          className={`mt-1 h-7 w-7 shrink-0 ${style.color}`}
           strokeWidth={2}
         />
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-2xl font-bold leading-tight tracking-tight">
+          <h2 className="font-display text-3xl font-bold leading-tight tracking-tight">
             {recomendacion.titulo}
           </h2>
-          <p className="mt-1.5 text-sm text-muted-foreground">
+          <p className="mt-2 text-base text-muted-foreground">
             {recomendacion.razon_principal}
           </p>
         </div>
@@ -703,9 +703,9 @@ function ReasonList({
       <p className={`text-[11px] font-semibold uppercase tracking-wider ${labelColor}`}>
         {label}
       </p>
-      <ul className="mt-2 space-y-1.5">
+      <ul className="mt-2 space-y-2">
         {items.map((r, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm">
+          <li key={i} className="flex items-start gap-2 text-base">
             <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
             <span>{r}</span>
           </li>
@@ -727,12 +727,12 @@ function Bloque({
   children: React.ReactNode;
 }) {
   return (
-    <section className="card p-6">
+    <section className="card p-8">
       <p className="eyebrow mb-2">{eyebrow}</p>
-      <h2 className="mb-5 font-display text-xl font-bold tracking-tight">
+      <h2 className="mb-6 font-display text-2xl font-bold tracking-tight">
         {titulo}
       </h2>
-      <dl className="space-y-3">{children}</dl>
+      <dl className="space-y-4">{children}</dl>
     </section>
   );
 }
@@ -749,14 +749,14 @@ function Row({
       <dt className="w-full sm:w-56 shrink-0 text-xs font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </dt>
-      <dd className="min-w-0 flex-1 text-sm">{value}</dd>
+      <dd className="min-w-0 flex-1 text-base">{value}</dd>
     </div>
   );
 }
 
 function Literal({ texto }: { texto: string }) {
   return (
-    <blockquote className="mt-1 rounded-md bg-muted/40 px-3 py-2 font-serif text-[13px] leading-relaxed text-foreground/90">
+    <blockquote className="mt-1 rounded-md bg-muted/40 px-4 py-3 font-serif text-sm leading-relaxed text-foreground/90">
       &ldquo;{texto}&rdquo;
     </blockquote>
   );
