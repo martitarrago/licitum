@@ -264,7 +264,9 @@ export function Sidebar() {
           collapsed ? "justify-center px-2" : "px-5",
         ].join(" ")}
       >
-        <LogoMark collapsed={collapsed} />
+        <Link href="/dashboard" aria-label="Panel de control">
+          <LogoMark collapsed={collapsed} />
+        </Link>
       </div>
 
       {/* Hair-thin divider with subtle gradient fade */}
