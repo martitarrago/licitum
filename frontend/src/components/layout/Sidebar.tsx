@@ -113,8 +113,9 @@ function NavItem({
   onItemClick: () => void;
 }) {
   const Icon = module.icon;
-  const isParentActive =
-    pathname === module.href || pathname.startsWith(module.href + "/");
+  const isParentActive = module.exact
+    ? pathname === module.href
+    : pathname === module.href || pathname.startsWith(module.href + "/");
   const hasChildren = !!module.children?.length;
   const showChildren = hasChildren && isParentActive && !collapsed;
 
