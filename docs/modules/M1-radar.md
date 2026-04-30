@@ -13,7 +13,7 @@ Eso convierte un feed genérico en un asistente.
 
 ---
 
-## Estado MVP — base completada ✅
+## Estado MVP — base completada ✅ (última actualización 2026-04-30)
 
 El M1 cubre la promesa diferencial básica: detectar oportunidades reales filtradas por solvencia legal y ordenadas por afinidad histórica. Pendiente: refinar el semáforo con M2 ampliado y añadir acciones (guardar / analizar pliego / descartar).
 
@@ -26,13 +26,24 @@ El M1 cubre la promesa diferencial básica: detectar oportunidades reales filtra
 - Frontend `/radar` con grid de cards, búsqueda y botón "Actualizar feed"
 
 ### 1. Filtros avanzados ✅
-- 7 parámetros: `provincia[]`, `tipo_organismo[]`, `importe_min/max`, `plazo_min/max_dias`, `cpv_prefix`, `q`, `semaforo`
+- Parámetros: `provincia[]`, `tipo_organismo[]`, `importe_min/max`, `plazo_min/max_dias`, `cpv_prefix`, `q`, `tier`
 - Estado serializado en URL (`useSearchParams` + `router.replace`) → enlaces compartibles, atrás funciona, recargar conserva estado
 - Componentes: `FilterPopover` (portal + auto-flip), `FilterPill` (3 estados), `CheckboxGroup`, `ActiveFilterChip`
 - Presets ROLECE para importe (cat 1–6), presets para plazo (hoy / 7d / 14d / 30d / >30d)
 - Corte de plazo en hora `Europe/Madrid` con `cutoff = hoy + N+1 días`
 - Chip único "Toda Cataluña" cuando las 4 provincias están seleccionadas
 - Backfill SQL en migración 0008 (`provincias[]` + `tipo_organismo` desde NUTS y nombre)
+
+### 1b. Sistema de tiers (puntuación del motor de ganabilidad) ✅
+El filtro `semaforo` legacy fue sustituido por `tier`, basado en el score 0-100 del motor PSCP:
+- **Excelente** ≥ 80 → franja azul (`text-info`)
+- **Buena** 65–79 → franja verde (`text-success`)
+- **Aprobada raso** 50–64 → franja amarilla (`text-warning`)
+- **No apta** < 50 → franja roja (`text-danger`), incluye `incluye_descartadas=true`
+
+Los umbrales están sincronizados entre `tierToScoreRange()` (hook), `scoreTone()` (LicitacionCard), y los labels del `RadarFilterBar`. Los tiers con score definido excluyen licitaciones sin puntuar (NULL) — éstas solo aparecen en "Todas".
+
+Ordenación por defecto: `score DESC NULLS LAST` (mejor puntuación primero). El usuario puede cambiar a plazo, importe o publicación con dirección configurable (↑↓).
 
 ### 2. Semáforo CPV ↔ ROLECE ✅
 - `app/core/cpv_rolece.py`: catálogo de 18 prefijos CPV de la familia 45 (cubre el 100% del dataset Socrata) → grupos ROLECE A–K
@@ -120,6 +131,18 @@ El "Punto 6 — Detalle con análisis IA del pliego" del backlog antiguo se ha p
 El "Punto 7 — Estados por licitación" del backlog antiguo se ha promovido a módulo propio: ver [M6 Tracker](M6-tracker.md). El Radar enlaza al pipeline pero la gestión vive en M6.
 
 ---
+
+## Badge de pliego en las cards ✅ (2026-04-30)
+Cada `LicitacionCard` muestra un glifo pequeño en la esquina indicando el estado del análisis M3:
+- `○` gris — pendiente o procesando
+- `⊘` gris — documento no descargable desde PSCP
+- `!` rojo — error en el análisis
+- `✓` verde — veredicto `ir`
+- `⚠` amarillo — veredicto `ir_con_riesgo`
+- `✗` rojo — veredicto `no_ir`
+- `⚪` gris — completado pero sin veredicto concreto (`incompleto`)
+
+El tipo `PliegoVeredicto` incluye los 4 valores: `"ir" | "ir_con_riesgo" | "no_ir" | "incompleto"`.
 
 ## Deuda técnica
 - **Capturar `organismo_id` (DIR3) en certificados de M2** → desbloquea el peso 0.5 de DIR3 en el cálculo de afinidad y rebalancea la fórmula a 0.5 / 0.3 / 0.2 (DIR3 / nombre / CPV)

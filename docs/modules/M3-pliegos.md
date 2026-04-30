@@ -7,20 +7,43 @@ Es el módulo de mayor palanca del MVP — convierte el Radar de "lista de oport
 
 Encaja entre M1 (decidir si vale la pena mirar) y M4+M5 (generar Sobre A + Sobre C). Sus extracciones también alimentan el semáforo multi-eje del M1 cuando el usuario abre la ficha de la licitación.
 
-## Estado — base ✅ MVP funcional
+## Estado — MVP funcional ✅ (2026-04-30)
 
-Backend ✅, frontend ✅, recomendación ir/no ir ✅. Lo construido en el sprint del 2026-04-27:
-- Migración 0012 con tabla `licitacion_analisis_ia` (PK = `licitacion_id`, cache global)
+Backend ✅, frontend ✅, recomendación ir/no ir ✅.
+
+### Infraestructura
+- Migración 0012: tabla `licitacion_analisis_ia` (PK = `licitacion_id`, cache global por licitación)
 - Modelo + Pydantic schemas + `EstadoAnalisisPliegoType` TypeDecorator
-- Worker Celery `extraccion_pliego` con `pdfplumber` + OCR fallback (`spa+cat`) + Claude `tool_use` (28 propiedades, system prompt bilingüe con glosario catalán)
-- Servicio `recomendacion_evaluator.py` que cruza extracción × M2 (clasificaciones merged ROLECE+RELIC + volumen + certs + banderas)
-- 6 endpoints `/api/v1/pliegos/*`: upload, GET, recomendacion, pdf proxy, reextraer, delete
-- Página `/pliegos/[expediente]` con 4 estados (vacío→upload, procesando→polling 3s, fallido→reintentar, completado→bloques)
-- Bloques editorial (económico, plazos, solvencia, valoración con extractos LITERALES en blockquote, garantías, sobre A extra, banderas rojas, resumen)
-- Panel lateral sticky con recomendación (veredicto color-coded + razones a favor/a vigilar/en contra)
-- Botón principal "Analizar pliego con IA" en `/radar/[expediente]`
+- Worker Celery `extraccion_pliego` con `pdfplumber` + OCR fallback (`spa+cat`) + Claude `tool_use` (28 propiedades, system prompt bilingüe con glosario catalán, temperatura 0)
+- Servicio `recomendacion_evaluator.py` que cruza extracción × M2 (clasificaciones ROLECE+RELIC fusionadas + volumen + certificados + banderas rojas)
+- 6 endpoints `/api/v1/pliegos/*`: upload, GET, analizar, reextraer, recomendacion, delete
 
-Tested con casos sintéticos: pliego fácil → veredicto `ir`; pliego difícil → `no_ir` con razones de no + riesgo.
+### Schema de recomendación (actualizado 2026-04-30)
+`RecomendacionRead` incluye ahora:
+- `veredicto`: `"ir" | "ir_con_riesgo" | "no_ir" | "incompleto"`
+- `titulo` + `razon_principal`: frase de resumen del veredicto
+- `razones_a_favor / razones_riesgo / razones_no`: listas de texto
+- `encaje: list[EncajeItem]`: tabla estructurada de requisito / exigido / empresa / estado (`"cumple" | "riesgo" | "no_cumple" | "sin_datos"`)
+
+### Página `/pliegos/[expediente]` — layout actualizado 2026-04-30
+4 estados: vacío→upload | procesando→polling 3s | fallido→reintentar | completado
+
+Cuando **completado**, las secciones se muestran en este orden:
+1. **FichaRapida** — stats grid (presupuesto, plazo, clasificación, fecha límite, apertura, visita obra) + chips de banderas rojas + resumen ejecutivo
+2. **EncajeEmpresa** — tabla divide-y con requisito / exigido por pliego / empresa / pill de estado
+3. **ConclusionPanel** — full-width con veredicto (título `text-3xl`, razon_principal, columnas de razones)
+4. **BloqueValoracion** — fórmula económica + criterios + baja temeraria (extractos literales en blockquote)
+5. **BloqueGarantias** — provisional + definitiva
+6. **BloqueSobreA** — docs extra del sobre A
+7. **Acciones** — re-extraer, borrar, enlace PDF
+
+> ⚠️ `Calculadora M5` fue eliminada de esta página — la detección de umbral temeraria por regex era poco fiable con la variedad real de pliegos. El cálculo de baja quedará en M6 con datos PSCP históricos.
+
+### Bugs corregidos (2026-04-30)
+- `reextract` ahora invalida también la query de recomendación (antes quedaba stale tras re-extraer)
+- `confianza_global` se muestra como "85%" en lugar del string crudo "0.85"
+- `diasHasta` usa comparación UTC midnight (igual que LicitacionCard)
+- `PliegoVeredicto` type incluye `"no_ir"` en frontend y backend
 
 ## Entradas
 - Subida manual: PCAP + PPT (PDFs, opcionalmente otros anexos del expediente)
@@ -93,14 +116,8 @@ Crítico para el mercado objetivo. Muchos ayuntamientos catalanes publican PCAPs
 - No forzar idioma de salida (responde en el idioma del input)
 - Para extractos literales (umbral baja temeraria, fórmulas), preservar el idioma original
 
-## UI propuesta
-Página `/pliegos/[expediente:path]` con:
-- Header: nombre licitación, organismo, fecha límite (countdown), botón "Generar Sobre A" + "Abrir calculadora"
-- Tarjetas con los datos extraídos agrupados (económico, plazo, solvencia, valoración, garantías, banderas)
-- Panel lateral: recomendación ir/no ir + razón + comparación con M2
-- Botones de acción: enlazar al M4 (Sobre A) y M5 (Calculadora), guardar en M6 Tracker
-- Visor PDF en pestaña secundaria para verificar extractos literales
-- Estado del análisis: `procesando` → spinner + estimación 30-60s; `completado` → mostrar; `fallido` → botón reintentar
+## UI implementada
+Ver sección "Página `/pliegos/[expediente]`" en Estado MVP arriba. El panel lateral con `RecomendacionPanel` fue sustituido por `ConclusionPanel` full-width para dar más espacio a la recomendación y mejor jerarquía visual.
 
 ## Trabajo concreto
 
