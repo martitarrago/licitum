@@ -20,7 +20,6 @@ import {
   BANDERA_TIPO_LABELS,
   FORMULA_TIPO_LABELS,
   pliegosApi,
-  type BanderaRoja,
   type EncajeItem,
   type PliegoAnalisis,
   type PliegoExtracted,
@@ -757,7 +756,7 @@ function Row({
 function Literal({ texto }: { texto: string }) {
   return (
     <blockquote className="mt-1 rounded-md bg-muted/40 px-3 py-2 font-serif text-[13px] leading-relaxed text-foreground/90">
-      "{texto}"
+      &ldquo;{texto}&rdquo;
     </blockquote>
   );
 }
