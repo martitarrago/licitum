@@ -6,6 +6,8 @@ interface LicitacionRowProps {
   importe: number;
   fechaLimite: Date;
   semaforo: Semaforo;
+  /** Score 0-100 del motor de ganabilidad. Si está, manda sobre el semáforo. */
+  score?: number | null;
   /** Afinidad histórica 0-1 — sólo se muestra el chip si ≥0.7 */
   afinidad?: number | null;
 }
@@ -15,6 +17,15 @@ const STRIPE_BY_SEMAFORO: Record<Semaforo, string> = {
   amarillo: "bg-warning",
   rojo: "bg-danger",
 };
+
+// Mismos 4 tiers que ScoreChip + LicitacionCard.
+function stripeByScore(score: number | null | undefined): string | null {
+  if (typeof score !== "number") return null;
+  if (score >= 80) return "bg-info";
+  if (score >= 65) return "bg-success";
+  if (score >= 50) return "bg-warning";
+  return "bg-danger";
+}
 
 const importeFormatter = new Intl.NumberFormat("es-ES", {
   style: "currency",
@@ -45,9 +56,10 @@ export function LicitacionRow({
   importe,
   fechaLimite,
   semaforo,
+  score,
   afinidad,
 }: LicitacionRowProps) {
-  const stripe = STRIPE_BY_SEMAFORO[semaforo];
+  const stripe = stripeByScore(score) ?? STRIPE_BY_SEMAFORO[semaforo];
   const dias = diasHasta(fechaLimite);
   const cerrada = dias < 0;
   const urgente = dias >= 0 && dias <= 7;

@@ -74,6 +74,7 @@ function parseLicitacion(l: LicitacionRead) {
       | "amarillo"
       | "rojo",
     afinidad: l.score_afinidad ? parseFloat(l.score_afinidad) : null,
+    score: l.score,
   };
 }
 
@@ -350,6 +351,7 @@ function NuevosMatchesCard({
                     importe={p.importe}
                     fechaLimite={p.fechaLimite}
                     semaforo={p.semaforo}
+                    score={p.score}
                     afinidad={p.afinidad}
                   />
                 </Link>
