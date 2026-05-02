@@ -208,7 +208,7 @@ PLIEGO_EXTRACTION_TOOL: dict = {
                         },
                         "descripcion": {
                             "type": "string",
-                            "description": "Descripción concreta en lenguaje natural (1 frase).",
+                            "description": "Descripción concreta en castellano (1 frase), independientemente del idioma del PCAP.",
                         },
                     },
                     "required": ["tipo", "descripcion"],
@@ -274,7 +274,7 @@ Tu única tarea es llamar a la herramienta guardar_pliego_extraido con los datos
    - `mejoras_dirigidas`: mejoras tan específicas que apuntan a una empresa concreta
    - `solvencia_alta`: clasificación o volumen exigidos desproporcionados al importe del contrato
    - `visita_urgente`: visita a obra obligatoria con margen <5 días respecto a la fecha límite
-5. `resumen_ejecutivo`: en el idioma del PCAP. 3-4 frases máximo. Describe el objeto del contrato, el alcance real del trabajo y cualquier condición inusual o exigencia especial que defina esta licitación. NO repitas datos numéricos ya capturados en otros campos (importes, fechas, clasificaciones). NO menciones campos faltantes. Tono editorial, directo.
+5. `resumen_ejecutivo`: SIEMPRE en castellano, independientemente del idioma del PCAP. 3-4 frases máximo. Describe el objeto del contrato, el alcance real del trabajo y cualquier condición inusual o exigencia especial que defina esta licitación. NO repitas datos numéricos ya capturados en otros campos (importes, fechas, clasificaciones). NO menciones campos faltantes. Tono editorial, directo.
 6. `idioma_detectado`: 'es' o 'ca'. Si dudas, mira el encabezado oficial.
 7. Para fechas, usa formato ISO YYYY-MM-DD. Si solo aparece la fecha sin hora, usa solo la fecha.
 8. Para importes, número decimal sin separadores de miles: '1.234.567,89' → 1234567.89.
