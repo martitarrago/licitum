@@ -45,6 +45,16 @@ const stripeColor: Record<SemaforoType, string> = {
   gris: "bg-muted-foreground/40",
 };
 
+// Mismos 4 tiers que ScoreChip + LicitacionCard. Si hay score, manda el tier;
+// si no, fallback al semáforo viejo.
+function scoreStripe(score: number | null | undefined): string | null {
+  if (typeof score !== "number") return null;
+  if (score >= 80) return "bg-info";
+  if (score >= 65) return "bg-success";
+  if (score >= 50) return "bg-warning";
+  return "bg-danger";
+}
+
 const fmtEur = (v: string | number | null | undefined): string => {
   if (v == null || v === "") return "—";
   const n = typeof v === "string" ? parseFloat(v) : v;
@@ -155,7 +165,7 @@ export default function LicitacionDetailPage({
 
 function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
   const semaforo = (l.semaforo === "gris" ? "gris" : l.semaforo) as SemaforoType;
-  const stripeClass = stripeColor[semaforo];
+  const stripeClass = scoreStripe(l.score) ?? stripeColor[semaforo];
   const dias = diasHasta(l.fecha_limite);
   const cerrada = dias != null && dias < 0;
   const urgente = dias != null && dias >= 0 && dias <= 7;
