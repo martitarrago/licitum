@@ -27,49 +27,78 @@ celery_app.conf.update(
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
-    # Cron diaria — Celery Beat embebido en el worker (flag `--beat` en start.sh).
-    # Hora interpretada en Europe/Madrid; Celery hace la conversión a UTC.
+    # Celery Beat embebido en el worker (flag `--beat` en start.sh).
+    # Horas interpretadas en Europe/Madrid; Celery hace la conversión a UTC.
+    #
+    # Cadencia:
+    #   · Ingesta PSCP + scores: cada 4h (07, 11, 15, 19) — PSCP publica
+    #     licitaciones a lo largo del día, no solo de madrugada.
+    #   · Adjudicaciones históricas + mviews: 1x/día a las 06:00 — datos
+    #     históricos que no cambian intraday.
+    #   · RELIC: 1x/día a las 08:00 — cambia muy raramente.
     beat_schedule={
-        "ingesta-pscp-diaria": {
+        # ── Ingesta feed PSCP — cada 4h ───────────────────────────────────
+        # expires=30min: si el worker está ocupado y no recoge en ese tiempo,
+        # descarta la tarea (la siguiente pasada lo recogerá).
+        "ingesta-pscp-7h": {
             "task": "workers.ingesta_pscp.ingestar_feed",
             "schedule": crontab(hour=7, minute=0),
-            "options": {
-                # Si ya hay una ingesta encolada/ejecutándose, no apilar otra:
-                # tareas en cola más de 30 min se descartan al recoger.
-                "expires": 30 * 60,
-            },
-        },
-        # Sync RELIC ~1h después de la ingesta PSCP. Reemplaza clasificaciones
-        # de cada empresa registrada en bloque; tras el sync, encolamos
-        # recálculo del semáforo del Radar (idempotente).
-        "sync-relic-diaria": {
-            "task": "workers.sync_relic.sincronizar_todas",
-            "schedule": crontab(hour=8, minute=0),
             "options": {"expires": 30 * 60},
         },
-        # Data layer PSCP — sync incremental obras adjudicadas + refresh mviews.
-        # PSCP actualiza datasets de madrugada; corremos a las 6am Madrid.
-        # Lookback 36h cubre cualquier delay del feed o reintentos.
+        "ingesta-pscp-11h": {
+            "task": "workers.ingesta_pscp.ingestar_feed",
+            "schedule": crontab(hour=11, minute=0),
+            "options": {"expires": 30 * 60},
+        },
+        "ingesta-pscp-15h": {
+            "task": "workers.ingesta_pscp.ingestar_feed",
+            "schedule": crontab(hour=15, minute=0),
+            "options": {"expires": 30 * 60},
+        },
+        "ingesta-pscp-19h": {
+            "task": "workers.ingesta_pscp.ingestar_feed",
+            "schedule": crontab(hour=19, minute=0),
+            "options": {"expires": 30 * 60},
+        },
+        # ── Scores de ganabilidad — 15min después de cada ingesta ─────────
+        # Idempotent: si M2 no cambió, skip vía empresa_context_hash.
+        "intel-scores-7h15": {
+            "task": "workers.intel_scores.calcular_para_todas_empresas",
+            "schedule": crontab(hour=7, minute=15),
+            "options": {"expires": 60 * 60},
+        },
+        "intel-scores-11h15": {
+            "task": "workers.intel_scores.calcular_para_todas_empresas",
+            "schedule": crontab(hour=11, minute=15),
+            "options": {"expires": 60 * 60},
+        },
+        "intel-scores-15h15": {
+            "task": "workers.intel_scores.calcular_para_todas_empresas",
+            "schedule": crontab(hour=15, minute=15),
+            "options": {"expires": 60 * 60},
+        },
+        "intel-scores-19h15": {
+            "task": "workers.intel_scores.calcular_para_todas_empresas",
+            "schedule": crontab(hour=19, minute=15),
+            "options": {"expires": 60 * 60},
+        },
+        # ── Adjudicaciones históricas + mviews — 1x/día ───────────────────
         "intel-pscp-incremental": {
             "task": "workers.intel_pscp.incremental_sync",
             "schedule": crontab(hour=6, minute=0),
             "kwargs": {"lookback_hours": 36, "tipus_contracte": "Obres"},
             "options": {"expires": 30 * 60},
         },
-        # Refresh mviews 30min después del sync. Skip inteligente si no hay
-        # cambios reales (ver _has_real_changes_since_last_refresh).
         "intel-pscp-mview-refresh": {
             "task": "workers.intel_pscp.refresh_mviews",
             "schedule": crontab(hour=6, minute=30),
             "options": {"expires": 30 * 60},
         },
-        # Recalcular scores de ganabilidad por empresa.
-        # Después del feed M1 (07:00) — necesita licitaciones abiertas frescas.
-        # Idempotent: si M2 no cambió, skip vía empresa_context_hash.
-        "intel-scores-recalc": {
-            "task": "workers.intel_scores.calcular_para_todas_empresas",
-            "schedule": crontab(hour=7, minute=15),
-            "options": {"expires": 60 * 60},
+        # ── RELIC — 1x/día ────────────────────────────────────────────────
+        "sync-relic-diaria": {
+            "task": "workers.sync_relic.sincronizar_todas",
+            "schedule": crontab(hour=8, minute=0),
+            "options": {"expires": 30 * 60},
         },
     },
 )
