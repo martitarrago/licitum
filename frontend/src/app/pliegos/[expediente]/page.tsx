@@ -761,78 +761,44 @@ function ConclusionPanel({
       </div>
 
       {tieneRazones && (
-        <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:gap-6">
-          {recomendacion.razones_a_favor.length > 0 && (
-            <div className="flex-1">
-              <ReasonList
-                label="A favor"
-                tone="success"
-                items={recomendacion.razones_a_favor}
-              />
-            </div>
-          )}
-          {recomendacion.razones_riesgo.length > 0 && (
-            <div className="flex-1">
-              <ReasonList
-                label="A vigilar"
-                tone="warning"
-                items={recomendacion.razones_riesgo}
-              />
-            </div>
-          )}
-          {recomendacion.razones_no.length > 0 && (
-            <div className="flex-1">
-              <ReasonList
-                label="En contra"
-                tone="danger"
-                items={recomendacion.razones_no}
-              />
-            </div>
-          )}
+        <div className="mt-6 space-y-2">
+          {recomendacion.razones_a_favor.map((r, i) => (
+            <ReasonRow key={`f-${i}`} tone="success" label="A favor" text={r} />
+          ))}
+          {recomendacion.razones_riesgo.map((r, i) => (
+            <ReasonRow key={`v-${i}`} tone="warning" label="A vigilar" text={r} />
+          ))}
+          {recomendacion.razones_no.map((r, i) => (
+            <ReasonRow key={`n-${i}`} tone="danger" label="En contra" text={r} />
+          ))}
         </div>
       )}
     </section>
   );
 }
 
-function ReasonList({
+function ReasonRow({
   label,
   tone,
-  items,
+  text,
 }: {
   label: string;
   tone: "success" | "warning" | "danger";
-  items: string[];
+  text: string;
 }) {
-  const dotColor =
-    tone === "success"
-      ? "bg-success"
-      : tone === "warning"
-        ? "bg-warning"
-        : "bg-danger";
+  const border =
+    tone === "success" ? "border-success" : tone === "warning" ? "border-warning" : "border-danger";
   const labelColor =
-    tone === "success"
-      ? "text-success"
-      : tone === "warning"
-        ? "text-warning"
-        : "text-danger";
+    tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-danger";
+
   return (
-    <div>
-      <p
-        className={`text-[11px] font-semibold uppercase tracking-wider ${labelColor}`}
-      >
-        {label}
-      </p>
-      <ul className="mt-2 space-y-2">
-        {items.map((r, i) => (
-          <li key={i} className="flex items-start gap-2 text-base">
-            <span
-              className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`}
-            />
-            <span>{r}</span>
-          </li>
-        ))}
-      </ul>
+    <div className={`flex gap-4 border-l-2 ${border} px-4 py-2.5`}>
+      <div className="min-w-0 flex-1">
+        <span className={`mr-2 text-[10px] font-bold uppercase tracking-widest ${labelColor}`}>
+          {label}
+        </span>
+        <span className="text-sm leading-relaxed text-foreground">{text}</span>
+      </div>
     </div>
   );
 }
