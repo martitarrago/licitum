@@ -3,18 +3,15 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertCircle,
   ArrowLeft,
   Building2,
   Calendar,
-  CheckCircle2,
   ExternalLink,
   Loader2,
   MapPin,
   Sparkles,
   Tag,
   XCircle,
-  type LucideIcon,
 } from "lucide-react";
 import {
   licitacionesApi,
@@ -41,48 +38,11 @@ const TIPO_CONTRATO_LABEL: Record<string, string> = {
   privado: "Privado",
 };
 
-interface SemaforoStyle {
-  label: string;
-  Icon: LucideIcon;
-  stripe: string;
-  badgeBg: string;
-  badgeRing: string;
-  iconColor: string;
-}
-
-const semaforoStyles: Record<SemaforoType, SemaforoStyle> = {
-  verde: {
-    label: "Cumple solvencia",
-    Icon: CheckCircle2,
-    stripe: "bg-success",
-    badgeBg: "bg-success/10",
-    badgeRing: "ring-success/25",
-    iconColor: "text-success",
-  },
-  amarillo: {
-    label: "Solvencia ajustada",
-    Icon: AlertCircle,
-    stripe: "bg-warning",
-    badgeBg: "bg-warning/10",
-    badgeRing: "ring-warning/25",
-    iconColor: "text-warning",
-  },
-  rojo: {
-    label: "No cumple solvencia",
-    Icon: XCircle,
-    stripe: "bg-danger",
-    badgeBg: "bg-danger/10",
-    badgeRing: "ring-danger/25",
-    iconColor: "text-danger",
-  },
-  gris: {
-    label: "Sin clasificar",
-    Icon: AlertCircle,
-    stripe: "bg-muted-foreground/40",
-    badgeBg: "bg-muted",
-    badgeRing: "ring-border",
-    iconColor: "text-muted-foreground",
-  },
+const stripeColor: Record<SemaforoType, string> = {
+  verde: "bg-success",
+  amarillo: "bg-warning",
+  rojo: "bg-danger",
+  gris: "bg-muted-foreground/40",
 };
 
 const fmtEur = (v: string | number | null | undefined): string => {
@@ -109,14 +69,6 @@ function diasHasta(fecha: string | null): number | null {
   if (!fecha) return null;
   const ms = new Date(fecha).getTime() - Date.now();
   return Math.ceil(ms / (1000 * 60 * 60 * 24));
-}
-
-function afinidadInfo(score: number | null): { label: string; tone: string } | null {
-  if (score == null || score < 0.3) return null;
-  if (score >= 0.7) {
-    return { label: "Has trabajado antes con este organismo", tone: "text-foreground" };
-  }
-  return { label: "Tipo de obra similar a tu histórico", tone: "text-foreground" };
 }
 
 function provinciasLegibles(provincias: Provincia[]): string {
@@ -203,13 +155,10 @@ export default function LicitacionDetailPage({
 
 function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
   const semaforo = (l.semaforo === "gris" ? "gris" : l.semaforo) as SemaforoType;
-  const estilo = semaforoStyles[semaforo];
-  const Status = estilo.Icon;
+  const stripeClass = stripeColor[semaforo];
   const dias = diasHasta(l.fecha_limite);
   const cerrada = dias != null && dias < 0;
   const urgente = dias != null && dias >= 0 && dias <= 7;
-  const afinidad = l.score_afinidad ? parseFloat(l.score_afinidad) : null;
-  const af = afinidadInfo(afinidad);
   const tipoCat = TIPO_CONTRATO_LABEL[l.tipo_contrato ?? ""] ?? l.tipo_contrato ?? "—";
 
   return (
@@ -217,41 +166,10 @@ function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
       {/* Header con franja semáforo */}
       <div className="flex">
         <div
-          className={`w-2 flex-shrink-0 ${estilo.stripe}`}
+          className={`w-2 flex-shrink-0 ${stripeClass}`}
           aria-hidden="true"
         />
         <div className="flex flex-1 flex-col gap-5 px-6 py-6 sm:px-8 sm:py-7">
-          {/* Badge semáforo */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div
-              className={`
-                inline-flex items-center gap-1.5
-                rounded-full px-3 py-1 text-xs font-semibold text-muted-foreground
-                ring-1 ring-inset ${estilo.badgeBg} ${estilo.badgeRing}
-              `}
-              role="status"
-            >
-              <Status
-                className={`h-3.5 w-3.5 ${estilo.iconColor}`}
-                aria-hidden="true"
-              />
-              {estilo.label}
-            </div>
-            {af && (
-              <div className={`inline-flex items-center gap-1.5 text-xs font-medium ${af.tone}`}>
-                <Sparkles className="h-3 w-3" aria-hidden="true" />
-                {af.label}
-              </div>
-            )}
-          </div>
-
-          {/* Razón explicativa del semáforo */}
-          {l.semaforo_razon && (
-            <p className="text-sm leading-relaxed text-foreground">
-              {l.semaforo_razon}
-            </p>
-          )}
-
           {/* Título */}
           <h1 className="font-display text-2xl font-bold leading-snug tracking-tight text-foreground sm:text-3xl">
             {l.titulo ?? "Sin título"}

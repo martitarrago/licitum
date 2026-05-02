@@ -38,12 +38,18 @@ function dataQualityIndicator(q: string) {
   return { dot: "bg-muted-foreground/50", label: "Faltante" };
 }
 
-function SignalRow({ s }: { s: SignalBreakdown }) {
+function scoreToneColor(score: number): string {
+  if (score >= 80) return "bg-info";
+  if (score >= 65) return "bg-success";
+  if (score >= 50) return "bg-warning";
+  return "bg-danger";
+}
+
+function SignalRow({ s, toneColor }: { s: SignalBreakdown; toneColor: string }) {
   const dq = dataQualityIndicator(s.data_quality);
   const pctValue = Math.round(s.value * 100);
   const pctContrib = s.contribution.toFixed(1);
-  const barColor =
-    s.value >= 0.7 ? "bg-success" : s.value >= 0.4 ? "bg-warning" : "bg-muted-foreground/40";
+  const barColor = toneColor;
 
   return (
     <div className="space-y-1.5 border-t border-border py-3 first:border-t-0 first:pt-0">
@@ -183,7 +189,7 @@ export function AnalisisGanabilidad({ licitacionId, empresaId }: Props) {
         <p className="eyebrow mb-3">Análisis del motor</p>
         <div className="divide-y divide-border">
           {data.breakdown.map((s) => (
-            <SignalRow key={s.name} s={s} />
+            <SignalRow key={s.name} s={s} toneColor={scoreToneColor(data.score)} />
           ))}
         </div>
       </div>
