@@ -128,7 +128,7 @@ export function AnalisisGanabilidad({ licitacionId, empresaId }: Props) {
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Las puntuaciones se calculan cada mañana. Los resultados aparecerán
-              en el próximo ciclo (07:15 Madrid).
+              en el próximo ciclo (07:15 Barcelona).
             </p>
           </div>
         </div>

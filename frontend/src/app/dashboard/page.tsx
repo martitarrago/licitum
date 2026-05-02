@@ -991,26 +991,27 @@ function RowSkeleton() {
 
 // ─── Estado de sincronización inline ────────────────────────────────────────
 // Muestra "Datos actualizados hace X · próxima a las HH:00".
-// Cron de ingesta: 07/11/15/19 hora Madrid. Si pasan más de 5h, dot ámbar.
+// Cron de ingesta: 07/11/15/19 hora Barcelona. Si pasan más de 5h, dot ámbar.
+// Nota: IANA TZ es "Europe/Madrid" (no existe "Europe/Barcelona"), pero la
+// hora es la misma; la copy visible al usuario dice Barcelona.
 
-const CRON_HOURS_MADRID = [7, 11, 15, 19];
+const CRON_HOURS_LOCAL = [7, 11, 15, 19];
 
 function nextCronAt(now: Date): Date {
-  // Trabajamos en Europe/Madrid sin librería: derivamos la hora local Madrid
-  // desde el offset declarado por el navegador. Para España es UTC+1/+2.
-  // Convertimos `now` a representación Madrid usando toLocaleString.
-  const madridNow = new Date(
+  // Trabajamos en hora peninsular sin librería: derivamos la hora local
+  // desde el offset declarado por el navegador (UTC+1/+2 según DST).
+  const localNow = new Date(
     now.toLocaleString("en-US", { timeZone: "Europe/Madrid" }),
   );
-  const hour = madridNow.getHours();
-  const next = new Date(madridNow);
-  const upcoming = CRON_HOURS_MADRID.find((h) => h > hour);
+  const hour = localNow.getHours();
+  const next = new Date(localNow);
+  const upcoming = CRON_HOURS_LOCAL.find((h) => h > hour);
   if (upcoming != null) {
     next.setHours(upcoming, 0, 0, 0);
   } else {
     // Después del último cron del día → 07:00 mañana.
     next.setDate(next.getDate() + 1);
-    next.setHours(CRON_HOURS_MADRID[0], 0, 0, 0);
+    next.setHours(CRON_HOURS_LOCAL[0], 0, 0, 0);
   }
   return next;
 }
@@ -1025,7 +1026,7 @@ function fmtRelativoPasado(then: Date, now: Date): string {
   return `hace ${Math.floor(h / 24)} d`;
 }
 
-function fmtHoraMadrid(d: Date): string {
+function fmtHoraLocal(d: Date): string {
   return d.toLocaleTimeString("es-ES", {
     timeZone: "Europe/Madrid",
     hour: "2-digit",
@@ -1050,7 +1051,7 @@ function SyncStatusInline({
   const stale = minutesAgo > 300; // >5h sin sync = algo no va
 
   const next = nextCronAt(now);
-  const nextHora = fmtHoraMadrid(next);
+  const nextHora = fmtHoraLocal(next);
   // ¿Es mañana?
   const esManana =
     next.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" }) !==
@@ -1059,7 +1060,7 @@ function SyncStatusInline({
   return (
     <span
       className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-      title="El feed PSCP se sincroniza cada 4 h (07/11/15/19 Madrid)."
+      title="El feed PSCP se sincroniza cada 4 h (07/11/15/19 Barcelona)."
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${stale ? "bg-warning" : "bg-success"}`}
