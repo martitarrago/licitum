@@ -189,8 +189,11 @@ export const licitacionesApi = {
     return apiFetch(`/api/v1/licitaciones${qs ? `?${qs}` : ""}`);
   },
 
-  get(expediente: string): Promise<LicitacionDetail> {
-    return apiFetch(`/api/v1/licitaciones/${encodeURIComponent(expediente)}`);
+  get(expediente: string, empresaId?: string): Promise<LicitacionDetail> {
+    const url = empresaId
+      ? `/api/v1/licitaciones/${encodeURIComponent(expediente)}?empresa_id=${empresaId}`
+      : `/api/v1/licitaciones/${encodeURIComponent(expediente)}`;
+    return apiFetch(url);
   },
 
   triggerIngesta(): Promise<IngestaTriggerResponse> {

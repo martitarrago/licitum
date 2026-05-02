@@ -327,14 +327,34 @@ async def list_licitaciones(
 @router.get("/{expediente:path}", response_model=LicitacionDetail)
 async def get_licitacion(
     expediente: str,
+    empresa_id: uuid.UUID | None = Query(
+        None,
+        description="Empresa para resolver el score. Si no se pasa, usa la demo.",
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> LicitacionDetail:
-    row = (
-        await db.execute(select(Licitacion).where(Licitacion.expediente == expediente))
-    ).scalar_one_or_none()
+    empresa_filtro = empresa_id or EMPRESA_DEMO_ID
+    stmt = (
+        select(
+            Licitacion,
+            LicitacionScoreEmpresa.score.label("lse_score"),
+            LicitacionScoreEmpresa.descartada.label("lse_descartada"),
+        )
+        .outerjoin(
+            LicitacionScoreEmpresa,
+            (LicitacionScoreEmpresa.licitacion_id == Licitacion.id)
+            & (LicitacionScoreEmpresa.empresa_id == empresa_filtro),
+        )
+        .where(Licitacion.expediente == expediente)
+    )
+    row = (await db.execute(stmt)).first()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Licitación '{expediente}' no encontrada")
-    return LicitacionDetail.model_validate(row)
+    lic, lse_score, lse_descartada = row
+    detail = LicitacionDetail.model_validate(lic)
+    detail.score = lse_score
+    detail.descartada = lse_descartada
+    return detail
 
 
 @router.post("/ingestar", response_model=IngestaTriggerResponse)

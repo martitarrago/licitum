@@ -121,8 +121,8 @@ export default function LicitacionDetailPage({
   const expediente = decodeURIComponent(params.expediente);
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["licitacion", expediente],
-    queryFn: () => licitacionesApi.get(expediente),
+    queryKey: ["licitacion", expediente, EMPRESA_DEMO_ID],
+    queryFn: () => licitacionesApi.get(expediente, EMPRESA_DEMO_ID),
     staleTime: 5 * 60 * 1000,
   });
 
