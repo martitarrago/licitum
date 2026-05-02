@@ -34,6 +34,7 @@ from app.config import settings
 from app.core.celery_app import celery_app
 from app.core.enums import EstadoAnalisisPliego
 from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
+from app.models.licitacion_score_empresa import LicitacionScoreEmpresa
 
 logger = logging.getLogger(__name__)
 
@@ -488,6 +489,27 @@ async def _ejecutar(
                 )
                 analisis.error_mensaje = error_msg
                 await session.commit()
+
+                # Si la extracción fue OK, recalcular scores de las empresas
+                # que ya tenían score para esta licitación — el pliego puede
+                # cambiar el veredicto (hard_filter_pliego) de forma inmediata.
+                if error_msg is None:
+                    rows = (await session.execute(
+                        select(LicitacionScoreEmpresa.empresa_id).where(
+                            LicitacionScoreEmpresa.licitacion_id == licitacion_id
+                        )
+                    )).scalars().all()
+                    for empresa_id in rows:
+                        celery_app.send_task(
+                            "workers.intel_scores.calcular_para_empresa",
+                            args=[str(empresa_id)],
+                            kwargs={"force": True},
+                        )
+                    if rows:
+                        logger.info(
+                            "Pliego %s completado — encolado recálculo scores para %d empresa(s)",
+                            licitacion_id, len(rows),
+                        )
     finally:
         await engine.dispose()
 
