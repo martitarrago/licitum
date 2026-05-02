@@ -541,24 +541,23 @@ function FichaRapida({ d }: { d: PliegoExtracted }) {
       </div>
 
       {d.banderas_rojas && d.banderas_rojas.length > 0 && (
-        <div className="mb-5 flex flex-wrap gap-2">
+        <div className="mb-5 divide-y divide-border rounded-xl ring-1 ring-border overflow-hidden">
           {d.banderas_rojas.map((b, i) => (
-            <span
+            <div
               key={i}
-              className="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-3 py-1 text-xs font-medium text-warning ring-1 ring-warning/25"
+              className="flex gap-4 border-l-2 border-warning bg-surface px-4 py-3"
             >
-              <span
-                className="h-1.5 w-1.5 rounded-full bg-warning"
-                aria-hidden="true"
-              />
-              {BANDERA_TIPO_LABELS[b.tipo] ?? b.tipo}
-              {b.descripcion && (
-                <span className="font-normal text-warning/70">
-                  {" "}
-                  — {b.descripcion}
-                </span>
-              )}
-            </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-warning mb-1">
+                  {BANDERA_TIPO_LABELS[b.tipo] ?? b.tipo}
+                </p>
+                {b.descripcion && (
+                  <p className="text-sm leading-relaxed text-foreground">
+                    {b.descripcion}
+                  </p>
+                )}
+              </div>
+            </div>
           ))}
         </div>
       )}
