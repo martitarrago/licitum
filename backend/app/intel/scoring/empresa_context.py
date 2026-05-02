@@ -294,18 +294,36 @@ def _dias_a_cierre(licitacion: Licitacion) -> int | None:
     return delta.days
 
 
-def _evaluar_clasificacion(licitacion: Licitacion) -> tuple[bool, float | None]:
+def _evaluar_clasificacion(
+    licitacion: Licitacion,
+    profile: "EmpresaStaticProfile",
+) -> tuple[bool, float | None]:
     """Proxy con el semáforo CPV-ROLECE pre-calculado del Radar.
 
     semaforo: 'verde' = cumple holgada, 'amarillo' = ajustada, 'rojo' = no cumple,
     'gris' = no evaluado. Devolvemos (cumple, holgura) para el scoring.
+
+    Exención LCSP art. 65: la clasificación NO es obligatoria para obras
+    con importe < 500 000 €. Si el importe cae por debajo del umbral y la
+    empresa tiene volumen de negocio suficiente para cubrir la obra, puede
+    acreditar solvencia por otros medios (sin necesidad del ROLECE exacto).
     """
     sem = licitacion.semaforo
     if sem == "verde":
-        return True, 1.5  # holgura — el semáforo no precisa cuánto, asumimos 1.5x
+        return True, 1.5
     if sem == "amarillo":
-        return True, 1.0  # justo
+        return True, 1.0
     if sem == "rojo":
+        importe = (
+            float(licitacion.importe_licitacion)
+            if licitacion.importe_licitacion is not None
+            else None
+        )
+        if importe is not None and importe < 500_000:
+            vol_max = profile.volumen_negocio_max
+            if vol_max is not None and vol_max >= importe:
+                # Puede presentarse usando solvencia alternativa (sin clasificación exacta)
+                return True, 0.8
         return False, None
     # gris: no evaluado todavía — no penalizar
     return True, None
@@ -314,16 +332,28 @@ def _evaluar_clasificacion(licitacion: Licitacion) -> tuple[bool, float | None]:
 def _evaluar_solvencia_economica(
     profile: EmpresaStaticProfile, licitacion: Licitacion
 ) -> bool:
-    """Heurística: anualidad_media >= 0.7× presupuesto licitación.
+    """Heurística de solvencia económica.
 
-    El requisito real (vol. negocio últimos 3 ejercicios = 1.5× presupuesto)
-    lo extraerá M3 del PCAP. Por ahora aproximamos con la anualidad media de
-    certificados.
+    Usa el indicador más favorable disponible:
+      1. Anualidad media de certificados (solvencia técnica acreditada).
+      2. Proxy de volumen de negocio: vol_max / 1.5 — la LCSP exige habitualmente
+         que el volumen de negocio acumulado en los 3 últimos ejercicios sea
+         ≥ 1,5× el presupuesto, lo que equivale a que el volumen anual medio
+         cubra al menos 0,5× el presupuesto. Dividir por 1.5 convierte el
+         volumen total en un proxy conservador de la capacidad anual.
+
+    M3 (extracción del PCAP) refinará esto con el umbral exacto del pliego.
     """
-    if profile.anualidad_media is None or licitacion.importe_licitacion is None:
-        return True  # sin info → no penalizar
+    if licitacion.importe_licitacion is None:
+        return True
     importe = float(licitacion.importe_licitacion)
-    return profile.anualidad_media >= 0.7 * importe
+    capacidad = max(
+        profile.anualidad_media or 0.0,
+        (profile.volumen_negocio_max or 0.0) / 1.5,
+    )
+    if capacidad == 0.0:
+        return True  # sin info → no penalizar
+    return capacidad >= 0.7 * importe
 
 
 # Mapeo provincia → centroide (lat, lng) por código INE (estándar oficial).
@@ -406,7 +436,7 @@ def evaluate_empresa_for_licitacion(
     licitacion: Licitacion,
 ) -> EmpresaContext:
     """Combina profile estable + licitación específica → EmpresaContext."""
-    cumple_clas, holgura = _evaluar_clasificacion(licitacion)
+    cumple_clas, holgura = _evaluar_clasificacion(licitacion, profile)
     cumple_solv = _evaluar_solvencia_economica(profile, licitacion)
     misma_prov, mismo_nuts, dist_km = _evaluar_geografia(profile, licitacion)
     presupuesto_lic = (

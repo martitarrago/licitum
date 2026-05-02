@@ -68,7 +68,9 @@ EMPRESA_PROFILE = {
     "poder_protocolo": "1234",
 }
 
-# ROLECE — alineado con las 2 clasificaciones más fuertes del perfil RELIC
+# ROLECE — perfil real basado en Calam Tapias (C/G/E/J/K).
+# Grupos C y G son los principales; E y J cubren urbanización y rehabilitación,
+# que son los nichos habituales de una PYME constructora catalana.
 ROLECE_ENTRIES = [
     # C-2 Estructures de fàbrica/formigó cat 3 (360k–840k)
     {"grupo": "C", "subgrupo": "2", "categoria": "3",
@@ -78,6 +80,16 @@ ROLECE_ENTRIES = [
     # G-6 Obres viàries sense qualificació específica cat 3
     {"grupo": "G", "subgrupo": "6", "categoria": "3",
      "fecha_obtencion": date(2018, 5, 8),
+     "fecha_caducidad": date(2028, 5, 8),
+     "activa": True},
+    # E-1 Abastaments i sanejaments cat 3 (urbanització, xarxes)
+    {"grupo": "E", "subgrupo": "1", "categoria": "3",
+     "fecha_obtencion": date(2020, 3, 15),
+     "fecha_caducidad": date(2028, 5, 8),
+     "activa": True},
+    # J-1 Mecàniques: fontaneria, climatització cat 3 (rehabilitació)
+    {"grupo": "J", "subgrupo": "1", "categoria": "3",
+     "fecha_obtencion": date(2020, 3, 15),
      "fecha_caducidad": date(2028, 5, 8),
      "activa": True},
 ]
