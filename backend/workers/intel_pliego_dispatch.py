@@ -1,22 +1,21 @@
-"""Worker dispatch — encola análisis IA de pliegos para el top-N por empresa.
+"""Worker dispatch — encola análisis IA de pliegos para todas las licitaciones
+viables (score >= MIN_SCORE_ANALISIS) de una empresa.
 
-Phase 2 B2 — patrón anti-bucle:
-  1. Análisis es por licitación, no por empresa → cache global en
-     `licitacion_analisis_ia`. Un pliego analizado UNA vez sirve a TODAS
-     las empresas que lo consulten.
-  2. Análisis solo penaliza o confirma (vía `hard_filter_pliego` y la
-     señal `pliego_check`). Nunca hace que una licitación suba más allá
-     de un techo → no incentiva loops de re-rankings.
-  3. TTL 30 días en el cache.
-  4. Buffer top-20 por empresa, no top-5: aunque un análisis penalice
-     una posición, los nuevos top-5 ya estuvieron analizados ayer.
-  5. Budget guard: máximo `MAX_NEW_PER_DAY` (10) análisis nuevos por
-     empresa por ejecución de la tarea — evita explosión de coste.
+Garantía: ninguna licitación con score >= 50 puede quedarse sin análisis de
+pliego. El análisis puede bajar el score (vía hard_filter_pliego o señal
+pliego_check) pero nunca subirlo — no hay riesgo de bucles de re-ranking.
 
-Wiring: tras `_run_recalc_empresa` exitoso, encolar
-  `analizar_top_pendientes_empresa.delay(str(empresa_id))`. La tarea
-  identifica las licitaciones del top-20 sin análisis vigente, encola
-  `extraer_pliego_desde_pscp` para hasta MAX_NEW_PER_DAY de ellas.
+Patrón:
+  1. Análisis es global por licitación (cache en `licitacion_analisis_ia`).
+     Una vez analizado sirve a TODAS las empresas.
+  2. Se consideran TODAS las licitaciones con score >= MIN_SCORE_ANALISIS,
+     ordenadas por score desc para priorizar las mejores en el budget guard.
+  3. Budget guard: MAX_NEW_PER_RUN (15) por ejecución. Con el cron cada 4h
+     son hasta 60 análisis nuevos/día — suficiente para cualquier empresa.
+  4. TTL 30 días: después se re-analiza si la licitación sigue viable.
+
+Wiring: `_run_recalc_empresa` en intel_scores encola esta tarea tras cada
+recálculo exitoso.
 """
 from __future__ import annotations
 
@@ -38,19 +37,17 @@ from app.models.licitacion_score_empresa import LicitacionScoreEmpresa
 
 logger = logging.getLogger(__name__)
 
-# Buffer del top a considerar para análisis. Mayor que el cap de azul (10)
-# para que cuando los análisis penalicen y muevan algunas, los nuevos
-# top-5 ya estén analizados.
-TOP_BUFFER = 20
+# Score mínimo para considerar una licitación viable y analizar su pliego.
+# Coincide con el umbral "raso" del semáforo — por debajo no merece coste.
+MIN_SCORE_ANALISIS = 50
 
-# Budget guard — máximo análisis nuevos a encolar por ejecución de la
-# tarea. Una empresa con 138 viables que arranca de cero, día 1 analiza 10,
-# día 2 los 10 restantes del buffer, días siguientes solo los nuevos del
-# feed PSCP. Coste ~$3.5-5/día.
-MAX_NEW_PER_DAY = 10
+# Budget guard — máximo análisis nuevos a encolar por ejecución.
+# Con 4 ejecuciones/día (cron cada 4h) son hasta 60 análisis/día.
+# Una empresa que arranca de cero con 50 viables queda cubierta en ~2 ciclos.
+MAX_NEW_PER_RUN = 15
 
-# TTL del análisis. Pasado ese tiempo, una licitación que vuelva al
-# top-20 se re-analizará (típicamente cuando el pliego cambió).
+# TTL del análisis. Pasado ese tiempo, una licitación que siga viable
+# se re-analizará (útil cuando el pliego cambia).
 TTL_DIAS = 30
 
 
@@ -82,17 +79,18 @@ async def _run_dispatch(empresa_id: uuid.UUID) -> dict[str, Any]:
 
     try:
         async with Session() as session:
-            # 1) Top-20 viables para la empresa
+            # 1) Todas las licitaciones viables (score >= umbral) para la empresa,
+            # ordenadas por score desc para priorizar las mejores en el budget guard.
             r = await session.execute(text(
                 """
                 SELECT licitacion_id
                 FROM licitacion_score_empresa
                 WHERE empresa_id = :empresa_id
                   AND descartada = false
+                  AND score >= :min_score
                 ORDER BY score DESC NULLS LAST
-                LIMIT :n
                 """
-            ), {"empresa_id": empresa_id, "n": TOP_BUFFER})
+            ), {"empresa_id": empresa_id, "min_score": MIN_SCORE_ANALISIS})
             top_ids = [row[0] for row in r.fetchall()]
             result["top_size"] = len(top_ids)
 
@@ -135,8 +133,8 @@ async def _run_dispatch(empresa_id: uuid.UUID) -> dict[str, Any]:
             pendientes = [lid for lid in top_ids if lid not in saltados]
 
             # 4) Budget guard
-            a_encolar = pendientes[:MAX_NEW_PER_DAY]
-            result["skipped_budget_exhausted"] = max(0, len(pendientes) - MAX_NEW_PER_DAY)
+            a_encolar = pendientes[:MAX_NEW_PER_RUN]
+            result["skipped_budget_exhausted"] = max(0, len(pendientes) - MAX_NEW_PER_RUN)
 
             # 5) Encolar (import diferido para evitar circular)
             from workers.extraccion_pliego import extraer_pliego_desde_pscp
