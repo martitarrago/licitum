@@ -1,3 +1,5 @@
+import { scoreTier } from "@/lib/scoreTier";
+
 type Semaforo = "verde" | "amarillo" | "rojo";
 
 type PliegoEstado =
@@ -29,15 +31,6 @@ const semaforoStripe: Record<Semaforo, string> = {
   rojo: "bg-danger",
 };
 
-// 4 tiers de ganabilidad. Umbrales recalibrados tras el suavizado de
-// buckets continuos en el motor (avg viable ~67, max ~85). ≥80 da ~10 azul
-// para mantener "excelente" como categoría escasa.
-function scoreTone(score: number): { stripe: string; text: string } {
-  if (score >= 80) return { stripe: "bg-info",    text: "text-info"    };
-  if (score >= 65) return { stripe: "bg-success", text: "text-success" };
-  if (score >= 50) return { stripe: "bg-warning", text: "text-warning" };
-  return                  { stripe: "bg-danger",  text: "text-danger"  };
-}
 
 // Phase 2 B4 — badge del estado del pliego, debajo del score.
 // Cuatro estados visibles + uno transitorio:
@@ -117,8 +110,8 @@ export function LicitacionCard({
   const urgente = dias >= 0 && dias <= 7;
   const cerrada = dias < 0;
   const hasScore = typeof score === "number";
-  const tone = hasScore ? scoreTone(score!) : null;
-  const stripeClass = tone ? tone.stripe : semaforoStripe[semaforo];
+  const tone = hasScore ? scoreTier(score!) : null;
+  const stripeClass = tone ? tone.bg : semaforoStripe[semaforo];
   const badge = pliegoBadge(pliegoEstado, pliegoVeredicto);
 
   return (

@@ -1,3 +1,5 @@
+import { scoreTierOrNull } from "@/lib/scoreTier";
+
 type Semaforo = "verde" | "amarillo" | "rojo";
 
 interface LicitacionRowProps {
@@ -17,15 +19,6 @@ const STRIPE_BY_SEMAFORO: Record<Semaforo, string> = {
   amarillo: "bg-warning",
   rojo: "bg-danger",
 };
-
-// Mismos 4 tiers que ScoreChip + LicitacionCard.
-function stripeByScore(score: number | null | undefined): string | null {
-  if (typeof score !== "number") return null;
-  if (score >= 80) return "bg-info";
-  if (score >= 65) return "bg-success";
-  if (score >= 50) return "bg-warning";
-  return "bg-danger";
-}
 
 const importeFormatter = new Intl.NumberFormat("es-ES", {
   style: "currency",
@@ -59,7 +52,7 @@ export function LicitacionRow({
   score,
   afinidad,
 }: LicitacionRowProps) {
-  const stripe = stripeByScore(score) ?? STRIPE_BY_SEMAFORO[semaforo];
+  const stripe = scoreTierOrNull(score)?.bg ?? STRIPE_BY_SEMAFORO[semaforo];
   const dias = diasHasta(fechaLimite);
   const cerrada = dias < 0;
   const urgente = dias >= 0 && dias <= 7;

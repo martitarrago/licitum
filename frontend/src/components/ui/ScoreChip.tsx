@@ -1,24 +1,14 @@
 // Chip visual del score 0-100. Tamaño + color por bucket.
 // Variantes: 'sm' para card de feed, 'lg' para hero, 'xl' para detalle.
 
+import { scoreTier } from "@/lib/scoreTier";
+
 type Variant = "sm" | "lg" | "xl";
 
 interface Props {
   score: number;
   variant?: Variant;
   className?: string;
-}
-
-function scoreBucket(score: number): {
-  bg: string;
-  ring: string;
-  text: string;
-  label: string;
-} {
-  if (score >= 80) return { bg: "bg-info/10",     ring: "ring-info/30",    text: "text-info",    label: "Excelente" };
-  if (score >= 65) return { bg: "bg-success/10",  ring: "ring-success/30", text: "text-success", label: "Buena" };
-  if (score >= 50) return { bg: "bg-warning/10",  ring: "ring-warning/30", text: "text-warning", label: "Aprobada raso" };
-  return              { bg: "bg-danger/10",   ring: "ring-danger/30",  text: "text-danger",  label: "No apta" };
 }
 
 const variantStyles: Record<Variant, { container: string; number: string; over: string }> = {
@@ -40,13 +30,13 @@ const variantStyles: Record<Variant, { container: string; number: string; over: 
 };
 
 export function ScoreChip({ score, variant = "sm", className = "" }: Props) {
-  const bucket = scoreBucket(score);
+  const tier = scoreTier(score);
   const v = variantStyles[variant];
   return (
     <div
-      className={`inline-flex items-baseline ring-1 ring-inset ${bucket.bg} ${bucket.ring} ${bucket.text} ${v.container} ${className}`}
+      className={`inline-flex items-baseline ring-1 ring-inset ${tier.bgSoft} ${tier.ring} ${tier.text} ${v.container} ${className}`}
       role="status"
-      aria-label={`Puntuación ${score} de 100 — ${bucket.label}`}
+      aria-label={`Puntuación ${score} de 100 — ${tier.label}`}
     >
       <span className={v.number}>{score}</span>
       <span className={v.over}>/100</span>

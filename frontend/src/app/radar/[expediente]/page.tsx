@@ -25,6 +25,7 @@ import {
 import { EstadoSelector } from "@/components/tracker/EstadoSelector";
 import { AnalisisGanabilidad } from "@/components/radar/AnalisisGanabilidad";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { scoreTierOrNull } from "@/lib/scoreTier";
 
 const TIPO_CONTRATO_LABEL: Record<string, string> = {
   obras: "Obras",
@@ -44,16 +45,6 @@ const stripeColor: Record<SemaforoType, string> = {
   rojo: "bg-danger",
   gris: "bg-muted-foreground/40",
 };
-
-// Mismos 4 tiers que ScoreChip + LicitacionCard. Si hay score, manda el tier;
-// si no, fallback al semáforo viejo.
-function scoreStripe(score: number | null | undefined): string | null {
-  if (typeof score !== "number") return null;
-  if (score >= 80) return "bg-info";
-  if (score >= 65) return "bg-success";
-  if (score >= 50) return "bg-warning";
-  return "bg-danger";
-}
 
 const fmtEur = (v: string | number | null | undefined): string => {
   if (v == null || v === "") return "—";
@@ -165,7 +156,7 @@ export default function LicitacionDetailPage({
 
 function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
   const semaforo = (l.semaforo === "gris" ? "gris" : l.semaforo) as SemaforoType;
-  const stripeClass = scoreStripe(l.score) ?? stripeColor[semaforo];
+  const stripeClass = scoreTierOrNull(l.score)?.bg ?? stripeColor[semaforo];
   const dias = diasHasta(l.fecha_limite);
   const cerrada = dias != null && dias < 0;
   const urgente = dias != null && dias >= 0 && dias <= 7;

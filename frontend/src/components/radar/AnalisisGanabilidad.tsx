@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { intelApi, type SignalBreakdown, type HardFilter } from "@/lib/api/intel";
 import { ScoreChip } from "@/components/ui/ScoreChip";
+import { scoreTier } from "@/lib/scoreTier";
 
 interface Props {
   licitacionId: string;
@@ -38,12 +39,6 @@ function dataQualityIndicator(q: string) {
   return { dot: "bg-muted-foreground/50", label: "Faltante" };
 }
 
-function scoreToneColor(score: number): string {
-  if (score >= 80) return "bg-info";
-  if (score >= 65) return "bg-success";
-  if (score >= 50) return "bg-warning";
-  return "bg-danger";
-}
 
 function SignalRow({ s, toneColor }: { s: SignalBreakdown; toneColor: string }) {
   const dq = dataQualityIndicator(s.data_quality);
@@ -189,7 +184,7 @@ export function AnalisisGanabilidad({ licitacionId, empresaId }: Props) {
         <p className="eyebrow mb-3">Análisis del motor</p>
         <div className="divide-y divide-border">
           {data.breakdown.map((s) => (
-            <SignalRow key={s.name} s={s} toneColor={scoreToneColor(data.score)} />
+            <SignalRow key={s.name} s={s} toneColor={scoreTier(data.score).bg} />
           ))}
         </div>
       </div>
