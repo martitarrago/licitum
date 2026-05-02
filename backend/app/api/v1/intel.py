@@ -265,7 +265,7 @@ async def get_feed_scored(
         description="Si True, solo descartadas (ignora include_descartadas). "
         "Usado por la sección colapsable del Radar."
     ),
-    limit: int = Query(24, ge=1, le=100),
+    limit: int = Query(24, ge=1, le=2000),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
     """Feed paginado del Radar para una empresa, ordenado por score desc."""

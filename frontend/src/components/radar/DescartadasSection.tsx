@@ -35,6 +35,8 @@ const importeFormatter = new Intl.NumberFormat("es-ES", {
 export function DescartadasSection({ empresaId }: Props) {
   const [open, setOpen] = useState(false);
 
+  // Carga todas de golpe cuando se expande para que los counts por razón
+  // sean exactos (sin paginación parcial).
   const { data, isLoading } = useQuery({
     queryKey: ["intel", "descartadas", empresaId],
     queryFn: () =>
@@ -42,14 +44,14 @@ export function DescartadasSection({ empresaId }: Props) {
         empresa_id: empresaId,
         solo_descartadas: true,
         min_score: 0,
-        limit: 100,
+        limit: 2000,
         offset: 0,
       }),
     staleTime: 60_000,
-    enabled: open, // No carga hasta que el usuario expande
+    enabled: open,
   });
 
-  // Conteo agnóstico al open — siempre lo pedimos por separado
+  // Conteo independiente del open — solo el total para el header.
   const { data: conteo } = useQuery({
     queryKey: ["intel", "descartadas-count", empresaId],
     queryFn: () =>
@@ -94,7 +96,7 @@ export function DescartadasSection({ empresaId }: Props) {
           Descartadas ({conteo})
         </h3>
         <span className="text-xs text-muted-foreground/70">
-          — el motor las filtró por tus hard filters de M2
+          — no encajan con tu perfil
         </span>
       </button>
 
