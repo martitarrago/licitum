@@ -15,28 +15,10 @@ function scoreBucket(score: number): {
   text: string;
   label: string;
 } {
-  if (score >= 70) {
-    return {
-      bg: "bg-success/10",
-      ring: "ring-success/30",
-      text: "text-success",
-      label: "Ganable",
-    };
-  }
-  if (score >= 40) {
-    return {
-      bg: "bg-warning/10",
-      ring: "ring-warning/30",
-      text: "text-warning",
-      label: "Marginal",
-    };
-  }
-  return {
-    bg: "bg-muted",
-    ring: "ring-border",
-    text: "text-muted-foreground",
-    label: "Bajo",
-  };
+  if (score >= 80) return { bg: "bg-info/10",     ring: "ring-info/30",    text: "text-info",    label: "Excelente" };
+  if (score >= 65) return { bg: "bg-success/10",  ring: "ring-success/30", text: "text-success", label: "Buena" };
+  if (score >= 50) return { bg: "bg-warning/10",  ring: "ring-warning/30", text: "text-warning", label: "Aprobada raso" };
+  return              { bg: "bg-danger/10",   ring: "ring-danger/30",  text: "text-danger",  label: "No apta" };
 }
 
 const variantStyles: Record<Variant, { container: string; number: string; over: string }> = {
