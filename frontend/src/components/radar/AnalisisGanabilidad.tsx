@@ -40,11 +40,13 @@ function dataQualityIndicator(q: string) {
 }
 
 
-function SignalRow({ s, toneColor }: { s: SignalBreakdown; toneColor: string }) {
+function SignalRow({ s }: { s: SignalBreakdown }) {
   const dq = dataQualityIndicator(s.data_quality);
   const pctValue = Math.round(s.value * 100);
   const pctContrib = s.contribution.toFixed(1);
-  const barColor = toneColor;
+  // Cada barra se colorea por su propio valor (0-100), no por el score global.
+  // Mismos 4 tiers: ≥80 azul · ≥65 verde · ≥50 ámbar · <50 rojo.
+  const barColor = scoreTier(pctValue).bg;
 
   return (
     <div className="space-y-1.5 border-t border-border py-3 first:border-t-0 first:pt-0">
@@ -184,7 +186,7 @@ export function AnalisisGanabilidad({ licitacionId, empresaId }: Props) {
         <p className="eyebrow mb-3">Análisis del motor</p>
         <div className="divide-y divide-border">
           {data.breakdown.map((s) => (
-            <SignalRow key={s.name} s={s} toneColor={scoreTier(data.score).bg} />
+            <SignalRow key={s.name} s={s} />
           ))}
         </div>
       </div>
