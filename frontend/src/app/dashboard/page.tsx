@@ -20,6 +20,7 @@ import {
   type TrackerResumen,
 } from "@/lib/api/tracker";
 import { empresaApi, type Empresa } from "@/lib/api/empresa";
+import { systemApi } from "@/lib/api/system";
 import { LicitacionRow } from "@/components/ui/LicitacionRow";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
@@ -131,6 +132,13 @@ export default function DashboardPage() {
     staleTime: 60_000,
   });
 
+  const syncStatus = useQuery({
+    queryKey: ["dashboard-sync-status", EMPRESA_DEMO_ID],
+    queryFn: () => systemApi.syncStatus(EMPRESA_DEMO_ID),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
+
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-12 sm:px-10">
       {/* HERO */}
@@ -138,9 +146,12 @@ export default function DashboardPage() {
         <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">
           {saludo(now)}.
         </h1>
-        <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted-foreground">
-          Tu empresa de un vistazo.
-        </p>
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <p className="text-base leading-relaxed text-muted-foreground">
+            Tu empresa de un vistazo.
+          </p>
+          <SyncStatusInline data={syncStatus.data} now={now} />
+        </div>
       </header>
 
       {/* FRANJA ROJA SLIM — sólo aparece si hay vencimientos críticos */}
@@ -975,6 +986,89 @@ function RowSkeleton() {
       </div>
       <div className="skeleton h-4 w-16 rounded" />
     </div>
+  );
+}
+
+// ─── Estado de sincronización inline ────────────────────────────────────────
+// Muestra "Datos actualizados hace X · próxima a las HH:00".
+// Cron de ingesta: 07/11/15/19 hora Madrid. Si pasan más de 5h, dot ámbar.
+
+const CRON_HOURS_MADRID = [7, 11, 15, 19];
+
+function nextCronAt(now: Date): Date {
+  // Trabajamos en Europe/Madrid sin librería: derivamos la hora local Madrid
+  // desde el offset declarado por el navegador. Para España es UTC+1/+2.
+  // Convertimos `now` a representación Madrid usando toLocaleString.
+  const madridNow = new Date(
+    now.toLocaleString("en-US", { timeZone: "Europe/Madrid" }),
+  );
+  const hour = madridNow.getHours();
+  const next = new Date(madridNow);
+  const upcoming = CRON_HOURS_MADRID.find((h) => h > hour);
+  if (upcoming != null) {
+    next.setHours(upcoming, 0, 0, 0);
+  } else {
+    // Después del último cron del día → 07:00 mañana.
+    next.setDate(next.getDate() + 1);
+    next.setHours(CRON_HOURS_MADRID[0], 0, 0, 0);
+  }
+  return next;
+}
+
+function fmtRelativoPasado(then: Date, now: Date): string {
+  const diffMs = now.getTime() - then.getTime();
+  const min = Math.floor(diffMs / 60_000);
+  if (min < 1) return "ahora mismo";
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `hace ${h} h`;
+  return `hace ${Math.floor(h / 24)} d`;
+}
+
+function fmtHoraMadrid(d: Date): string {
+  return d.toLocaleTimeString("es-ES", {
+    timeZone: "Europe/Madrid",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function SyncStatusInline({
+  data,
+  now,
+}: {
+  data: { last_licitacion_at: string | null; last_score_at: string | null } | undefined;
+  now: Date;
+}) {
+  if (!data?.last_licitacion_at) return null;
+
+  const lastLic = new Date(data.last_licitacion_at);
+  const lastScore = data.last_score_at ? new Date(data.last_score_at) : null;
+  // El más reciente de los dos es el que cuenta para "datos frescos".
+  const last = lastScore && lastScore > lastLic ? lastScore : lastLic;
+  const minutesAgo = Math.floor((now.getTime() - last.getTime()) / 60_000);
+  const stale = minutesAgo > 300; // >5h sin sync = algo no va
+
+  const next = nextCronAt(now);
+  const nextHora = fmtHoraMadrid(next);
+  // ¿Es mañana?
+  const esManana =
+    next.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" }) !==
+    now.toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" });
+
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+      title="El feed PSCP se sincroniza cada 4 h (07/11/15/19 Madrid)."
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${stale ? "bg-warning" : "bg-success"}`}
+        aria-hidden="true"
+      />
+      Datos actualizados {fmtRelativoPasado(last, now)} · próxima sync{" "}
+      {esManana ? "mañana a las " : "a las "}
+      {nextHora}
+    </span>
   );
 }
 
