@@ -493,21 +493,29 @@ async def _ejecutar(
                 # Si la extracción fue OK, recalcular scores de las empresas
                 # que ya tenían score para esta licitación — el pliego puede
                 # cambiar el veredicto (hard_filter_pliego) de forma inmediata.
+                # Síncrono e in-process: enviar a Celery era frágil (si el
+                # worker se paraba tras la extracción la tarea se perdía y el
+                # score quedaba stale).
                 if error_msg is None:
                     rows = (await session.execute(
                         select(LicitacionScoreEmpresa.empresa_id).where(
                             LicitacionScoreEmpresa.licitacion_id == licitacion_id
                         )
                     )).scalars().all()
-                    for empresa_id in rows:
-                        celery_app.send_task(
-                            "workers.intel_scores.calcular_para_empresa",
-                            args=[str(empresa_id)],
-                            kwargs={"force": True},
-                        )
                     if rows:
+                        from workers.intel_scores import _run_recalc_score_licitacion
+                        for empresa_id in rows:
+                            try:
+                                await _run_recalc_score_licitacion(
+                                    session_factory, empresa_id, licitacion_id
+                                )
+                            except Exception as e:
+                                logger.exception(
+                                    "Recalc score post-pliego falló (emp=%s lic=%s): %s",
+                                    empresa_id, licitacion_id, e,
+                                )
                         logger.info(
-                            "Pliego %s completado — encolado recálculo scores para %d empresa(s)",
+                            "Pliego %s completado — score recalculado para %d empresa(s)",
                             licitacion_id, len(rows),
                         )
     finally:

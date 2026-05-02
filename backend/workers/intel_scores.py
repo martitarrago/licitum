@@ -272,6 +272,98 @@ async def _run_recalc_empresa(
     return result
 
 
+async def _run_recalc_score_licitacion(
+    Session: async_sessionmaker[AsyncSession],
+    empresa_id: uuid.UUID,
+    licitacion_id: uuid.UUID,
+) -> bool:
+    """Recalcula el score de UNA (empresa, licitación). Usado tras completar
+    un análisis de pliego para sincronizar el score sin recorrer las 1400
+    licitaciones abiertas. Devuelve True si se actualizó la fila."""
+    async with Session() as session:
+        lic = await session.get(Licitacion, licitacion_id)
+        if lic is None or lic.fecha_limite is None:
+            return False
+        if lic.fecha_limite <= datetime.now(timezone.utc):
+            return False
+
+        profile = await build_empresa_static_profile(session, empresa_id)
+        h = compute_empresa_context_hash(profile)
+        ctx = evaluate_empresa_for_licitacion(profile, lic)
+        lic_input = _licitacion_to_input(lic)
+
+        pliego_veredicto: str | None = None
+        pliego_razones_no: list[str] | None = None
+        pliego_riesgo_count = 0
+        pliego_volumen_exigido: float | None = None
+        an = (
+            await session.execute(
+                select(LicitacionAnalisisIA).where(
+                    LicitacionAnalisisIA.licitacion_id == licitacion_id,
+                    LicitacionAnalisisIA.estado == EstadoAnalisisPliego.completado,
+                )
+            )
+        ).scalar_one_or_none()
+        if an is not None and an.extracted_data:
+            try:
+                rec = await calcular_recomendacion(session, an.extracted_data, empresa_id)
+                pliego_veredicto = rec.veredicto
+                pliego_razones_no = list(rec.razones_no) if rec.razones_no else None
+                pliego_riesgo_count = len(rec.razones_riesgo) if rec.razones_riesgo else 0
+            except Exception as e:
+                logger.warning(
+                    "Recomendación falló en recalc puntual %s/%s: %s",
+                    empresa_id, licitacion_id, e,
+                )
+            vol_raw = an.extracted_data.get("solvencia_economica_volumen_anual")
+            if vol_raw is not None:
+                try:
+                    pliego_volumen_exigido = float(vol_raw)
+                except (TypeError, ValueError):
+                    pass
+
+        score = await score_licitacion(
+            session, lic_input, ctx,
+            pliego_veredicto=pliego_veredicto,
+            pliego_razones_no=pliego_razones_no,
+            pliego_razones_riesgo_count=pliego_riesgo_count,
+            pliego_volumen_exigido=pliego_volumen_exigido,
+        )
+        d = score.to_dict()
+
+        stmt = pg_insert(LicitacionScoreEmpresa).values({
+            "empresa_id": empresa_id,
+            "licitacion_id": licitacion_id,
+            "score": d["score"],
+            "confidence": d["confidence"],
+            "descartada": d["descartada"],
+            "reason_descarte": d["reason_descarte"],
+            "data_completeness_pct": d["data_completeness_pct"],
+            "breakdown_json": d["breakdown"],
+            "hard_filters_json": d["hard_filters"],
+            "empresa_context_hash": h,
+            "computed_at": func.now(),
+        })
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["empresa_id", "licitacion_id"],
+            set_={
+                "score": stmt.excluded.score,
+                "confidence": stmt.excluded.confidence,
+                "descartada": stmt.excluded.descartada,
+                "reason_descarte": stmt.excluded.reason_descarte,
+                "data_completeness_pct": stmt.excluded.data_completeness_pct,
+                "breakdown_json": stmt.excluded.breakdown_json,
+                "hard_filters_json": stmt.excluded.hard_filters_json,
+                "empresa_context_hash": stmt.excluded.empresa_context_hash,
+                "computed_at": func.now(),
+                "updated_at": func.now(),
+            },
+        )
+        await session.execute(stmt)
+        await session.commit()
+        return True
+
+
 async def _run_recalc_todas(
     Session: async_sessionmaker[AsyncSession],
 ) -> dict[str, Any]:
