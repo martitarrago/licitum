@@ -102,6 +102,7 @@ export const intelApi = {
     empresa_id: string;
     min_score?: number;
     include_descartadas?: boolean;
+    solo_descartadas?: boolean;
     limit?: number;
     offset?: number;
   }): Promise<{

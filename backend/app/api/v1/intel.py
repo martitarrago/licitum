@@ -260,13 +260,20 @@ async def get_feed_scored(
     empresa_id: str = Query(...),
     min_score: int = Query(0, ge=0, le=100),
     include_descartadas: bool = Query(False),
+    solo_descartadas: bool = Query(
+        False,
+        description="Si True, solo descartadas (ignora include_descartadas). "
+        "Usado por la sección colapsable del Radar."
+    ),
     limit: int = Query(24, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
     """Feed paginado del Radar para una empresa, ordenado por score desc."""
     where = ["lse.empresa_id = :emp", "l.fecha_limite > now()", "lse.score >= :ms"]
     params: dict[str, Any] = {"emp": empresa_id, "ms": min_score, "lim": limit, "off": offset}
-    if not include_descartadas:
+    if solo_descartadas:
+        where.append("lse.descartada = true")
+    elif not include_descartadas:
         where.append("lse.descartada = false")
 
     sql = (

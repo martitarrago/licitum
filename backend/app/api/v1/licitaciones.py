@@ -174,6 +174,14 @@ async def list_licitaciones(
         LicitacionAnalisisIA.licitacion_id == Licitacion.id,
     )
 
+    # Solo licitaciones abiertas. Las cerradas pierden su fila en
+    # licitacion_score_empresa por el cleanup del recalc, así que sin este
+    # filtro entrarían al feed con descartada=NULL.
+    stmt = stmt.where(
+        Licitacion.fecha_limite.is_not(None),
+        Licitacion.fecha_limite > func.now(),
+    )
+
     if not incluye_descartadas:
         # Filtra las descartadas pero deja pasar las que aún no tienen score
         # calculado (NULL → la empresa es nueva, primer cron pendiente).

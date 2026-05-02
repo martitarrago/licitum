@@ -40,7 +40,7 @@ export function DescartadasSection({ empresaId }: Props) {
     queryFn: () =>
       intelApi.feed({
         empresa_id: empresaId,
-        include_descartadas: true,
+        solo_descartadas: true,
         min_score: 0,
         limit: 100,
         offset: 0,
@@ -55,7 +55,7 @@ export function DescartadasSection({ empresaId }: Props) {
     queryFn: () =>
       intelApi.feed({
         empresa_id: empresaId,
-        include_descartadas: true,
+        solo_descartadas: true,
         min_score: 0,
         limit: 1,
         offset: 0,
