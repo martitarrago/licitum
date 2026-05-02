@@ -55,6 +55,7 @@ export interface PliegoAnalisis {
   procesado_at: string | null;
   created_at: string;
   updated_at: string;
+  url_placsp: string | null;
 }
 
 export type Veredicto = "ir" | "ir_con_riesgo" | "no_ir" | "incompleto";
@@ -108,8 +109,11 @@ export interface PliegoListItem {
 
 export const pliegosApi = {
   /** GET listing — todos los pliegos con análisis IA (cache global). */
-  list: async (): Promise<PliegoListItem[]> => {
-    const res = await fetch(`${API_BASE}/api/v1/pliegos`);
+  list: async (empresaId?: string): Promise<PliegoListItem[]> => {
+    const url = empresaId
+      ? `${API_BASE}/api/v1/pliegos?empresa_id=${empresaId}`
+      : `${API_BASE}/api/v1/pliegos`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error(await readError(res));
     return res.json();
   },

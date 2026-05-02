@@ -103,6 +103,7 @@ export default function PliegoPage({
         titulo={licitacion.data?.titulo ?? expediente}
         organismo={licitacion.data?.organismo ?? null}
         fechaLimite={licitacion.data?.fecha_limite ?? null}
+        urlPscp={analisis.data?.url_placsp ?? licitacion.data?.url_placsp ?? null}
       />
 
       {analisis.isLoading || autoAnalizar.isPending ? (
@@ -161,17 +162,32 @@ function Header({
   titulo,
   organismo,
   fechaLimite,
+  urlPscp,
 }: {
   titulo: string;
   organismo: string | null;
   fechaLimite: string | null;
+  urlPscp: string | null;
 }) {
   const dias = diasHasta(fechaLimite);
   return (
     <header className="mb-8">
-      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        Análisis de pliego
-      </p>
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Análisis de pliego
+        </p>
+        {urlPscp && (
+          <a
+            href={urlPscp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground ring-1 ring-border transition-colors hover:bg-muted hover:text-foreground"
+          >
+            Ver en PSCP
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </a>
+        )}
+      </div>
       <h1 className="display-h mt-2 text-3xl leading-[1.05] sm:text-4xl">
         {titulo}
       </h1>

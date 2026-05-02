@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { pliegosApi, type EstadoAnalisis, type PliegoListItem } from "@/lib/api/pliegos";
+import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
 export default function PliegosListPage() {
   const list = useQuery({
-    queryKey: ["pliegos-list"],
-    queryFn: () => pliegosApi.list(),
+    queryKey: ["pliegos-list", EMPRESA_DEMO_ID],
+    queryFn: () => pliegosApi.list(EMPRESA_DEMO_ID),
   });
 
   return (

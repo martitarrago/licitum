@@ -21,6 +21,7 @@ class LicitacionAnalisisIARead(BaseModel):
     procesado_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    url_placsp: str | None = None
 
 
 class PliegoListItem(BaseModel):

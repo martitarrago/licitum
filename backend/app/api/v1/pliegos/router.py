@@ -21,6 +21,7 @@ from app.core.enums import EstadoAnalisisPliego
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
 from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
+from app.models.licitacion_score_empresa import LicitacionScoreEmpresa
 from app.schemas.licitacion_analisis_ia import (
     LicitacionAnalisisIARead,
     PliegoListItem,
@@ -37,39 +38,57 @@ router = APIRouter()
 MAX_PDF_SIZE = 50 * 1024 * 1024  # 50 MB — los PCAPs pueden ser grandes
 
 
+_VALID_VEREDICTOS = {"ir", "ir_con_riesgo", "no_ir", "incompleto"}
+
+
 @router.get(
     "",
     response_model=list[PliegoListItem],
-    summary="Lista todos los pliegos analizados (cache global, sin filtro por empresa)",
+    summary="Lista todos los pliegos analizados (cache global de extracción, veredicto empresa-específico)",
 )
 async def listar_pliegos(
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID | None = None,
 ) -> list[PliegoListItem]:
     """Listing del cache global de análisis IA.
 
-    El análisis del pliego es cache GLOBAL por licitación — no filtramos por
-    empresa porque cualquier usuario puede beneficiarse del mismo análisis.
-    Ordenado por fecha de creación DESC.
+    El análisis del pliego (extracción de campos) es GLOBAL por licitación.
+    El veredicto ir/no_ir es empresa-específico: se lee de licitacion_score_empresa
+    (breakdown_json, señal pliego_check) cuando se pasa empresa_id. Sin empresa_id
+    el veredicto queda null.
     """
     stmt = (
-        select(LicitacionAnalisisIA, Licitacion)
+        select(
+            LicitacionAnalisisIA,
+            Licitacion,
+            LicitacionScoreEmpresa.breakdown_json.label("lse_breakdown"),
+        )
         .join(Licitacion, Licitacion.id == LicitacionAnalisisIA.licitacion_id)
+        .outerjoin(
+            LicitacionScoreEmpresa,
+            (LicitacionScoreEmpresa.licitacion_id == LicitacionAnalisisIA.licitacion_id)
+            & (LicitacionScoreEmpresa.empresa_id == empresa_id),
+        )
         .order_by(LicitacionAnalisisIA.created_at.desc())
     )
     rows = (await db.execute(stmt)).all()
     items: list[PliegoListItem] = []
-    for analisis, lic in rows:
-        veredicto: str | None = None
+    for analisis, lic, lse_breakdown in rows:
         banderas: int | None = None
         if analisis.estado == EstadoAnalisisPliego.completado and analisis.extracted_data:
             br = analisis.extracted_data.get("banderas_rojas") or []
             if isinstance(br, list):
                 banderas = len(br)
-            # Heurística rápida: usa los valores del tipo Veredicto para que
-            # el frontend pueda renderizar el badge sin llamada adicional.
-            veredicto = "ir"
-            if banderas and banderas >= 3:
-                veredicto = "ir_con_riesgo"
+
+        # Veredicto empresa-específico desde el scoring engine (misma fuente que el Radar)
+        veredicto: str | None = None
+        if lse_breakdown:
+            for sig in lse_breakdown:
+                if sig.get("name") == "pliego_check":
+                    v = (sig.get("data") or {}).get("veredicto")
+                    veredicto = v if v in _VALID_VEREDICTOS else None
+                    break
+
         items.append(
             PliegoListItem(
                 licitacion_id=analisis.licitacion_id,
@@ -357,9 +376,12 @@ async def reextraer(
 async def obtener(
     expediente: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> LicitacionAnalisisIA:
+) -> LicitacionAnalisisIARead:
     lic = await _get_licitacion_or_404(db, expediente)
-    return await _get_analisis_or_404(db, lic.id)
+    analisis = await _get_analisis_or_404(db, lic.id)
+    result = LicitacionAnalisisIARead.model_validate(analisis)
+    result.url_placsp = lic.url_placsp
+    return result
 
 
 @router.delete(
