@@ -28,6 +28,12 @@ celery_app.conf.update(
     task_track_started=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
+    # Reciclar el proceso del worker tras CADA tarea — libera memoria
+    # acumulada por OCR (tesseract), pdfplumber, cliente Claude y sesión
+    # SQLAlchemy. Sin esto el worker sufría OOM tras 3-7 extracciones de
+    # pliego consecutivas. Coste: +3-5s overhead por tarea (bootstrap
+    # del proceso). Aceptable para tareas que ya tardan 30-60s.
+    worker_max_tasks_per_child=1,
     # Celery Beat embebido en el worker (flag `--beat` en start.sh).
     # Horas interpretadas en Europe/Madrid; Celery hace la conversión a UTC.
     #
