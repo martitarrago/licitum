@@ -53,10 +53,11 @@ TTL_DIAS = 30
 
 @celery_app.task(name="workers.intel_pliego_dispatch.analizar_top_pendientes_empresa")
 def analizar_top_pendientes_empresa(empresa_id: str) -> dict[str, Any]:
-    """Entry point Celery — selecciona top-20 sin análisis vigente y encola
-    `extraer_pliego_desde_pscp` para hasta MAX_NEW_PER_DAY licitaciones.
+    """Entry point Celery — selecciona viables (score>=MIN_SCORE_ANALISIS) sin
+    análisis vigente y encola `extraer_pliego_desde_pscp` para hasta
+    MAX_NEW_PER_RUN licitaciones.
 
-    Idempotente: si todas las top-20 ya tienen análisis vigente, no encola
+    Idempotente: si todas las viables ya tienen análisis vigente, no encola
     nada (skip silencioso).
     """
     return asyncio.run(_run_dispatch(uuid.UUID(empresa_id)))
@@ -67,8 +68,8 @@ async def _run_dispatch(empresa_id: uuid.UUID) -> dict[str, Any]:
     result: dict[str, Any] = {
         "empresa_id": str(empresa_id),
         "started_at": started.isoformat(),
-        "buffer_size": TOP_BUFFER,
-        "max_new_per_day": MAX_NEW_PER_DAY,
+        "min_score": MIN_SCORE_ANALISIS,
+        "max_new_per_run": MAX_NEW_PER_RUN,
         "queued": 0,
         "skipped_already_analyzed": 0,
         "skipped_budget_exhausted": 0,
