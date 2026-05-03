@@ -98,6 +98,27 @@ async def _has_fresh_scores(
     return unscored == 0
 
 
+def _encolar_dispatcher_pliegos(empresa_id: uuid.UUID) -> None:
+    """Encola el dispatcher de pliegos para una empresa. Idempotente y barato:
+    el dispatcher salta licitaciones ya analizadas vía TTL. Se llama tras CADA
+    recalc (incluido hash skip) — sin esto, una empresa con M2 estable nunca
+    drenaría su backlog de pliegos pendientes (top-15 por ejecución). Tolera
+    fallos del broker (Redis caído → log + sigue)."""
+    try:
+        from workers.intel_pliego_dispatch import analizar_top_pendientes_empresa
+        analizar_top_pendientes_empresa.apply_async(
+            args=[str(empresa_id)],
+            expires=60 * 60,  # si en 1h no se ejecutó, lo encolará el próximo recalc
+        )
+        logger.info("Dispatcher de pliego encolado para empresa %s", empresa_id)
+    except Exception:
+        logger.exception(
+            "No se pudo encolar dispatcher de pliego para empresa %s — "
+            "los pliegos se analizarán en el siguiente recalc.",
+            empresa_id,
+        )
+
+
 async def _run_recalc_empresa(
     Session: async_sessionmaker[AsyncSession],
     empresa_id: uuid.UUID,
@@ -121,6 +142,7 @@ async def _run_recalc_empresa(
         if not force and await _has_fresh_scores(session, empresa_id, h):
             result["skipped_no_changes"] = True
             result["finished_at"] = datetime.now().isoformat()
+            _encolar_dispatcher_pliegos(empresa_id)
             return result
 
         # Cargar licitaciones a scorear: las que tienen fecha_limite futura
@@ -251,24 +273,7 @@ async def _run_recalc_empresa(
     result["finished_at"] = datetime.now().isoformat()
     result["duration_seconds"] = (datetime.now() - started).total_seconds()
 
-    # Phase 2 B2 — encolar dispatcher para que analice top-20 pendientes.
-    # No bloquea la respuesta del recalc; los análisis se procesan async y
-    # un recalc posterior los recogerá. Tolera fallos del broker (Redis
-    # caído → log + sigue).
-    try:
-        from workers.intel_pliego_dispatch import analizar_top_pendientes_empresa
-        analizar_top_pendientes_empresa.apply_async(
-            args=[str(empresa_id)],
-            expires=60 * 60,  # si en 1h no se ejecutó, lo encolará el próximo recalc
-        )
-        logger.info("Dispatcher de pliego encolado para empresa %s", empresa_id)
-    except Exception:
-        logger.exception(
-            "No se pudo encolar dispatcher de pliego para empresa %s — "
-            "los pliegos se analizarán en el siguiente recalc.",
-            empresa_id,
-        )
-
+    _encolar_dispatcher_pliegos(empresa_id)
     return result
 
 
