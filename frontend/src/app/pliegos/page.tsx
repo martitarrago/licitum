@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { pliegosApi, type EstadoAnalisis, type PliegoListItem } from "@/lib/api/pliegos";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
+
+function normaliza(s: string | null | undefined): string {
+  if (!s) return "";
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
 
 export default function PliegosListPage() {
   const list = useQuery({
@@ -12,9 +18,25 @@ export default function PliegosListPage() {
     queryFn: () => pliegosApi.list(EMPRESA_DEMO_ID),
   });
 
+  const [q, setQ] = useState("");
+  const filtered = useMemo(() => {
+    if (!list.data) return [];
+    const needle = normaliza(q.trim());
+    if (!needle) return list.data;
+    return list.data.filter((it) =>
+      normaliza(it.expediente).includes(needle) ||
+      normaliza(it.titulo).includes(needle) ||
+      normaliza(it.organismo).includes(needle),
+    );
+  }, [list.data, q]);
+
+  const total = list.data?.length ?? 0;
+  const showing = filtered.length;
+  const hasQuery = q.trim().length > 0;
+
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-      <header className="mb-10 animate-fade-up">
+      <header className="mb-8 animate-fade-up">
         <h1 className="display-h text-3xl leading-[1.05] sm:text-4xl">
           pliegos analizados
         </h1>
@@ -24,17 +46,71 @@ export default function PliegosListPage() {
         </p>
       </header>
 
+      {!list.isLoading && total > 0 && (
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[260px] max-w-md">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              strokeWidth={2}
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") setQ(""); }}
+              placeholder="Buscar por expediente, título u organismo"
+              className="w-full rounded-xl bg-surface-raised py-2.5 pl-10 pr-9 text-sm ring-1 ring-border placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-foreground/40"
+              aria-label="Buscar pliegos analizados"
+            />
+            {hasQuery && (
+              <button
+                type="button"
+                onClick={() => setQ("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+              </button>
+            )}
+          </div>
+          {hasQuery && (
+            <p className="text-xs tabular-nums text-muted-foreground">
+              {showing} de {total}
+            </p>
+          )}
+        </div>
+      )}
+
       {list.isLoading ? (
         <Skeleton />
-      ) : !list.data || list.data.length === 0 ? (
+      ) : total === 0 ? (
         <Empty />
+      ) : showing === 0 ? (
+        <NoMatches query={q} onClear={() => setQ("")} />
       ) : (
         <ul className="space-y-3">
-          {list.data.map((item) => (
+          {filtered.map((item) => (
             <Item key={item.licitacion_id} item={item} />
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function NoMatches({ query, onClear }: { query: string; onClear: () => void }) {
+  return (
+    <div className="card flex flex-col items-center px-6 py-16 text-center">
+      <h3 className="font-display text-xl font-bold tracking-tight">
+        Ningún pliego coincide con &ldquo;{query}&rdquo;
+      </h3>
+      <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+        Prueba con otro término o limpia la búsqueda.
+      </p>
+      <button type="button" onClick={onClear} className="btn-secondary mt-6">
+        Limpiar búsqueda
+      </button>
     </div>
   );
 }
