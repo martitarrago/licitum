@@ -292,6 +292,12 @@ async def _run_recalc_score_licitacion(
         if lic.fecha_limite <= datetime.now(timezone.utc):
             return False
 
+        # Guard: empresa puede haber sido soft-deleted entre encolar y procesar.
+        # build_empresa_static_profile peta con NoResultFound si no existe.
+        emp = await session.get(Empresa, empresa_id)
+        if emp is None or emp.deleted_at is not None:
+            return False
+
         profile = await build_empresa_static_profile(session, empresa_id)
         h = compute_empresa_context_hash(profile)
         ctx = evaluate_empresa_for_licitacion(profile, lic)
