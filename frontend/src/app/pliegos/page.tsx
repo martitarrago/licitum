@@ -267,18 +267,33 @@ function NoMatches({ query, onClear }: { query: string; onClear: () => void }) {
 }
 
 function Item({ item }: { item: PliegoListItem }) {
+  const caducada = isCaducada(item.fecha_limite);
   return (
     <li>
       <Link
         href={`/pliegos/${encodeURIComponent(item.expediente)}`}
-        className="group block rounded-2xl bg-surface-raised p-5 ring-1 ring-border transition-colors hover:bg-muted/30"
+        className={[
+          "group block rounded-2xl p-5 ring-1 ring-border transition-colors",
+          caducada
+            ? "bg-surface-raised/60 hover:bg-muted/30"
+            : "bg-surface-raised hover:bg-muted/30",
+        ].join(" ")}
       >
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
+          <div className={["min-w-0 flex-1", caducada && "opacity-70"].filter(Boolean).join(" ")}>
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                 {item.expediente}
               </p>
+              {caducada && (
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50"
+                    aria-hidden="true"
+                  />
+                  Caducada
+                </span>
+              )}
               {item.estado === "completado" && item.veredicto_recomendado ? (
                 <VeredictoBadge veredicto={item.veredicto_recomendado} />
               ) : (
