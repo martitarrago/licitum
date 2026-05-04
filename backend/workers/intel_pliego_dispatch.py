@@ -137,7 +137,22 @@ async def _run_dispatch(empresa_id: uuid.UUID) -> dict[str, Any]:
             a_encolar = pendientes[:MAX_NEW_PER_RUN]
             result["skipped_budget_exhausted"] = max(0, len(pendientes) - MAX_NEW_PER_RUN)
 
-            # 5) Encolar (import diferido para evitar circular)
+            # 5) Registrar solicitudes para TODAS las viables (encoladas
+            # + ya cacheadas) — el listado /pliegos filtra por esta tabla,
+            # así que la empresa actual debe tenerlas todas vinculadas
+            # aunque otra empresa las analizó antes.
+            await session.execute(text(
+                """
+                INSERT INTO licitacion_analisis_solicitud
+                    (empresa_id, licitacion_id, origen, solicitado_at)
+                SELECT :empresa_id, lic_id, 'cron', NOW()
+                FROM unnest(CAST(:lic_ids AS uuid[])) AS lic_id
+                ON CONFLICT (empresa_id, licitacion_id) DO NOTHING
+                """
+            ), {"empresa_id": empresa_id, "lic_ids": top_ids})
+            await session.commit()
+
+            # 6) Encolar (import diferido para evitar circular)
             from workers.extraccion_pliego import extraer_pliego_desde_pscp
 
             for lic_id in a_encolar:

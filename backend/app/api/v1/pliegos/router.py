@@ -14,13 +14,14 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import EstadoAnalisisPliego
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
 from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
+from app.models.licitacion_analisis_solicitud import LicitacionAnalisisSolicitud
 from app.models.licitacion_score_empresa import LicitacionScoreEmpresa
 from app.schemas.licitacion_analisis_ia import (
     LicitacionAnalisisIARead,
@@ -44,18 +45,23 @@ _VALID_VEREDICTOS = {"ir", "ir_con_riesgo", "no_ir", "incompleto"}
 @router.get(
     "",
     response_model=list[PliegoListItem],
-    summary="Lista todos los pliegos analizados (cache global de extracción, veredicto empresa-específico)",
+    summary="Lista pliegos analizados solicitados por la empresa (extracción cacheada globalmente)",
 )
 async def listar_pliegos(
     db: Annotated[AsyncSession, Depends(get_db)],
     empresa_id: UUID | None = None,
 ) -> list[PliegoListItem]:
-    """Listing del cache global de análisis IA.
+    """Listing filtrado por empresa.
 
-    El análisis del pliego (extracción de campos) es GLOBAL por licitación.
-    El veredicto ir/no_ir es empresa-específico: se lee de licitacion_score_empresa
-    (breakdown_json, señal pliego_check) cuando se pasa empresa_id. Sin empresa_id
-    el veredicto queda null.
+    El análisis del pliego (extracción de campos) es GLOBAL por licitación
+    en `licitacion_analisis_ia`, pero la empresa solo ve los pliegos cuyo
+    análisis ella ha solicitado (botón manual o cron del dispatcher) — el
+    filtro lo hace `licitacion_analisis_solicitud`. Sin esto, una empresa
+    nueva vería pliegos analizados por otras empresas, exposición no
+    deseada.
+
+    Si se llama sin `empresa_id` (uso interno de admin/scripts), devuelve
+    el cache global completo.
     """
     stmt = (
         select(
@@ -71,6 +77,12 @@ async def listar_pliegos(
         )
         .order_by(LicitacionAnalisisIA.created_at.desc())
     )
+    if empresa_id is not None:
+        stmt = stmt.join(
+            LicitacionAnalisisSolicitud,
+            (LicitacionAnalisisSolicitud.licitacion_id == LicitacionAnalisisIA.licitacion_id)
+            & (LicitacionAnalisisSolicitud.empresa_id == empresa_id),
+        )
     rows = (await db.execute(stmt)).all()
     items: list[PliegoListItem] = []
     for analisis, lic, lse_breakdown in rows:
@@ -288,13 +300,29 @@ async def proxy_pdf(
 async def analizar_desde_pscp(
     expediente: str,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID | None = None,
 ) -> LicitacionAnalisisIA:
     """Auto-descarga el pliego desde contractaciopublica.cat y lanza la extracción.
 
     Si ya hay un análisis en curso (pendiente/procesando), devuelve el estado actual
     sin re-encolar. Si ya está completado, también lo devuelve sin rehacer nada.
+
+    Si se pasa `empresa_id`, registra la solicitud en
+    `licitacion_analisis_solicitud` con origen='usuario' — la empresa verá
+    este pliego en su listado /pliegos aunque otra empresa lo analizara antes.
     """
     lic = await _get_licitacion_or_404(db, expediente)
+
+    if empresa_id is not None:
+        await db.execute(text(
+            """
+            INSERT INTO licitacion_analisis_solicitud
+                (empresa_id, licitacion_id, origen, solicitado_at)
+            VALUES (:emp, :lic, 'usuario', NOW())
+            ON CONFLICT (empresa_id, licitacion_id) DO NOTHING
+            """
+        ), {"emp": empresa_id, "lic": lic.id})
+        await db.commit()
 
     analisis = (
         await db.execute(

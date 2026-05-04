@@ -65,7 +65,7 @@ export default function PliegoPage({
   });
 
   const autoAnalizar = useMutation({
-    mutationFn: () => pliegosApi.analizar(expediente),
+    mutationFn: () => pliegosApi.analizar(expediente, EMPRESA_DEMO_ID),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pliego", expediente] }),
   });
 

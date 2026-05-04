@@ -126,10 +126,11 @@ export const pliegosApi = {
     return res.json();
   },
 
-  analizar: async (expediente: string): Promise<PliegoAnalisis> => {
-    const res = await fetch(`${API_BASE}/api/v1/pliegos/${expediente}/analizar`, {
-      method: "POST",
-    });
+  analizar: async (expediente: string, empresaId?: string): Promise<PliegoAnalisis> => {
+    const url = empresaId
+      ? `${API_BASE}/api/v1/pliegos/${expediente}/analizar?empresa_id=${empresaId}`
+      : `${API_BASE}/api/v1/pliegos/${expediente}/analizar`;
+    const res = await fetch(url, { method: "POST" });
     if (!res.ok) throw new Error(await readError(res));
     return res.json();
   },

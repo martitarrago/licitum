@@ -1,7 +1,6 @@
 # Phase 2 — Integración de M3 (análisis de pliego) con el motor de ganabilidad
 
-**Estado:** spec, pendiente de implementar
-**Sesión propuesta:** próxima sesión completa (estimado 1-2 días de trabajo)
+**Estado:** ✅ en producción y verificada end-to-end por primera vez el 2026-05-03 — ver §8.bis "Hotfixes 2026-05-03". Antes de esa fecha, B1/B3/B4 estaban deployados pero el cron automático de B2 estaba roto silenciosamente.
 **Prerequisitos leídos:**
 - [`architecture.md`](./architecture.md) — Phase 1 ya en producción (28k adjudicaciones, scoring bayesiano, mviews, cron diario, trigger M2→scores)
 - [`docs/modules/M3-pliegos.md`](../modules/M3-pliegos.md) — base de M3 ya construida (worker, recomendación, página `/pliegos/[expediente]`)
@@ -340,24 +339,51 @@ Opciones:
 
 ---
 
-## 8. Checklist de arranque para próxima sesión
+## 8. Cambios post-deploy (2026-05-02)
 
-```
-□ Leer este spec y la sección 4 de architecture.md
-□ Verificar estado actual contra Supabase:
-  □ SELECT count FROM licitacion_analisis_ia (debería estar vacía)
-  □ SELECT count FROM licitacion_score_empresa WHERE empresa_id = demo (debería tener 138 viables)
-□ Decidir orden B1/B3 (recomendado B3 sintético → B1 → B2 → B4)
-□ Branch: git checkout -b phase-2-pliego-integration
-□ Implementar Fase B3 con análisis sintético
-□ Test holdout: una licitación cuyo pliego "descarte" debe bajar al tier rojo
-□ Implementar Fase B1
-□ Test end-to-end: una licitación real → análisis → re-score → card refleja
-□ Implementar Fase B2 (cron + budget guard)
-□ Implementar Fase B4 (UI)
-□ Recalcular scores empresa demo, verificar visualmente en /radar
-□ Push + PR + merge
-```
+### Dispatcher: de "top-20 buffer" a "todas las viables score≥50"
+
+El spec original (§4 B2) usaba un buffer top-20 + budget guard de 10/día/empresa. En producción el comportamiento se relajó porque dejaba pliegos viables sin analizar más allá del top-20 — el usuario veía banderas `○ pendiente` que nunca pasaban a `✓/⚠/✗`.
+
+**Implementación actual** (`backend/workers/intel_pliego_dispatch.py`):
+- **Universo:** todas las licitaciones con `licitacion_score_empresa.score >= MIN_SCORE_ANALISIS` (50, coincide con el umbral "raso" del semáforo).
+- **Orden:** `score DESC` para que el budget guard priorice las mejores.
+- **Budget guard:** `MAX_NEW_PER_RUN = 15` por ejecución.
+- **Ejecuciones/día:** 4 (cron cada 4h alineado con `intel_scores`).
+- **Capacidad efectiva:** hasta 60 análisis nuevos/día/empresa. Una empresa nueva con 50 viables queda cubierta en ~1 ciclo del día.
+- **TTL inalterado:** 30 días.
+
+Sigue siendo seguro porque el análisis solo PENALIZA (`hard_filter_pliego` o `signal_pliego_check` bajo) — nunca sube un score sin techo. No hay riesgo de bucles de re-ranking.
+
+### Recálculo síncrono tras extracción
+
+El spec proponía encolar `re_score_una_licitacion` vía Celery. La implementación final (`extraccion_pliego.py`) llama `_run_recalc_empresa` **in-process** al terminar — evita latencia de broker round-trip y race conditions cuando varios pliegos completan simultáneamente. La idempotencia vía `empresa_context_hash` permite que ejecutarlo en el mismo proceso sea seguro.
+
+### Output IA forzado en castellano
+
+El `system_prompt` declara explícitamente que el resumen ejecutivo y las banderas rojas se escriban en castellano, aunque el PCAP entre en catalán. Los extractos literales (umbrales, fórmulas, criterios puntuables) sí se preservan en su idioma original — son cita.
+
+### Cron alineado: scores cada 4h
+
+`workers.intel_scores.calcular_para_todas_empresas` se ejecuta a 07:15/11:15/15:15/19:15 (15 min después de cada ingest). El dispatcher de pliegos cuelga del hook `_run_recalc_empresa`, así que la cadencia efectiva del análisis IA es la misma.
+
+---
+
+## 8.bis Hotfixes 2026-05-03 — primera ejecución end-to-end del cron
+
+Phase 2 se reportaba "✅ en producción" desde su deploy original, pero el cron automático nunca había funcionado. Solo se analizaban pliegos cuando el usuario clicaba "Analizar pliego" en el frontend (`pliegos/router.py:333`). Detectado al revisar una oferta con score 82 sin badge de pliego. Tres bugs latentes corregidos en cadena:
+
+1. **`workers.intel_pliego_dispatch` no estaba en `celery_app.include`** — el worker recibía `analizar_top_pendientes_empresa` y la descartaba con `KeyError: 'workers.intel_pliego_dispatch.analizar_top_pendientes_empresa'`. Fix: añadirlo a la lista. Commit `abec201`.
+
+2. **Early return de hash skip saltaba la encolación del dispatcher** — `_run_recalc_empresa` hacía `return result` cuando M2 no cambiaba (línea 124) y nunca llegaba al bloque que encolaba el dispatcher al final. Empresas en estado estable jamás drenaban backlog. Fix: extraer la encolación a `_encolar_dispatcher_pliegos(empresa_id)` y llamarlo en ambos paths. Commit `b3a61c1`.
+
+3. **`NameError: 'TOP_BUFFER' is not defined`** en `_run_dispatch` — el refactor de §8 (top-20 buffer → todas las viables score≥50) dejó referencias muertas en el dict de `result` y en el docstring. El bug solo emergió cuando el dispatcher por fin se ejecutó tras los dos fixes anteriores. Commit `8f1ce45`.
+
+**Limpieza paralela de BD:** las 50 empresas TEST de `test_scoring_50_empresas.py` (creadas el 2026-05-02 para validar cobertura del motor) fueron soft-deleted + 70k filas de `licitacion_score_empresa` borradas. Si se hubieran dejado, el dispatcher habría encolado 51 × 15 = 765 análisis nuevos = ~$268 de Claude API. Solo Bosch i Ribera (demo) queda activa.
+
+**Operativa post-fix:** worker corre `-P solo` (1 tarea concurrente), Bosch tiene 138 viables - 19 ya analizadas pre-fix = 119 pendientes. Con `MAX_NEW_PER_RUN = 15` y 4 ciclos/día son 60 análisis/día → cubrir las 119 toma ~2 días. Para acelerar manual: `railway run --service Worker python -c "from workers.intel_scores import calcular_para_empresa; calcular_para_empresa.delay('<empresa_id>')"` (necesita `REDIS_PUBLIC_URL` del Redis Railway, en variables de servicio).
+
+**Lección operativa:** rate limit de logs Railway 500/sec causa "Messages dropped: 732" durante recálculos pesados — los tracebacks de errores reales se perdían. Si hay que debug a fondo, bajar log level de Celery a `warning` o subir el plan Railway temporalmente.
 
 ---
 
