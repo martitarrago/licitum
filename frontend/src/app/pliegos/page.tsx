@@ -1,15 +1,73 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Search, X } from "lucide-react";
+import { ChevronDown, Loader2, Search, X } from "lucide-react";
 import { pliegosApi, type EstadoAnalisis, type PliegoListItem } from "@/lib/api/pliegos";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
+
+type SortKey = "fecha" | "compat";
+
+const SORT_LABEL: Record<SortKey, string> = {
+  fecha: "Fecha de análisis",
+  compat: "Mejor compatibilidad",
+};
+
+// Veredicto → prioridad ascendente (menor = mejor para sort asc)
+const VEREDICTO_RANK: Record<string, number> = {
+  ir: 0,
+  ir_con_riesgo: 1,
+  incompleto: 2,
+  no_ir: 3,
+};
 
 function normaliza(s: string | null | undefined): string {
   if (!s) return "";
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+function isCaducada(fechaLimite: string | null): boolean {
+  if (!fechaLimite) return false;
+  const d = new Date(fechaLimite);
+  if (isNaN(d.getTime())) return false;
+  return d.getTime() < Date.now();
+}
+
+function ordenarPliegos(items: PliegoListItem[], sort: SortKey): PliegoListItem[] {
+  const arr = [...items];
+  if (sort === "fecha") {
+    // Más recientes primero (procesado_at desc, fallback created_at)
+    arr.sort((a, b) => {
+      const ta = new Date(a.procesado_at ?? a.created_at).getTime();
+      const tb = new Date(b.procesado_at ?? b.created_at).getTime();
+      return tb - ta;
+    });
+    return arr;
+  }
+  // sort === "compat"
+  // 1. caducadas al final
+  // 2. veredicto ir > ir_con_riesgo > sin recomendación > no_ir
+  // 3. menos banderas rojas = mejor
+  // 4. tiebreaker: más recientes primero
+  arr.sort((a, b) => {
+    const ca = isCaducada(a.fecha_limite) ? 1 : 0;
+    const cb = isCaducada(b.fecha_limite) ? 1 : 0;
+    if (ca !== cb) return ca - cb;
+
+    const va = a.veredicto_recomendado ? VEREDICTO_RANK[a.veredicto_recomendado] ?? 2 : 2;
+    const vb = b.veredicto_recomendado ? VEREDICTO_RANK[b.veredicto_recomendado] ?? 2 : 2;
+    if (va !== vb) return va - vb;
+
+    const ba = a.banderas_rojas_count ?? 0;
+    const bb = b.banderas_rojas_count ?? 0;
+    if (ba !== bb) return ba - bb;
+
+    const ta = new Date(a.procesado_at ?? a.created_at).getTime();
+    const tb = new Date(b.procesado_at ?? b.created_at).getTime();
+    return tb - ta;
+  });
+  return arr;
 }
 
 export default function PliegosListPage() {
@@ -19,19 +77,23 @@ export default function PliegosListPage() {
   });
 
   const [q, setQ] = useState("");
-  const filtered = useMemo(() => {
+  const [sort, setSort] = useState<SortKey>("fecha");
+
+  const filteredSorted = useMemo(() => {
     if (!list.data) return [];
     const needle = normaliza(q.trim());
-    if (!needle) return list.data;
-    return list.data.filter((it) =>
-      normaliza(it.expediente).includes(needle) ||
-      normaliza(it.titulo).includes(needle) ||
-      normaliza(it.organismo).includes(needle),
-    );
-  }, [list.data, q]);
+    const filtered = needle
+      ? list.data.filter((it) =>
+          normaliza(it.expediente).includes(needle) ||
+          normaliza(it.titulo).includes(needle) ||
+          normaliza(it.organismo).includes(needle),
+        )
+      : list.data;
+    return ordenarPliegos(filtered, sort);
+  }, [list.data, q, sort]);
 
   const total = list.data?.length ?? 0;
-  const showing = filtered.length;
+  const showing = filteredSorted.length;
   const hasQuery = q.trim().length > 0;
 
   return (
@@ -79,6 +141,9 @@ export default function PliegosListPage() {
               {showing} de {total}
             </p>
           )}
+          <div className="ml-auto">
+            <SortDropdown value={sort} onChange={setSort} />
+          </div>
         </div>
       )}
 
@@ -90,10 +155,96 @@ export default function PliegosListPage() {
         <NoMatches query={q} onClear={() => setQ("")} />
       ) : (
         <ul className="space-y-3">
-          {filtered.map((item) => (
+          {filteredSorted.map((item) => (
             <Item key={item.licitacion_id} item={item} />
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+function SortDropdown({
+  value,
+  onChange,
+}: {
+  value: SortKey;
+  onChange: (v: SortKey) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t)) return;
+      if (popoverRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={[
+          "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium",
+          "ring-1 ring-border bg-surface-raised text-foreground",
+          "hover:ring-foreground/30 transition-colors",
+          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground",
+          open && "ring-foreground/30",
+        ].filter(Boolean).join(" ")}
+      >
+        <span className="text-muted-foreground">Ordenar</span>
+        <span>{SORT_LABEL[value]}</span>
+        <ChevronDown className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          ref={popoverRef}
+          role="listbox"
+          className="absolute right-0 top-[calc(100%+6px)] z-20 min-w-[220px] rounded-xl bg-surface-raised py-1.5 shadow-elev-2 ring-1 ring-border"
+        >
+          {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => {
+            const active = k === value;
+            return (
+              <button
+                key={k}
+                role="option"
+                aria-selected={active}
+                onClick={() => {
+                  onChange(k);
+                  setOpen(false);
+                }}
+                className={[
+                  "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors",
+                  "hover:bg-muted focus:outline-none",
+                  active ? "font-semibold text-foreground" : "text-foreground",
+                ].join(" ")}
+              >
+                <span className="flex-1">{SORT_LABEL[k]}</span>
+                {active && (
+                  <span className="text-[10px] font-bold text-muted-foreground">●</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       )}
     </div>
   );
