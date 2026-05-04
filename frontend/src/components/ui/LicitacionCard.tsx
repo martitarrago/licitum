@@ -23,6 +23,8 @@ interface LicitacionCardProps {
   /** Estado del análisis IA del pliego (M3 Phase 2 B4). */
   pliegoEstado?: PliegoEstado | null;
   pliegoVeredicto?: PliegoVeredicto | null;
+  /** Si la licitación fue descartada por el motor (hard filter). Se muestra solo cuando el feed la incluye explícitamente — p.ej. al buscar. */
+  descartada?: boolean | null;
 }
 
 const semaforoStripe: Record<Semaforo, string> = {
@@ -105,17 +107,29 @@ export function LicitacionCard({
   score,
   pliegoEstado,
   pliegoVeredicto,
+  descartada,
 }: LicitacionCardProps) {
   const dias = diasHasta(fechaLimite);
   const urgente = dias >= 0 && dias <= 7;
   const cerrada = dias < 0;
   const hasScore = typeof score === "number";
   const tone = hasScore ? scoreTier(score!) : null;
-  const stripeClass = tone ? tone.bg : semaforoStripe[semaforo];
+  // Cuando la licitación está descartada, la franja siempre va gris — el
+  // tier por score no aplica porque el motor la ha excluido por hard filter.
+  const stripeClass = descartada
+    ? "bg-muted-foreground/30"
+    : tone
+      ? tone.bg
+      : semaforoStripe[semaforo];
   const badge = pliegoBadge(pliegoEstado, pliegoVeredicto);
 
   return (
-    <article className="card-interactive group relative flex flex-col overflow-hidden">
+    <article
+      className={[
+        "card-interactive group relative flex flex-col overflow-hidden",
+        descartada && "opacity-70",
+      ].filter(Boolean).join(" ")}
+    >
       {/* Franja superior fina — color del score (o semáforo de fallback) */}
       <div className={`h-[3px] flex-shrink-0 ${stripeClass}`} aria-hidden="true" />
 
@@ -127,6 +141,15 @@ export function LicitacionCard({
               {titulo}
             </h3>
             <p className="truncate text-sm text-muted-foreground">{organismo}</p>
+            {descartada && (
+              <span className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50"
+                  aria-hidden="true"
+                />
+                Descartada
+              </span>
+            )}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             {hasScore && tone && (

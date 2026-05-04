@@ -72,7 +72,12 @@ async def list_licitaciones(
     cpv_prefix: str | None = Query(
         None, description="Prefijo CPV: solo dígitos y guion, hasta 16 chars"
     ),
-    q: str | None = Query(None, description="Búsqueda en título y organismo"),
+    q: str | None = Query(
+        None,
+        description="Búsqueda insensible a tildes y mayúsculas en título, "
+        "organismo y expediente. Cuando está presente, también se incluyen "
+        "licitaciones descartadas que matcheen (sobreescribe `incluye_descartadas`).",
+    ),
     order_by: str = Query(
         "score",
         description="Criterio de orden. Valores: "
@@ -182,9 +187,11 @@ async def list_licitaciones(
         Licitacion.fecha_limite > func.now(),
     )
 
-    if not incluye_descartadas:
+    if not incluye_descartadas and not q:
         # Filtra las descartadas pero deja pasar las que aún no tienen score
         # calculado (NULL → la empresa es nueva, primer cron pendiente).
+        # Si hay búsqueda activa (`q`), el filtro se relaja: el usuario
+        # quiere encontrar la licitación que escribe aunque esté descartada.
         stmt = stmt.where(
             (LicitacionScoreEmpresa.descartada.is_(None))
             | (LicitacionScoreEmpresa.descartada.is_(False))
@@ -245,10 +252,15 @@ async def list_licitaciones(
             )
         )
     if q:
+        # Match insensible a tildes via extension `unaccent` (instalada en
+        # migración 0024). Cubre título, organismo y expediente — el usuario
+        # típicamente tiene el código en mano cuando busca algo concreto.
         pattern = f"%{q}%"
-        stmt = stmt.where(
-            Licitacion.titulo.ilike(pattern) | Licitacion.organismo.ilike(pattern)
-        )
+        stmt = stmt.where(text(
+            "unaccent(licitaciones.titulo) ILIKE unaccent(:q_pat) "
+            "OR unaccent(licitaciones.organismo) ILIKE unaccent(:q_pat) "
+            "OR unaccent(licitaciones.expediente) ILIKE unaccent(:q_pat)"
+        ).bindparams(q_pat=pattern))
 
     # Orden — el JOIN al cache de score ya está hecho arriba (siempre).
     if order_by == "score":

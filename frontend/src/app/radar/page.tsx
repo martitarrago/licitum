@@ -450,6 +450,7 @@ function RadarPageContent() {
                       score={l.score}
                       pliegoEstado={l.pliego_estado}
                       pliegoVeredicto={l.pliego_veredicto}
+                      descartada={l.descartada}
                     />
                   </Link>
                 </div>
@@ -486,8 +487,10 @@ function RadarPageContent() {
             </div>
           )}
 
-          {/* Sección descartadas — colapsable, agrupada por razón */}
-          <DescartadasSection empresaId={EMPRESA_DEMO_ID} />
+          {/* Sección descartadas — colapsable, agrupada por razón.
+              Si hay búsqueda activa, las descartadas que matchean ya
+              aparecen mezcladas en el feed principal con su badge gris. */}
+          {!filters.q && <DescartadasSection empresaId={EMPRESA_DEMO_ID} />}
         </>
       )}
     </main>
