@@ -34,14 +34,14 @@ celery_app.conf.update(
     # pliego consecutivas. Coste: +3-5s overhead por tarea (bootstrap
     # del proceso). Aceptable para tareas que ya tardan 30-60s.
     worker_max_tasks_per_child=1,
-    # Tope de RSS por proceso — si una sola extracción supera 400 MB
+    # Tope de RSS por proceso — si una sola extracción supera el cap
     # (PDF grande con OCR pesado), Celery recicla el proceso preventivamente
     # ANTES de que Linux haga OOM-kill brutal. Diferencia clave: con OOM-kill
     # la tarea queda en `procesando` huérfana en BD; con max_memory el reciclaje
     # es controlado y la tarea reentregada vía task_acks_late se procesa en un
-    # proceso fresco. Ajustar según plan Railway: 400000 KB ≈ 400 MB es seguro
-    # para Hobby (~512 MB), subir a 1500000 (1.5 GB) en Pro.
-    worker_max_memory_per_child=400000,
+    # proceso fresco. 2 GB en Railway Hobby (8 GB total) deja margen para
+    # extracciones de Projectes Tècnics escaneados (peak ~1-1.5 GB).
+    worker_max_memory_per_child=2000000,
     # Celery Beat embebido en el worker (flag `--beat` en start.sh).
     # Horas interpretadas en Europe/Madrid; Celery hace la conversión a UTC.
     #
