@@ -41,6 +41,7 @@ from app.intel.scoring.composite import (
     hard_filter_presupuesto,
     hard_filter_solvencia,
     hard_filter_solvencia_economica,
+    hard_filter_tipo_contrato,
     signal_baja_factible,
     signal_competencia_esperada,
     signal_concentracion_organo,
@@ -68,6 +69,14 @@ class LicitacionInput:
     lloc_execucio: str | None
     codi_nuts: str | None
     dias_a_cierre: int | None = None  # días naturales al `fecha_limite` de la licitación
+    # Tipo de contrato BD (snake_case castellano: 'obras' | 'servicios' |
+    # 'suministros' | 'concesion_obras' | 'concesion_servicios' |
+    # 'administrativo_especial' | 'servicios_especiales' | ...). Diferente
+    # de `tipus_contracte` (catalán raw PSCP) — esta columna la rellena el
+    # ingest mappeando el raw a un enum normalizado. Usada por
+    # `hard_filter_tipo_contrato` para descartar contratos fuera del perfil
+    # ROLECE/CPV de la empresa.
+    tipo_contrato: str | None = None
 
     @property
     def codi_cpv_4(self) -> str | None:
@@ -110,6 +119,11 @@ class EmpresaContext:
     # Documentación administrativa (M2 documentos_empresa) — para hard filter docs al día
     docs_caducados: list[str] = field(default_factory=list)
     docs_caducan_pronto: list[str] = field(default_factory=list)
+    # Tipos de contrato (BD enum: 'obras', 'servicios', 'suministros', ...) que
+    # encajan con el perfil ROLECE/CPV. Derivados automáticamente en
+    # `empresa_context._derivar_tipos_contrato_compatibles`. El hard filter
+    # `hard_filter_tipo_contrato` rechaza licitaciones fuera de este set.
+    tipos_contrato_compatibles: frozenset[str] = field(default_factory=frozenset)
 
     def pref_cpv_for(self, cpv: str | None) -> str | None:
         """Match más específico → más general (8 → 4 → 2 dígitos)."""
@@ -225,6 +239,7 @@ async def score_licitacion(
     cpv_pref = empresa.pref_cpv_for(licitacion.codi_cpv)
     hard_filters = [
         hard_filter_estado_aceptacion(empresa.estado_aceptacion),
+        hard_filter_tipo_contrato(licitacion.tipo_contrato, empresa.tipos_contrato_compatibles),
         hard_filter_clasificacion(empresa.cumple_clasificacion),
         hard_filter_solvencia(empresa.cumple_solvencia),
         hard_filter_solvencia_economica(

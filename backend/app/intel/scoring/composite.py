@@ -687,6 +687,44 @@ def hard_filter_solvencia_economica(
     )
 
 
+def hard_filter_tipo_contrato(
+    tipo_contrato_lic: str | None,
+    tipos_compatibles: frozenset[str],
+) -> HardFilterResult:
+    """Descarta licitación cuyo tipo de contrato no encaja con el perfil de la empresa.
+
+    `tipos_compatibles` es derivado en `empresa_context.py` desde los grupos
+    ROLECE/RELIC + CPV preferencias de la empresa (LCSP A-K → obras, M-V →
+    servicios, etc). Cero hardcode: el motor deduce qué tipos servir.
+
+    Permisivo cuando falta info: si la licitación no declara tipo, no descartar
+    (beneficio de la duda — raro en PSCP). Si la empresa no tiene perfil
+    derivable, `empresa_context._derivar_tipos_contrato_compatibles` cae en
+    fallback `{'obras', 'concesion_obras'}` (MVP catalán construcción-only).
+    """
+    if not tipo_contrato_lic:
+        return HardFilterResult(
+            name="tipo_contrato",
+            fail=False,
+            reason="OK (tipo de contrato no declarado en la licitación)",
+        )
+    if tipo_contrato_lic in tipos_compatibles:
+        return HardFilterResult(
+            name="tipo_contrato",
+            fail=False,
+            reason=f"OK ({tipo_contrato_lic})",
+        )
+    compat_str = ", ".join(sorted(tipos_compatibles)) if tipos_compatibles else "(ninguno)"
+    return HardFilterResult(
+        name="tipo_contrato",
+        fail=True,
+        reason=(
+            f"Contrato de {tipo_contrato_lic} — tu perfil ROLECE/CPV está "
+            f"orientado a {compat_str}"
+        ),
+    )
+
+
 def hard_filter_pliego(
     veredicto: str | None,
     razones_no: list[str] | None = None,

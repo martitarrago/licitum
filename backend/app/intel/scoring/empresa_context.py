@@ -97,6 +97,12 @@ class EmpresaStaticProfile:
     # Documentos
     docs_caducados: list[str]  # ['hacienda_corriente', ...]
     docs_caducan_pronto: list[str]
+    # Tipos de contrato compatibles — derivados de los grupos ROLECE/RELIC y
+    # las preferencias CPV. LCSP clasifica grupos A-K como obras y M-V como
+    # servicios; CPV 45 → obras, 50/71 → servicios. Auto-deduce qué tipos de
+    # licitación servir a la empresa, sin declaración manual. Ver
+    # `_derivar_tipos_contrato_compatibles`.
+    tipos_contrato_compatibles: frozenset[str] = field(default_factory=frozenset)
     # Reservado — pendiente de añadir a EmpresaPreferencias en futura migración
     margen_minimo_baja: float | None = None
 
@@ -116,6 +122,76 @@ def _provincia_norm(s: str | None) -> str | None:
     if not s:
         return None
     return s.strip().upper()
+
+
+# Mapeo grupos ROLECE → categorías LCSP de contrato (Anexo I del Reglamento
+# General de la LCSP). Grupos A-K son OBRAS, M-V son SERVICIOS.
+_ROLECE_GRUPOS_OBRAS = frozenset("ABCDEFGHIJK")
+_ROLECE_GRUPOS_SERVICIOS = frozenset("MNOPQRSTUV")
+
+# Mapeo división CPV (2 dígitos) → tipos de contrato típicos. Heurística no
+# exhaustiva — sólo activa tipos cuando hay señal positiva.
+_CPV_DIV_TO_TIPOS: dict[str, frozenset[str]] = {
+    "45": frozenset({"obras", "concesion_obras"}),  # construcción
+    "50": frozenset({"servicios"}),                  # mantenimiento
+    "51": frozenset({"servicios"}),                  # instalación de equipos
+    "71": frozenset({"servicios"}),                  # arquitectura/ingeniería
+    "72": frozenset({"servicios"}),                  # IT
+    "79": frozenset({"servicios"}),                  # servicios empresariales
+    "80": frozenset({"servicios"}),                  # educación
+    "85": frozenset({"servicios"}),                  # sanidad/social
+    "90": frozenset({"servicios"}),                  # alcantarillado/limpieza/medio ambiente
+}
+
+# Fallback cuando la empresa no tiene perfil derivable. MVP catalán es
+# construcción-only, así que asumir obras es seguro y consistente con el
+# filtro del ingest `intel_pscp.py:tipus_contracte='Obres'`.
+_TIPOS_FALLBACK = frozenset({"obras", "concesion_obras"})
+
+
+def _derivar_tipos_contrato_compatibles(
+    max_categoria_por_grupo: dict[str, int],
+    pref_cpv_prioridades: dict[str, str],
+) -> frozenset[str]:
+    """Auto-deduce qué tipos de contrato encajan con el perfil ROLECE/CPV.
+
+    Lógica: la LCSP ya clasifica los grupos ROLECE por tipo de contrato (Anexo I
+    del Reglamento General). Aprovechamos ese mapeo para no exigir declaración
+    manual al cliente.
+
+      - ROLECE grupos A-K activos → 'obras' + 'concesion_obras'
+      - ROLECE grupos M-V activos → 'servicios' + variantes
+      - CPV 45 en preferencias → 'obras' (constructora pequeña sin ROLECE)
+      - CPV 50/71/etc en preferencias → 'servicios'
+
+    Si nada matchea (perfil M2 vacío) → fallback `{'obras', 'concesion_obras'}`,
+    coherente con el filtro del ingest. Cuando entren clientes instaladores
+    con grupos I/J o servicios M-V, el motor los soporta automáticamente.
+    """
+    tipos: set[str] = set()
+
+    grupos = set(max_categoria_por_grupo.keys())
+    if grupos & _ROLECE_GRUPOS_OBRAS:
+        tipos.add("obras")
+        tipos.add("concesion_obras")
+    if grupos & _ROLECE_GRUPOS_SERVICIOS:
+        tipos.add("servicios")
+        tipos.add("servicios_especiales")
+        tipos.add("concesion_servicios")
+        tipos.add("concesion_servicios_especiales")
+        tipos.add("administrativo_especial")  # subcontratos administrativos para servicios
+
+    # CPV preferencias — refuerzan o introducen tipos cuando no hay ROLECE.
+    for cpv_div, prioridad in pref_cpv_prioridades.items():
+        if prioridad == "no_interesa":
+            continue
+        # Normalizamos a 2 dígitos para el lookup.
+        key = cpv_div[:2] if len(cpv_div) >= 2 else cpv_div
+        derived = _CPV_DIV_TO_TIPOS.get(key)
+        if derived:
+            tipos |= derived
+
+    return frozenset(tipos) if tipos else _TIPOS_FALLBACK
 
 
 def _docs_estado_hoy(documentos: list[DocumentoEmpresa]) -> tuple[list[str], list[str]]:
@@ -230,6 +306,9 @@ async def build_empresa_static_profile(
     )
     docs_caducados, docs_caducan = _docs_estado_hoy(list(docs_q.scalars().all()))
 
+    max_cat = dict(solvencia.max_categoria_por_grupo)
+    tipos_compat = _derivar_tipos_contrato_compatibles(max_cat, pref_cpv)
+
     return EmpresaStaticProfile(
         empresa_id=empresa_id,
         cif=empresa.cif,
@@ -248,10 +327,11 @@ async def build_empresa_static_profile(
         volumen_negocio_n2=float(empresa.volumen_negocio_n2) if empresa.volumen_negocio_n2 is not None else None,
         plantilla_media=empresa.plantilla_media,
         anualidad_media=anualidad,
-        max_categoria_por_grupo=dict(solvencia.max_categoria_por_grupo),
+        max_categoria_por_grupo=max_cat,
         max_solvencia_certificada_por_grupo=dict(solvencia.max_solvencia_certificada_por_grupo),
         docs_caducados=docs_caducados,
         docs_caducan_pronto=docs_caducan,
+        tipos_contrato_compatibles=tipos_compat,
         margen_minimo_baja=None,  # TODO migración para añadirlo a empresa_preferencias
     )
 
@@ -287,6 +367,7 @@ def compute_empresa_context_hash(profile: EmpresaStaticProfile) -> str:
         ),
         "docs_cad": sorted(profile.docs_caducados),
         "docs_pronto": sorted(profile.docs_caducan_pronto),
+        "tipos_contrato": sorted(profile.tipos_contrato_compatibles),
         "margen": profile.margen_minimo_baja,
     }
     canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
@@ -503,4 +584,5 @@ def evaluate_empresa_for_licitacion(
         margen_minimo_baja=profile.margen_minimo_baja,
         docs_caducados=profile.docs_caducados,
         docs_caducan_pronto=profile.docs_caducan_pronto,
+        tipos_contrato_compatibles=profile.tipos_contrato_compatibles,
     )

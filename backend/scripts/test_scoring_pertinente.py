@@ -270,12 +270,14 @@ def score_inmemory(
         signal_concentracion_organo, signal_encaje_geografico,
         signal_encaje_tecnico, signal_pliego_check, signal_preferencias_match,
     )
+    from app.intel.scoring.composite import hard_filter_tipo_contrato
     from app.intel.scoring.lcsp import estimar_baja_temeraria
 
     cpv_pref = empresa.pref_cpv_for(lic_input.codi_cpv)
 
     hard_filters = [
         hard_filter_estado_aceptacion(empresa.estado_aceptacion),
+        hard_filter_tipo_contrato(lic_input.tipo_contrato, empresa.tipos_contrato_compatibles),
         hard_filter_clasificacion(empresa.cumple_clasificacion),
         hard_filter_solvencia(empresa.cumple_solvencia),
         hard_filter_solvencia_economica(
@@ -422,7 +424,8 @@ async def score_empresa(
         lic_input = LicitacionInput(
             codi_organ=str(lic.organismo_id) if lic.organismo_id else "unknown",
             codi_cpv=lic.cpv_codes[0] if lic.cpv_codes else None,
-            tipus_contracte="Obres",
+            tipus_contracte="Obres",  # raw catalán (para lookup PSCP) — el motor agrega como Obres
+            tipo_contrato=lic.tipo_contrato,  # snake_case BD — lo que filtra hard_filter_tipo_contrato
             presupuesto=float(lic.importe_licitacion) if lic.importe_licitacion else None,
             lloc_execucio=None,
             codi_nuts=lic.provincias[0] if lic.provincias else None,
