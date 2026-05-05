@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, Loader2, X } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 import {
   ESTADO_LABELS,
   ESTADO_TONO,
