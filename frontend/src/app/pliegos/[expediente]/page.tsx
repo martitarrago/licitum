@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -39,7 +39,6 @@ export default function PliegoPage({
 }) {
   const expediente = decodeURIComponent(params.expediente);
   const qc = useQueryClient();
-  const router = useRouter();
 
   const licitacion = useQuery({
     queryKey: ["licitacion", expediente],
@@ -92,13 +91,17 @@ export default function PliegoPage({
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
-      <button
-        onClick={() => router.back()}
+      {/* Destino fijo al listado de pliegos analizados — usar router.back()
+          es ambiguo cuando el usuario va al workspace de Sobre A y vuelve:
+          el historial queda con un Link de "Volver al análisis" en medio,
+          y el back retrocede al workspace en vez de a /pliegos. */}
+      <Link
+        href="/pliegos"
         className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Volver
-      </button>
+        Volver a pliegos analizados
+      </Link>
 
       <Header
         titulo={licitacion.data?.titulo ?? expediente}
