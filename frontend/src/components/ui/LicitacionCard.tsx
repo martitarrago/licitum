@@ -157,7 +157,17 @@ export function LicitacionCard({
               </span>
             )}
           </div>
-          <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {/* Columna derecha: score · corazón · badge pliego — los 3 perfectamente
+              alineados al centro horizontal entre sí (cada item h-5 + items-center). */}
+          <div className="flex shrink-0 flex-col items-center gap-2">
+            {hasScore && tone && (
+              <div
+                className={`flex h-5 items-center justify-center display-num text-lg font-bold tabular-nums leading-none ${tone.text}`}
+                aria-label={`Puntuación ${Math.round(score!)} de 100`}
+              >
+                {Math.round(score!)}
+              </div>
+            )}
             {expediente && (
               <FavoritoToggle
                 expediente={expediente}
@@ -165,17 +175,9 @@ export function LicitacionCard({
                 variant="card"
               />
             )}
-            {hasScore && tone && (
-              <div
-                className={`display-num text-lg font-bold tabular-nums leading-none ${tone.text}`}
-                aria-label={`Puntuación ${Math.round(score!)} de 100`}
-              >
-                {Math.round(score!)}
-              </div>
-            )}
             {badge && (
               <span
-                className={`text-sm leading-none ${badge.tone}`}
+                className={`flex h-5 items-center justify-center text-sm leading-none ${badge.tone}`}
                 title={badge.title}
                 aria-label={badge.title}
               >

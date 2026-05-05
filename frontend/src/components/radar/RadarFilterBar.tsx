@@ -555,26 +555,32 @@ export function RadarFilterBar({ state }: RadarFilterBarProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Favoritos — toggle independiente, sin popover */}
+      {/* Favoritos — toggle independiente, sin popover. Mismas dimensiones
+          que FilterPill (px-3 py-1.5 text-xs font-semibold rounded-full ring-1)
+          para que la fila quede consistente. */}
       <button
         type="button"
         onClick={() => setFilter("solo_favoritos", !filters.solo_favoritos)}
         aria-pressed={filters.solo_favoritos}
         title={filters.solo_favoritos ? "Mostrar todas" : "Mostrar solo favoritas"}
         className={[
-          "inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors",
+          "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5",
+          "text-xs font-semibold ring-1 transition-colors select-none",
+          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground",
           filters.solo_favoritos
-            ? "bg-red-50 text-red-500 ring-1 ring-red-200 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-500/20"
-            : "bg-surface text-foreground ring-1 ring-border hover:bg-muted",
+            ? "bg-red-50 text-red-500 ring-red-200 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-500/20"
+            : "bg-transparent text-muted-foreground ring-border hover:text-foreground hover:ring-foreground/30",
         ].join(" ")}
       >
         <Heart
-          className="h-4 w-4"
+          className="h-3.5 w-3.5"
           strokeWidth={filters.solo_favoritos ? 0 : 1.75}
           fill={filters.solo_favoritos ? "currentColor" : "none"}
           aria-hidden="true"
         />
-        Favoritos
+        <span className={filters.solo_favoritos ? "" : "text-foreground"}>
+          Favoritos
+        </span>
       </button>
 
       {/* Puntuación (tier de ganabilidad — sustituye al semáforo legacy) */}

@@ -22,7 +22,6 @@ import {
   type SemaforoType,
   type TipoOrganismo,
 } from "@/lib/api/licitaciones";
-import { EstadoSelector } from "@/components/tracker/EstadoSelector";
 import { AnalisisGanabilidad } from "@/components/radar/AnalisisGanabilidad";
 import { FavoritoToggle } from "@/components/radar/FavoritoToggle";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
@@ -198,7 +197,9 @@ function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
             )}
           </div>
 
-          {/* Acciones — Sobre A removido, va al módulo M4 dedicado */}
+          {/* Acciones — la entrada al pipeline (en_preparacion, presentada…)
+              ya no vive aquí: pasará al CTA "Preparar Sobre A" del análisis
+              del pliego. Aquí solo: analizar, ver oficial, marcar favorito. */}
           <div className="flex flex-wrap items-center gap-3 border-t border-border pt-5">
             <Link
               href={`/pliegos/${encodeURIComponent(l.expediente)}`}
@@ -211,12 +212,6 @@ function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               Analizar pliego con IA
             </Link>
-            <FavoritoToggle
-              expediente={l.expediente}
-              favorito={l.favorito}
-              variant="detail"
-            />
-            <EstadoSelector expediente={l.expediente} />
             {l.url_placsp && (
               <a
                 href={l.url_placsp}
@@ -232,6 +227,13 @@ function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
                 Ver pliego oficial en PSCP
               </a>
             )}
+            <div className="ml-auto">
+              <FavoritoToggle
+                expediente={l.expediente}
+                favorito={l.favorito}
+                variant="detail"
+              />
+            </div>
           </div>
         </div>
       </div>

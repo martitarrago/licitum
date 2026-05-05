@@ -60,8 +60,23 @@ export function FavoritoToggle({ expediente, favorito, variant = "card" }: Props
   };
 
   const label = isOn ? "Quitar de favoritos" : "Añadir a favoritos";
-  const sizeClass = variant === "detail" ? "h-10 w-10" : "h-8 w-8";
-  const iconSize = variant === "detail" ? "h-5 w-5" : "h-4 w-4";
+
+  // En la card: icono limpio h-5 (mismo alto que score y badge) sin
+  // background — para alineación visual perfecta con el resto de la columna.
+  // En el detalle: pill circular más grande, acción claramente clicable.
+  const isDetail = variant === "detail";
+  const sizeClass = isDetail
+    ? "h-10 w-10 rounded-full"
+    : "h-5 w-5 rounded-full";
+  const iconSize = isDetail ? "h-5 w-5" : "h-4 w-4";
+  const bgClass = isDetail
+    ? isOn
+      ? "bg-red-50 hover:bg-red-100 dark:bg-red-500/10"
+      : "bg-transparent hover:bg-muted ring-1 ring-border"
+    : "bg-transparent";
+  const colorClass = isOn
+    ? "text-red-400 dark:text-red-400/90"
+    : "text-muted-foreground/60 hover:text-muted-foreground";
 
   return (
     <button
@@ -73,11 +88,9 @@ export function FavoritoToggle({ expediente, favorito, variant = "card" }: Props
       title={label}
       className={[
         sizeClass,
-        "inline-flex items-center justify-center rounded-full",
-        "transition-colors disabled:opacity-60",
-        isOn
-          ? "bg-red-50 text-red-400 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400/90"
-          : "bg-transparent text-muted-foreground/60 hover:bg-muted hover:text-muted-foreground",
+        bgClass,
+        colorClass,
+        "inline-flex items-center justify-center transition-colors disabled:opacity-60",
       ].join(" ")}
     >
       {toggle.isPending ? (
