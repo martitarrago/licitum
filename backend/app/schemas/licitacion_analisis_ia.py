@@ -42,6 +42,8 @@ class PliegoListItem(BaseModel):
     # None mientras procesa o si falló.
     veredicto_recomendado: str | None = None
     banderas_rojas_count: int | None = None
+    # true si la empresa actual la tiene marcada como favorita.
+    favorito: bool = False
 
 
 class BanderaRoja(BaseModel):

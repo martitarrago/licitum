@@ -55,6 +55,7 @@ export function FavoritoToggle({ expediente, favorito, variant = "card" }: Props
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["licitaciones"] });
       qc.invalidateQueries({ queryKey: ["licitacion", expediente] });
+      qc.invalidateQueries({ queryKey: ["pliegos-list"] });
     },
     onError: () => {
       // Revertir el optimistic si la API falla.

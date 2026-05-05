@@ -105,14 +105,20 @@ export interface PliegoListItem {
   created_at: string;
   veredicto_recomendado: string | null;
   banderas_rojas_count: number | null;
+  favorito: boolean;
 }
 
 export const pliegosApi = {
   /** GET listing — todos los pliegos con análisis IA (cache global). */
-  list: async (empresaId?: string): Promise<PliegoListItem[]> => {
-    const url = empresaId
-      ? `${API_BASE}/api/v1/pliegos?empresa_id=${empresaId}`
-      : `${API_BASE}/api/v1/pliegos`;
+  list: async (
+    empresaId?: string,
+    soloFavoritos?: boolean,
+  ): Promise<PliegoListItem[]> => {
+    const qs = new URLSearchParams();
+    if (empresaId) qs.set("empresa_id", empresaId);
+    if (soloFavoritos) qs.set("solo_favoritos", "true");
+    const suffix = qs.toString();
+    const url = `${API_BASE}/api/v1/pliegos${suffix ? `?${suffix}` : ""}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(await readError(res));
     return res.json();

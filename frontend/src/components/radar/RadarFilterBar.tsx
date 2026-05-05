@@ -555,32 +555,6 @@ export function RadarFilterBar({ state }: RadarFilterBarProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Favoritos — toggle plano sin pill: icono + texto, color cambia al
-          activarse. Misma altura que los FilterPill para mantener la línea
-          base, pero sin ring ni background. */}
-      <button
-        type="button"
-        onClick={() => setFilter("solo_favoritos", !filters.solo_favoritos)}
-        aria-pressed={filters.solo_favoritos}
-        title={filters.solo_favoritos ? "Mostrar todas" : "Mostrar solo favoritas"}
-        className={[
-          "inline-flex items-center gap-1.5 px-1.5 py-1.5",
-          "text-xs font-semibold transition-colors select-none",
-          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground",
-          filters.solo_favoritos
-            ? "text-red-500 dark:text-red-400"
-            : "text-muted-foreground hover:text-foreground",
-        ].join(" ")}
-      >
-        <Heart
-          className="h-3.5 w-3.5"
-          strokeWidth={filters.solo_favoritos ? 0 : 1.75}
-          fill={filters.solo_favoritos ? "currentColor" : "none"}
-          aria-hidden="true"
-        />
-        Favoritos
-      </button>
-
       {/* Puntuación (tier de ganabilidad — sustituye al semáforo legacy) */}
       <FilterPopover
         minWidth={240}
@@ -769,6 +743,39 @@ export function RadarFilterBar({ state }: RadarFilterBarProps) {
               "
             >
               <Arrow className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+            </button>
+
+            {/* Divisoria vertical antes del toggle de favoritos —
+                misma estética que la que separa CPV de Ordenar. */}
+            <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+
+            {/* Favoritos — toggle plano sin pill: icono + texto, color cambia
+                al activarse. Sin ring ni background, agrupado con Ordenar. */}
+            <button
+              type="button"
+              onClick={() => setFilter("solo_favoritos", !filters.solo_favoritos)}
+              aria-pressed={filters.solo_favoritos}
+              title={
+                filters.solo_favoritos
+                  ? "Mostrar todas"
+                  : "Mostrar solo favoritas"
+              }
+              className={[
+                "inline-flex items-center gap-1.5 px-1.5 py-1.5",
+                "text-xs font-semibold transition-colors select-none",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground",
+                filters.solo_favoritos
+                  ? "text-red-500 dark:text-red-400"
+                  : "text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+            >
+              <Heart
+                className="h-3.5 w-3.5"
+                strokeWidth={filters.solo_favoritos ? 0 : 1.75}
+                fill={filters.solo_favoritos ? "currentColor" : "none"}
+                aria-hidden="true"
+              />
+              Favoritos
             </button>
           </div>
         );

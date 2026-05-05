@@ -22,6 +22,7 @@ from app.db.session import get_db
 from app.models.licitacion import Licitacion
 from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
 from app.models.licitacion_analisis_solicitud import LicitacionAnalisisSolicitud
+from app.models.licitacion_favorita_empresa import LicitacionFavoritaEmpresa
 from app.models.licitacion_score_empresa import LicitacionScoreEmpresa
 from app.schemas.licitacion_analisis_ia import (
     LicitacionAnalisisIARead,
@@ -50,6 +51,7 @@ _VALID_VEREDICTOS = {"ir", "ir_con_riesgo", "no_ir", "incompleto"}
 async def listar_pliegos(
     db: Annotated[AsyncSession, Depends(get_db)],
     empresa_id: UUID | None = None,
+    solo_favoritos: bool = False,
 ) -> list[PliegoListItem]:
     """Listing filtrado por empresa.
 
@@ -68,12 +70,18 @@ async def listar_pliegos(
             LicitacionAnalisisIA,
             Licitacion,
             LicitacionScoreEmpresa.breakdown_json.label("lse_breakdown"),
+            LicitacionFavoritaEmpresa.id.label("fav_id"),
         )
         .join(Licitacion, Licitacion.id == LicitacionAnalisisIA.licitacion_id)
         .outerjoin(
             LicitacionScoreEmpresa,
             (LicitacionScoreEmpresa.licitacion_id == LicitacionAnalisisIA.licitacion_id)
             & (LicitacionScoreEmpresa.empresa_id == empresa_id),
+        )
+        .outerjoin(
+            LicitacionFavoritaEmpresa,
+            (LicitacionFavoritaEmpresa.licitacion_id == LicitacionAnalisisIA.licitacion_id)
+            & (LicitacionFavoritaEmpresa.empresa_id == empresa_id),
         )
         .order_by(LicitacionAnalisisIA.created_at.desc())
     )
@@ -83,9 +91,11 @@ async def listar_pliegos(
             (LicitacionAnalisisSolicitud.licitacion_id == LicitacionAnalisisIA.licitacion_id)
             & (LicitacionAnalisisSolicitud.empresa_id == empresa_id),
         )
+    if solo_favoritos:
+        stmt = stmt.where(LicitacionFavoritaEmpresa.id.is_not(None))
     rows = (await db.execute(stmt)).all()
     items: list[PliegoListItem] = []
-    for analisis, lic, lse_breakdown in rows:
+    for analisis, lic, lse_breakdown, fav_id in rows:
         banderas: int | None = None
         if analisis.estado == EstadoAnalisisPliego.completado and analisis.extracted_data:
             br = analisis.extracted_data.get("banderas_rojas") or []
@@ -118,6 +128,7 @@ async def listar_pliegos(
                 created_at=analisis.created_at,
                 veredicto_recomendado=veredicto,
                 banderas_rojas_count=banderas,
+                favorito=fav_id is not None,
             )
         )
     return items

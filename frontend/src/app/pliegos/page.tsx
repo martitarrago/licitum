@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Loader2, Search, X } from "lucide-react";
+import { ChevronDown, Heart, Loader2, Search, X } from "lucide-react";
 import { pliegosApi, type EstadoAnalisis, type PliegoListItem } from "@/lib/api/pliegos";
+import { FavoritoToggle } from "@/components/radar/FavoritoToggle";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
 type SortKey = "fecha" | "compat";
@@ -71,13 +72,14 @@ function ordenarPliegos(items: PliegoListItem[], sort: SortKey): PliegoListItem[
 }
 
 export default function PliegosListPage() {
-  const list = useQuery({
-    queryKey: ["pliegos-list", EMPRESA_DEMO_ID],
-    queryFn: () => pliegosApi.list(EMPRESA_DEMO_ID),
-  });
-
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("fecha");
+  const [soloFavoritos, setSoloFavoritos] = useState(false);
+
+  const list = useQuery({
+    queryKey: ["pliegos-list", EMPRESA_DEMO_ID, soloFavoritos],
+    queryFn: () => pliegosApi.list(EMPRESA_DEMO_ID, soloFavoritos),
+  });
 
   const filteredSorted = useMemo(() => {
     if (!list.data) return [];
@@ -108,7 +110,7 @@ export default function PliegosListPage() {
         </p>
       </header>
 
-      {!list.isLoading && total > 0 && (
+      {!list.isLoading && (total > 0 || soloFavoritos) && (
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[260px] max-w-md">
             <Search
@@ -141,8 +143,13 @@ export default function PliegosListPage() {
               {showing} de {total}
             </p>
           )}
-          <div className="ml-auto">
+          <div className="ml-auto inline-flex items-center gap-2">
             <SortDropdown value={sort} onChange={setSort} />
+            <span className="h-5 w-px bg-border" aria-hidden="true" />
+            <FavoritosToggle
+              value={soloFavoritos}
+              onChange={setSoloFavoritos}
+            />
           </div>
         </div>
       )}
@@ -150,7 +157,11 @@ export default function PliegosListPage() {
       {list.isLoading ? (
         <Skeleton />
       ) : total === 0 ? (
-        <Empty />
+        soloFavoritos ? (
+          <NoFavoritos onClear={() => setSoloFavoritos(false)} />
+        ) : (
+          <Empty />
+        )
       ) : showing === 0 ? (
         <NoMatches query={q} onClear={() => setQ("")} />
       ) : (
@@ -160,6 +171,56 @@ export default function PliegosListPage() {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function FavoritosToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      aria-pressed={value}
+      title={value ? "Mostrar todos" : "Mostrar solo favoritos"}
+      className={[
+        "inline-flex items-center gap-1.5 px-1.5 py-1.5",
+        "text-xs font-semibold transition-colors select-none",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground",
+        value
+          ? "text-red-500 dark:text-red-400"
+          : "text-muted-foreground hover:text-foreground",
+      ].join(" ")}
+    >
+      <Heart
+        className="h-3.5 w-3.5"
+        strokeWidth={value ? 0 : 1.75}
+        fill={value ? "currentColor" : "none"}
+        aria-hidden="true"
+      />
+      Favoritos
+    </button>
+  );
+}
+
+function NoFavoritos({ onClear }: { onClear: () => void }) {
+  return (
+    <div className="card flex flex-col items-center px-6 py-16 text-center">
+      <h3 className="font-display text-xl font-bold tracking-tight">
+        Aún no tienes pliegos favoritos
+      </h3>
+      <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+        Marca el corazón en cualquier pliego analizado para tenerlo aquí
+        a mano.
+      </p>
+      <button type="button" onClick={onClear} className="btn-secondary mt-6">
+        Ver todos los pliegos
+      </button>
     </div>
   );
 }
@@ -269,18 +330,29 @@ function NoMatches({ query, onClear }: { query: string; onClear: () => void }) {
 function Item({ item }: { item: PliegoListItem }) {
   const caducada = isCaducada(item.fecha_limite);
   return (
-    <li>
+    <li
+      className={[
+        "group relative rounded-2xl p-5 ring-1 ring-border transition-colors",
+        caducada
+          ? "bg-surface-raised/60 hover:bg-muted/30"
+          : "bg-surface-raised hover:bg-muted/30",
+      ].join(" ")}
+    >
+      {/* Corazón fuera del Link para que el click no navegue */}
+      <div className="absolute right-4 top-4 z-10">
+        <FavoritoToggle
+          expediente={item.expediente}
+          favorito={item.favorito}
+          variant="card"
+        />
+      </div>
+
       <Link
         href={`/pliegos/${encodeURIComponent(item.expediente)}`}
-        className={[
-          "group block rounded-2xl p-5 ring-1 ring-border transition-colors",
-          caducada
-            ? "bg-surface-raised/60 hover:bg-muted/30"
-            : "bg-surface-raised hover:bg-muted/30",
-        ].join(" ")}
+        className="block"
       >
         <div className="flex items-start justify-between gap-4">
-          <div className={["min-w-0 flex-1", caducada && "opacity-70"].filter(Boolean).join(" ")}>
+          <div className={["min-w-0 flex-1 pr-8", caducada && "opacity-70"].filter(Boolean).join(" ")}>
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                 {item.expediente}
@@ -346,12 +418,6 @@ function Item({ item }: { item: PliegoListItem }) {
               )}
             </p>
           </div>
-          <span
-            className="mt-1 shrink-0 self-start text-muted-foreground transition-colors group-hover:text-foreground"
-            aria-hidden="true"
-          >
-            →
-          </span>
         </div>
       </Link>
     </li>
