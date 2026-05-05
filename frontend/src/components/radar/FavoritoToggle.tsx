@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Heart, Loader2 } from "lucide-react";
+import { Heart } from "lucide-react";
 import { favoritosApi } from "@/lib/api/favoritos";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
@@ -22,14 +22,26 @@ interface Props {
  * - Gris transparente cuando NO es favorito
  * - Rojo flojito (relleno) cuando SÍ es favorito
  *
- * Optimistic update local + invalidación de las queries del Radar para
- * que el filtro "favoritos" y el badge del card listing se actualicen
- * sin esperar al refetch.
+ * Estrategia de feedback: optimistic update INSTANTÁNEO en el render
+ * (sin spinner que tape el cambio de color). El optimistic local se
+ * mantiene hasta que el prop `favorito` del padre confirma el cambio
+ * tras el refetch — así no hay flicker entre el cambio de color y la
+ * vuelta del valor real.
  */
 export function FavoritoToggle({ expediente, favorito, variant = "card" }: Props) {
   const qc = useQueryClient();
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
   const isOn = optimistic ?? favorito;
+
+  // Cuando el prop del servidor coincide con el optimistic, ya no hace
+  // falta seguir overriding — limpiamos el state local. Esto sustituye
+  // al setOptimistic(null) en onSuccess (que provocaba flicker porque se
+  // ejecutaba antes del refetch).
+  useEffect(() => {
+    if (optimistic !== null && optimistic === favorito) {
+      setOptimistic(null);
+    }
+  }, [favorito, optimistic]);
 
   const toggle = useMutation({
     mutationFn: async (nextOn: boolean) => {
@@ -43,9 +55,9 @@ export function FavoritoToggle({ expediente, favorito, variant = "card" }: Props
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["licitaciones"] });
       qc.invalidateQueries({ queryKey: ["licitacion", expediente] });
-      setOptimistic(null);
     },
     onError: () => {
+      // Revertir el optimistic si la API falla.
       setOptimistic(null);
     },
   });
@@ -90,19 +102,17 @@ export function FavoritoToggle({ expediente, favorito, variant = "card" }: Props
         sizeClass,
         bgClass,
         colorClass,
-        "inline-flex items-center justify-center transition-colors disabled:opacity-60",
+        "inline-flex items-center justify-center transition-colors",
+        // Sin disabled:opacity-60: durante el request mantenemos el corazón
+        // a plena opacidad para que el cambio de color sea el feedback.
       ].join(" ")}
     >
-      {toggle.isPending ? (
-        <Loader2 className={`${iconSize} animate-spin`} aria-hidden="true" />
-      ) : (
-        <Heart
-          className={iconSize}
-          strokeWidth={isOn ? 0 : 1.75}
-          fill={isOn ? "currentColor" : "none"}
-          aria-hidden="true"
-        />
-      )}
+      <Heart
+        className={iconSize}
+        strokeWidth={isOn ? 0 : 1.75}
+        fill={isOn ? "currentColor" : "none"}
+        aria-hidden="true"
+      />
     </button>
   );
 }
