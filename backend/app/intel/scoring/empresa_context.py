@@ -34,7 +34,6 @@ from sqlalchemy.orm import selectinload
 from app.core.enums import EstadoCertificado
 from app.intel.scoring.service import EmpresaContext
 from app.models.certificado_obra import CertificadoObra
-from app.models.clasificacion_rolece import ClasificacionRolece
 from app.models.documento_empresa import DocumentoEmpresa
 from app.models.empresa import Empresa
 from app.models.empresa_preferencias import (
@@ -43,6 +42,12 @@ from app.models.empresa_preferencias import (
     EmpresaPreferencias,
 )
 from app.models.licitacion import Licitacion
+from app.services.solvencia_evaluator import (
+    LicitacionInput as SolvenciaLicitacionInput,
+    SolvenciaEmpresa,
+    cargar_solvencia_empresa,
+    evaluar_semaforo,
+)
 
 
 # Documentos cuya caducidad bloquea la formalización post-adjudicación
@@ -83,7 +88,12 @@ class EmpresaStaticProfile:
     plantilla_media: int | None
     # Solvencia técnica derivada
     anualidad_media: float | None  # de certificados (€/año equivalente, /resumen-solvencia)
-    grupos_rolece_activos: list[str]  # ['C', 'I', 'G']
+    # Solvencia por grupo ROLECE — merge ROLECE manual + RELIC + certificados.
+    # Carga delegada a `services.solvencia_evaluator.cargar_solvencia_empresa`
+    # para que el motor evalúe la clasificación con los mismos datos que ya
+    # alimentan el semáforo del Radar (sin duplicar lógica).
+    max_categoria_por_grupo: dict[str, int]  # {'C': 3, 'G': 4}
+    max_solvencia_certificada_por_grupo: dict[str, Decimal]  # {'C': Decimal('1200000')}
     # Documentos
     docs_caducados: list[str]  # ['hacienda_corriente', ...]
     docs_caducan_pronto: list[str]
@@ -95,6 +105,11 @@ class EmpresaStaticProfile:
         """Mayor de los 3 ejercicios declarados (n, n-1, n-2). None si todos None."""
         vols = [v for v in (self.volumen_negocio_n, self.volumen_negocio_n1, self.volumen_negocio_n2) if v is not None]
         return max(vols) if vols else None
+
+    @property
+    def grupos_rolece_activos(self) -> list[str]:
+        """Compat: lista de grupos con clasificación activa, derivada de max_categoria_por_grupo."""
+        return sorted(self.max_categoria_por_grupo.keys())
 
 
 def _provincia_norm(s: str | None) -> str | None:
@@ -180,18 +195,10 @@ async def build_empresa_static_profile(
             if key:
                 pref_terr[key] = t.prioridad
 
-    # Clasificaciones ROLECE activas (no caducadas)
-    rolece_q = await session.execute(
-        select(ClasificacionRolece).where(
-            and_(
-                ClasificacionRolece.empresa_id == empresa_id,
-                ClasificacionRolece.deleted_at.is_(None),
-                ClasificacionRolece.activa.is_(True),
-                ClasificacionRolece.fecha_caducidad >= date.today(),
-            )
-        )
-    )
-    grupos = sorted({r.grupo for r in rolece_q.scalars().all()})
+    # Solvencia por grupo (merge ROLECE manual + RELIC + certificados validados).
+    # Delegamos a la misma función que alimenta el semáforo del Radar para que
+    # el motor de scoring evalúe la clasificación con los mismos datos.
+    solvencia = await cargar_solvencia_empresa(session, empresa_id)
 
     # Certificados validados → anualidad media (espejo de /resumen-solvencia)
     # Filtros canónicos: validado + contratista principal + ventana 5 años
@@ -241,7 +248,8 @@ async def build_empresa_static_profile(
         volumen_negocio_n2=float(empresa.volumen_negocio_n2) if empresa.volumen_negocio_n2 is not None else None,
         plantilla_media=empresa.plantilla_media,
         anualidad_media=anualidad,
-        grupos_rolece_activos=grupos,
+        max_categoria_por_grupo=dict(solvencia.max_categoria_por_grupo),
+        max_solvencia_certificada_por_grupo=dict(solvencia.max_solvencia_certificada_por_grupo),
         docs_caducados=docs_caducados,
         docs_caducan_pronto=docs_caducan,
         margen_minimo_baja=None,  # TODO migración para añadirlo a empresa_preferencias
@@ -273,7 +281,10 @@ def compute_empresa_context_hash(profile: EmpresaStaticProfile) -> str:
         "vol_n2": round(profile.volumen_negocio_n2, 2) if profile.volumen_negocio_n2 is not None else None,
         "plantilla": profile.plantilla_media,
         "anu": round(profile.anualidad_media, 2) if profile.anualidad_media else None,
-        "rolece": profile.grupos_rolece_activos,
+        "cat_grp": sorted(profile.max_categoria_por_grupo.items()),
+        "solv_grp": sorted(
+            (g, str(v)) for g, v in profile.max_solvencia_certificada_por_grupo.items()
+        ),
         "docs_cad": sorted(profile.docs_caducados),
         "docs_pronto": sorted(profile.docs_caducan_pronto),
         "margen": profile.margen_minimo_baja,
@@ -298,35 +309,63 @@ def _evaluar_clasificacion(
     licitacion: Licitacion,
     profile: "EmpresaStaticProfile",
 ) -> tuple[bool, float | None]:
-    """Proxy con el semáforo CPV-ROLECE pre-calculado del Radar.
+    """Calcula el semáforo CPV-ROLECE al vuelo desde la solvencia del profile.
 
-    semaforo: 'verde' = cumple holgada, 'amarillo' = ajustada, 'rojo' = no cumple,
-    'gris' = no evaluado. Devolvemos (cumple, holgura) para el scoring.
+    Antes leía `licitacion.semaforo` (columna global), pero esa columna se
+    calcula con `EMPRESA_DEMO_ID` hardcoded en `recalcular_semaforos.py` —
+    válido para producción single-tenant pero rompe el motor en cualquier
+    flujo multi-empresa (test de 50 perfiles, futuro multi-tenant).
+
+    Llamamos directamente a `evaluar_semaforo` con la solvencia del profile
+    para que cada empresa reciba la evaluación de SUS clasificaciones.
 
     Exención LCSP art. 65: la clasificación NO es obligatoria para obras
-    con importe < 500 000 €. Si el importe cae por debajo del umbral y la
-    empresa tiene volumen de negocio suficiente para cubrir la obra, puede
-    acreditar solvencia por otros medios (sin necesidad del ROLECE exacto).
+    < 500 000 €. Si el importe cae por debajo del umbral y la empresa tiene
+    volumen de negocio suficiente, puede acreditar solvencia por otros medios.
     """
-    sem = licitacion.semaforo
+    solvencia = SolvenciaEmpresa(
+        empresa_id=profile.empresa_id,
+        max_categoria_por_grupo=dict(profile.max_categoria_por_grupo),
+        max_solvencia_certificada_por_grupo=dict(profile.max_solvencia_certificada_por_grupo),
+    )
+    lic_input = SolvenciaLicitacionInput(
+        tipo_contrato=licitacion.tipo_contrato,
+        importe=licitacion.importe_licitacion,
+        cpv_codes=list(licitacion.cpv_codes or []),
+        durada_text=(licitacion.raw_data or {}).get("durada_contracte"),
+        organismo=licitacion.organismo,
+        organismo_id=licitacion.organismo_id,
+    )
+    sem = evaluar_semaforo(lic_input, solvencia).semaforo
+
     if sem == "verde":
         return True, 1.5
     if sem == "amarillo":
         return True, 1.0
+    importe = (
+        float(licitacion.importe_licitacion)
+        if licitacion.importe_licitacion is not None
+        else None
+    )
     if sem == "rojo":
-        importe = (
-            float(licitacion.importe_licitacion)
-            if licitacion.importe_licitacion is not None
-            else None
-        )
         if importe is not None and importe < 500_000:
             vol_max = profile.volumen_negocio_max
             if vol_max is not None and vol_max >= importe:
                 # Puede presentarse usando solvencia alternativa (sin clasificación exacta)
                 return True, 0.8
         return False, None
-    # gris: no evaluado todavía — no penalizar
-    return True, None
+    # gris: CPV no clasificable o sin solvencia registrada en ese grupo.
+    # Aplicamos la misma exención LCSP <500 000 € que en rojo, pero con holgura
+    # más conservadora (0.5 vs 0.8): aquí el evaluador ni siquiera ha podido
+    # afirmar/negar nada — sin solvencia registrada, en obras grandes no se
+    # puede acreditar clasificación por otros medios. Antes esta rama daba
+    # `return True, None` y dejaba pasar todo el stock para empresas sin
+    # ROLECE/RELIC, inflando el Radar con falsa confianza (BUG 1.5).
+    if importe is None:
+        return True, None  # sin importe declarado — beneficio de la duda
+    if importe < 500_000:
+        return True, 0.5
+    return False, None  # gris en obras ≥500k → fail
 
 
 def _evaluar_solvencia_economica(

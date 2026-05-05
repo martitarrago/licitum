@@ -104,13 +104,17 @@ class GanabilidadScore:
 # ----------------------------------------------------------------------------
 
 WEIGHTS = {
-    "competencia_esperada": 0.20,  # antes 0.25 (−0.05 redistribuido a pliego)
+    # Recalibración 2026-05-05 (BUG 2 + MEJORA 3): cap empírico era 82, varianza
+    # p25-p75 sólo 2-9 pts. Subir peso a señales que capturan ventaja real
+    # (geográfico, encaje técnico) para abrir el rango y separar excelente vs
+    # mediocre. Ver docs/data-science/scoring-engine-bugs.md.
+    "competencia_esperada": 0.18,  # 0.20 → 0.18
     "concentracion_organo": 0.18,
-    "encaje_tecnico": 0.15,        # M2: clasificación + solvencia técnica
-    "encaje_geografico": 0.08,     # M2 prefs territorio + distancia
-    "preferencias_match": 0.09,    # M2 prefs CPV (core/secundario/no_interesa)
-    "baja_factible": 0.20,         # antes 0.25 (−0.05 redistribuido a pliego)
-    "pliego_check": 0.10,          # NUEVO Phase 2 — análisis IA del PCAP/PPT
+    "encaje_tecnico": 0.16,        # 0.15 → 0.16 (amplifica spread holgura)
+    "encaje_geografico": 0.12,     # 0.08 → 0.12 (misma provincia es ventaja real)
+    "preferencias_match": 0.08,    # 0.09 → 0.08
+    "baja_factible": 0.18,         # 0.20 → 0.18
+    "pliego_check": 0.10,
 }
 assert abs(sum(WEIGHTS.values()) - 1.0) < 1e-9, "pesos no suman 1"
 
@@ -188,7 +192,10 @@ def signal_concentracion_organo(
         )
 
     if empresa_es_top:
-        value = 0.85
+        # 0.85 → 1.0 (BUG 2): si la empresa ya es top adjudicatario, es la
+        # ventaja relacional más fuerte que el motor puede capturar — no hay
+        # razón para capar la señal. Antes capaba el techo del score.
+        value = 1.0
         explanation = (
             f"Eres adjudicatario habitual de este órgano (HHI={hhi:.2f}, "
             f"{n_adjudicaciones} adjudicaciones históricas). Posición ventajosa."
@@ -205,7 +212,9 @@ def signal_concentracion_organo(
             f"Concentración moderada (HHI={hhi:.2f}). Hay 2-3 adjudicatarios habituales."
         )
     else:
-        value = 0.75
+        # 0.75 → 0.85 (MEJORA 3): mercado abierto es ventaja real para una PYME
+        # outsider — sin adjudicatario dominante, la oferta gana por mérito.
+        value = 0.85
         explanation = (
             f"Mercado abierto en este órgano (HHI={hhi:.2f}). Sin adjudicatarios dominantes."
         )
@@ -233,21 +242,40 @@ def signal_encaje_tecnico(
 
     Inputs vienen de M2/RELIC (externo al data layer PSCP).
     """
+    # MEJORA 3 (2026-05-05): tramos por holgura. Antes era binario verde/justo
+    # (1.0 vs 0.8), 3 pts de spread. Ahora granularidad real: verde con holgura
+    # cómoda vs amarillo justo vs rojo/gris-pasa-LCSP. Crea diferenciación
+    # entre "clasificación encaja con holgura" y "encaja al límite".
     if not cumple_clasificacion:
         value = 0.0
         explanation = "No cumples la clasificación requerida — descalificación técnica."
     elif not cumple_solvencia:
-        value = 0.2
+        # 0.2 → 0.1 (MEJORA 3): cumple clasif pero no solvencia es señal débil.
+        value = 0.1
         explanation = "Clasificación OK pero solvencia económica/técnica justa."
-    elif nivel_clasificacion_holgura is not None and nivel_clasificacion_holgura > 1:
+    elif nivel_clasificacion_holgura is None:
+        # Caso del beneficio de la duda — gris sin importe declarado.
+        value = 0.5
+        explanation = "Clasificación sin info de holgura (CPV no clasificable o solvencia parcial)."
+    elif nivel_clasificacion_holgura >= 1.5:
+        # Verde con holgura cómoda — categoría supera el mínimo del pliego.
         value = 1.0
         explanation = (
             f"Clasificación con holgura ({nivel_clasificacion_holgura:.1f}× sobre el mínimo) "
             "y solvencia cómoda."
         )
+    elif nivel_clasificacion_holgura >= 1.0:
+        # Amarillo justo — categoría exacta, sin margen.
+        value = 0.7
+        explanation = "Cumples clasificación al límite, sin holgura sobre el mínimo del pliego."
     else:
-        value = 0.8
-        explanation = "Cumples clasificación y solvencia justas pero sin holgura."
+        # Holgura < 1: caso rojo-con-exención LCSP (0.8) o gris-con-exención (0.5).
+        # Pasa el filtro hard pero la posición técnica es débil — bajamos a 0.4.
+        value = 0.4
+        explanation = (
+            f"Pasas vía exención LCSP (<500 000 €) pero sin clasificación que cubra: "
+            f"posición técnica débil (holgura {nivel_clasificacion_holgura:.1f})."
+        )
 
     dq = "completa" if nivel_clasificacion_holgura is not None else "parcial"
     return SignalBreakdown(
