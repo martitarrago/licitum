@@ -42,10 +42,13 @@ export const sobreAApi = {
     return res.json();
   },
 
-  list: async (empresa_id: string): Promise<SobreAListItem[]> => {
-    const res = await fetch(
-      `${API_BASE}/api/v1/sobre-a?empresa_id=${empresa_id}`,
-    );
+  list: async (
+    empresa_id: string,
+    expediente?: string,
+  ): Promise<SobreAListItem[]> => {
+    const qs = new URLSearchParams({ empresa_id });
+    if (expediente) qs.set("expediente", expediente);
+    const res = await fetch(`${API_BASE}/api/v1/sobre-a?${qs.toString()}`);
     if (!res.ok) throw new Error(await readError(res));
     return res.json();
   },

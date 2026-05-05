@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Sequence
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -78,12 +78,18 @@ async def generar(
 async def listar(
     db: Annotated[AsyncSession, Depends(get_db)],
     empresa_id: UUID,
+    expediente: Annotated[
+        str | None,
+        Query(description="Filtra por expediente concreto (workspace por licitación)."),
+    ] = None,
 ) -> Sequence[SobreAGeneracion]:
     stmt = (
         select(SobreAGeneracion)
         .where(SobreAGeneracion.empresa_id == empresa_id)
         .order_by(SobreAGeneracion.created_at.desc())
     )
+    if expediente is not None:
+        stmt = stmt.where(SobreAGeneracion.expediente == expediente)
     return list((await db.execute(stmt)).scalars().all())
 
 

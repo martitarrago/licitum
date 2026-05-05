@@ -27,6 +27,7 @@ import {
   type Veredicto,
 } from "@/lib/api/pliegos";
 import { licitacionesApi } from "@/lib/api/licitaciones";
+import { PrepararSobreABoton } from "@/components/sobre-a/PrepararSobreABoton";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
 const POLL_MS = 3000;
@@ -460,6 +461,7 @@ function Completado({
       <ConclusionPanel
         recomendacion={recomendacion}
         loading={recomendacionLoading}
+        expediente={expediente}
       />
 
       {/* ── Detalle del pliego ────────────────────────────────────────── */}
@@ -719,9 +721,11 @@ const veredictoStyle: Record<
 function ConclusionPanel({
   recomendacion,
   loading,
+  expediente,
 }: {
   recomendacion: Recomendacion | undefined;
   loading: boolean;
+  expediente: string;
 }) {
   if (loading || !recomendacion) {
     return (
@@ -738,6 +742,12 @@ function ConclusionPanel({
     recomendacion.razones_a_favor.length > 0 ||
     recomendacion.razones_riesgo.length > 0 ||
     recomendacion.razones_no.length > 0;
+  // El CTA "Preparar Sobre A" como primario cuando recomienda IR; secundario
+  // cuando hay riesgo o el pliego está incompleto; oculto cuando claramente
+  // no recomienda presentarse (no_ir).
+  const veredicto = recomendacion.veredicto;
+  const ctaPrimario = veredicto === "ir";
+  const ctaVisible = veredicto !== "no_ir";
 
   return (
     <section
@@ -771,6 +781,20 @@ function ConclusionPanel({
           {recomendacion.razones_no.map((r, i) => (
             <ReasonRow key={`n-${i}`} tone="danger" label="En contra" text={r} />
           ))}
+        </div>
+      )}
+
+      {ctaVisible && (
+        <div className="mt-7 border-t border-border/60 pt-6">
+          <PrepararSobreABoton
+            expediente={expediente}
+            primario={ctaPrimario}
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Mueve la oferta al pipeline en estado{" "}
+            <span className="font-medium text-foreground">en preparación</span>{" "}
+            y abre el espacio de trabajo del Sobre A.
+          </p>
         </div>
       )}
     </section>
