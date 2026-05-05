@@ -48,6 +48,9 @@ class LicitacionRead(BaseModel):
     pliego_veredicto: (
         Literal["ir", "ir_con_riesgo", "no_ir", "incompleto"] | None
     ) = None
+    # Marcador "favorito" del Radar — independiente del pipeline. true si la
+    # empresa actual tiene la licitación en su bandeja de favoritos.
+    favorito: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

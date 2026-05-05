@@ -638,11 +638,12 @@ function SeguimientoEnVivoCard({
         ctaHref="/radar"
       >
         <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Desde el Radar, abre una oportunidad y pulsa{" "}
+          Desde el Radar, marca tus favoritas con el corazón. Cuando decidas
+          presentarte, pulsa{" "}
           <strong className="font-semibold text-foreground">
-            añadir al seguimiento
+            preparar Sobre A
           </strong>{" "}
-          para verla aquí.
+          y aparecerá aquí.
         </p>
       </CommandCard>
     );

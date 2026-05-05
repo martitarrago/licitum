@@ -102,6 +102,7 @@ function RadarPageContent() {
         incluye_descartadas: filters.tier === "no_apta" ? true : null,
         min_score: tierRange.min,
         max_score: tierRange.max,
+        solo_favoritos: filters.solo_favoritos,
         page: filters.page,
         page_size: PAGE_SIZE,
       }),
@@ -451,6 +452,8 @@ function RadarPageContent() {
                       pliegoEstado={l.pliego_estado}
                       pliegoVeredicto={l.pliego_veredicto}
                       descartada={l.descartada}
+                      expediente={l.expediente}
+                      favorito={l.favorito}
                     />
                   </Link>
                 </div>

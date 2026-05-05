@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Heart, Search, X } from "lucide-react";
 import {
   PROVINCIAS,
   PROVINCIAS_LABEL,
@@ -555,6 +555,28 @@ export function RadarFilterBar({ state }: RadarFilterBarProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {/* Favoritos — toggle independiente, sin popover */}
+      <button
+        type="button"
+        onClick={() => setFilter("solo_favoritos", !filters.solo_favoritos)}
+        aria-pressed={filters.solo_favoritos}
+        title={filters.solo_favoritos ? "Mostrar todas" : "Mostrar solo favoritas"}
+        className={[
+          "inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors",
+          filters.solo_favoritos
+            ? "bg-red-50 text-red-500 ring-1 ring-red-200 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-500/20"
+            : "bg-surface text-foreground ring-1 ring-border hover:bg-muted",
+        ].join(" ")}
+      >
+        <Heart
+          className="h-4 w-4"
+          strokeWidth={filters.solo_favoritos ? 0 : 1.75}
+          fill={filters.solo_favoritos ? "currentColor" : "none"}
+          aria-hidden="true"
+        />
+        Favoritos
+      </button>
+
       {/* Puntuación (tier de ganabilidad — sustituye al semáforo legacy) */}
       <FilterPopover
         minWidth={240}
@@ -817,6 +839,9 @@ export function describeFilters(filters: RadarFilters): {
   }
   if (filters.q) {
     out.push({ key: "q", label: `"${filters.q}"`, onRemoveKey: "q" });
+  }
+  if (filters.solo_favoritos) {
+    out.push({ key: "fav", label: "Solo favoritos", onRemoveKey: "solo_favoritos" });
   }
 
   return out;

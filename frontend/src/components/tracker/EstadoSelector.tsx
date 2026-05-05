@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, Loader2, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, X } from "lucide-react";
 import {
   ESTADO_LABELS,
   ESTADO_TONO,
@@ -62,33 +62,10 @@ export function EstadoSelector({ expediente }: Props) {
     },
   });
 
-  if (isLoading) {
-    return (
-      <button
-        disabled
-        className="inline-flex items-center gap-2 rounded-lg bg-surface px-3.5 py-2 text-sm text-muted-foreground ring-1 ring-border"
-      >
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Cargando…
-      </button>
-    );
-  }
-
-  if (!estado) {
-    return (
-      <button
-        onClick={() => upsert.mutate("en_preparacion")}
-        disabled={upsert.isPending}
-        className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-surface transition-colors hover:bg-foreground/90 disabled:opacity-50"
-      >
-        {upsert.isPending ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Plus className="h-4 w-4" strokeWidth={2} />
-        )}
-        Añadir al seguimiento
-      </button>
-    );
+  // Sin estado todavía → no se renderiza nada. La entrada al pipeline ahora
+  // se hace desde el análisis del pliego (CTA "Preparar Sobre A").
+  if (isLoading || !estado) {
+    return null;
   }
 
   const estadoActual = estado.estado as EstadoTracker;

@@ -53,6 +53,9 @@ export function RadarActiveChips({ state }: RadarActiveChipsProps) {
               case "tipo_contrato":
                 patchFilters({ tipo_contrato: null });
                 break;
+              case "solo_favoritos":
+                patchFilters({ solo_favoritos: false });
+                break;
             }
           }}
         />

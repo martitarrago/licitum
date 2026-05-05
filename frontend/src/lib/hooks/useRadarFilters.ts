@@ -126,6 +126,8 @@ export interface RadarFilters {
   plazo_max_dias: number | null;
   cpv_prefix: string | null;
   q: string;
+  /** true → solo licitaciones marcadas como favoritas. */
+  solo_favoritos: boolean;
   order_by: OrderBy;
   page: number;
 }
@@ -159,6 +161,7 @@ const DEFAULT_FILTERS: RadarFilters = {
   plazo_max_dias: null,
   cpv_prefix: null,
   q: "",
+  solo_favoritos: false,
   order_by: "score",
   page: 1,
 };
@@ -223,6 +226,7 @@ function parseFiltersFromSearchParams(sp: URLSearchParams): RadarFilters {
     plazo_max_dias: parseInt0(sp.get("plazo_max_dias")),
     cpv_prefix,
     q: sp.get("q") ?? "",
+    solo_favoritos: sp.get("solo_favoritos") === "1",
     order_by,
     page,
   };
@@ -243,6 +247,7 @@ function filtersToSearchParams(f: RadarFilters): URLSearchParams {
   if (f.plazo_max_dias != null) sp.set("plazo_max_dias", String(f.plazo_max_dias));
   if (f.cpv_prefix) sp.set("cpv_prefix", f.cpv_prefix);
   if (f.q) sp.set("q", f.q);
+  if (f.solo_favoritos) sp.set("solo_favoritos", "1");
   if (f.order_by && f.order_by !== "score") sp.set("order_by", f.order_by);
   if (f.page > 1) sp.set("page", String(f.page));
   return sp;
@@ -260,6 +265,7 @@ function countActive(f: RadarFilters): number {
   if (f.plazo_min_dias != null || f.plazo_max_dias != null) n++;
   if (f.cpv_prefix) n++;
   if (f.q) n++;
+  if (f.solo_favoritos) n++;
   return n;
 }
 

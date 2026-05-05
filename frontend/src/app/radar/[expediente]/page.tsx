@@ -24,6 +24,7 @@ import {
 } from "@/lib/api/licitaciones";
 import { EstadoSelector } from "@/components/tracker/EstadoSelector";
 import { AnalisisGanabilidad } from "@/components/radar/AnalisisGanabilidad";
+import { FavoritoToggle } from "@/components/radar/FavoritoToggle";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 import { scoreTierOrNull } from "@/lib/scoreTier";
 
@@ -210,6 +211,11 @@ function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               Analizar pliego con IA
             </Link>
+            <FavoritoToggle
+              expediente={l.expediente}
+              favorito={l.favorito}
+              variant="detail"
+            />
             <EstadoSelector expediente={l.expediente} />
             {l.url_placsp && (
               <a

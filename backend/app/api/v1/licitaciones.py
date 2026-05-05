@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
 from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
+from app.models.licitacion_favorita_empresa import LicitacionFavoritaEmpresa
 from app.models.licitacion_score_empresa import LicitacionScoreEmpresa
 from app.schemas.licitacion import (
     IngestaTriggerResponse,
@@ -111,6 +112,11 @@ async def list_licitaciones(
         description="Filtra por puntuación máxima del motor. Combinado con "
         "min_score sirve para aislar un tier exacto (p.ej. 50-69 = buena).",
     ),
+    solo_favoritos: bool = Query(
+        False,
+        description="Si true, devuelve únicamente las licitaciones marcadas "
+        "como favoritas por la empresa.",
+    ),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -170,6 +176,7 @@ async def list_licitaciones(
         LicitacionScoreEmpresa.breakdown_json.label("lse_breakdown"),
         LicitacionAnalisisIA.estado.label("ai_estado"),
         LicitacionAnalisisIA.error_mensaje.label("ai_error"),
+        LicitacionFavoritaEmpresa.id.label("fav_id"),
     ).outerjoin(
         LicitacionScoreEmpresa,
         (LicitacionScoreEmpresa.licitacion_id == Licitacion.id)
@@ -177,6 +184,10 @@ async def list_licitaciones(
     ).outerjoin(
         LicitacionAnalisisIA,
         LicitacionAnalisisIA.licitacion_id == Licitacion.id,
+    ).outerjoin(
+        LicitacionFavoritaEmpresa,
+        (LicitacionFavoritaEmpresa.licitacion_id == Licitacion.id)
+        & (LicitacionFavoritaEmpresa.empresa_id == empresa_filtro),
     )
 
     # Solo licitaciones abiertas. Las cerradas pierden su fila en
@@ -200,6 +211,8 @@ async def list_licitaciones(
         stmt = stmt.where(LicitacionScoreEmpresa.score >= min_score)
     if max_score is not None:
         stmt = stmt.where(LicitacionScoreEmpresa.score <= max_score)
+    if solo_favoritos:
+        stmt = stmt.where(LicitacionFavoritaEmpresa.id.is_not(None))
 
     if semaforo:
         stmt = stmt.where(Licitacion.semaforo == semaforo)
@@ -309,10 +322,19 @@ async def list_licitaciones(
     rows = (await db.execute(stmt)).all()
 
     items: list[LicitacionRead] = []
-    for lic, lse_score, lse_descartada, lse_breakdown, ai_estado, ai_error in rows:
+    for (
+        lic,
+        lse_score,
+        lse_descartada,
+        lse_breakdown,
+        ai_estado,
+        ai_error,
+        fav_id,
+    ) in rows:
         item = LicitacionRead.model_validate(lic)
         item.score = lse_score
         item.descartada = lse_descartada
+        item.favorito = fav_id is not None
 
         # B4 — estado del análisis del pliego
         if ai_estado is None:
@@ -359,21 +381,28 @@ async def get_licitacion(
             Licitacion,
             LicitacionScoreEmpresa.score.label("lse_score"),
             LicitacionScoreEmpresa.descartada.label("lse_descartada"),
+            LicitacionFavoritaEmpresa.id.label("fav_id"),
         )
         .outerjoin(
             LicitacionScoreEmpresa,
             (LicitacionScoreEmpresa.licitacion_id == Licitacion.id)
             & (LicitacionScoreEmpresa.empresa_id == empresa_filtro),
         )
+        .outerjoin(
+            LicitacionFavoritaEmpresa,
+            (LicitacionFavoritaEmpresa.licitacion_id == Licitacion.id)
+            & (LicitacionFavoritaEmpresa.empresa_id == empresa_filtro),
+        )
         .where(Licitacion.expediente == expediente)
     )
     row = (await db.execute(stmt)).first()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Licitación '{expediente}' no encontrada")
-    lic, lse_score, lse_descartada = row
+    lic, lse_score, lse_descartada, fav_id = row
     detail = LicitacionDetail.model_validate(lic)
     detail.score = lse_score
     detail.descartada = lse_descartada
+    detail.favorito = fav_id is not None
     return detail
 
 

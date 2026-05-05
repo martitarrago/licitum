@@ -69,6 +69,8 @@ export interface LicitacionRead {
   pliego_estado: PliegoEstado | null;
   /** Veredicto del recomendacion_evaluator si pliego analizado. */
   pliego_veredicto: PliegoVeredicto | null;
+  /** true si la empresa actual la tiene en favoritos. */
+  favorito: boolean;
   created_at: string;
 }
 
@@ -140,6 +142,7 @@ export interface ListLicitacionesParams {
   incluye_descartadas?: boolean | null;
   min_score?: number | null;
   max_score?: number | null;
+  solo_favoritos?: boolean | null;
   page?: number;
   page_size?: number;
 }
@@ -176,6 +179,7 @@ function buildQS(params: ListLicitacionesParams): string {
   if (params.incluye_descartadas != null) qs.set("incluye_descartadas", String(params.incluye_descartadas));
   if (params.min_score != null) qs.set("min_score", String(params.min_score));
   if (params.max_score != null) qs.set("max_score", String(params.max_score));
+  if (params.solo_favoritos) qs.set("solo_favoritos", "true");
   if (params.page) qs.set("page", String(params.page));
   if (params.page_size) qs.set("page_size", String(params.page_size));
   return qs.toString();

@@ -786,8 +786,8 @@ function EmptyState() {
         Aún no hay licitaciones en seguimiento
       </h2>
       <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
-        Desde el Radar, abre cualquier oportunidad y pulsa{" "}
-        <strong className="text-foreground">Añadir al seguimiento</strong>.
+        Desde el Radar, abre una licitación y pulsa{" "}
+        <strong className="text-foreground">Preparar Sobre A</strong>.
         Aparecerá aquí con su estado y los relojes legales que aplican.
       </p>
       <Link href="/radar" className="btn-primary mt-6">

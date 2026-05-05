@@ -1,3 +1,4 @@
+import { FavoritoToggle } from "@/components/radar/FavoritoToggle";
 import { scoreTier } from "@/lib/scoreTier";
 
 type Semaforo = "verde" | "amarillo" | "rojo";
@@ -25,6 +26,9 @@ interface LicitacionCardProps {
   pliegoVeredicto?: PliegoVeredicto | null;
   /** Si la licitación fue descartada por el motor (hard filter). Se muestra solo cuando el feed la incluye explícitamente — p.ej. al buscar. */
   descartada?: boolean | null;
+  /** Expediente: necesario para el toggle de favorito. */
+  expediente?: string;
+  favorito?: boolean;
 }
 
 const semaforoStripe: Record<Semaforo, string> = {
@@ -108,6 +112,8 @@ export function LicitacionCard({
   pliegoEstado,
   pliegoVeredicto,
   descartada,
+  expediente,
+  favorito = false,
 }: LicitacionCardProps) {
   const dias = diasHasta(fechaLimite);
   const urgente = dias >= 0 && dias <= 7;
@@ -152,6 +158,13 @@ export function LicitacionCard({
             )}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
+            {expediente && (
+              <FavoritoToggle
+                expediente={expediente}
+                favorito={favorito}
+                variant="card"
+              />
+            )}
             {hasScore && tone && (
               <div
                 className={`display-num text-lg font-bold tabular-nums leading-none ${tone.text}`}
