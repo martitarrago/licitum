@@ -5,6 +5,7 @@ from app.api.v1 import (
     favoritos,
     intel,
     licitaciones,
+    oferta_economica,
     sobre_a,
     system,
     tracker,
@@ -18,6 +19,11 @@ api_router.include_router(empresa_router)
 api_router.include_router(favoritos.router, prefix="/favoritos", tags=["favoritos"])
 api_router.include_router(intel.router, prefix="/intel", tags=["intel"])
 api_router.include_router(licitaciones.router, prefix="/licitaciones", tags=["licitaciones"])
+api_router.include_router(
+    oferta_economica.router,
+    prefix="/oferta-economica",
+    tags=["oferta-economica"],
+)
 api_router.include_router(pliegos_router, prefix="/pliegos", tags=["pliegos"])
 api_router.include_router(sobre_a.router, prefix="/sobre-a", tags=["sobre-a"])
 api_router.include_router(system.router, prefix="/system", tags=["system"])

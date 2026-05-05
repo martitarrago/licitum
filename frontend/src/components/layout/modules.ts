@@ -1,5 +1,6 @@
 import {
   Building2,
+  Calculator,
   FileSearch,
   FileSignature,
   FolderCheck,
@@ -87,9 +88,17 @@ export const MODULE_GROUPS: ModuleGroup[] = [
       {
         id: "sobre-a",
         code: "",
-        label: "Sobre A",
+        label: "Sobre A · Declaración",
         href: "/sobre-a",
         icon: FileSignature,
+        available: true,
+      },
+      {
+        id: "calculadora",
+        code: "",
+        label: "Calculadora económica",
+        href: "/calculadora",
+        icon: Calculator,
         available: true,
       },
     ],

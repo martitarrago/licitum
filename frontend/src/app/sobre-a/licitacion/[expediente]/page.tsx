@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
+  Calculator,
   CheckCircle2,
   Download,
   FileText,
@@ -17,6 +19,7 @@ import {
   Upload,
   XCircle,
 } from "lucide-react";
+import { calculadoraApi, type OfertaListItem } from "@/lib/api/calculadora";
 import { licitacionesApi } from "@/lib/api/licitaciones";
 import {
   sobreAApi,
@@ -185,7 +188,10 @@ export default function SobreAWorkspacePage({
         haPresentado={!!presentado.data}
       />
 
-      {/* ── 4. Presentación (PDF firmado) ────────────────────────────── */}
+      {/* ── 4. Calculadora económica (atajo) ─────────────────────────── */}
+      <CalculadoraAtajo expediente={expediente} />
+
+      {/* ── 5. Presentación (PDF firmado) ────────────────────────────── */}
       <PresentacionSection
         expediente={expediente}
         presentacion={presentado.data ?? null}
@@ -193,7 +199,7 @@ export default function SobreAWorkspacePage({
         ningunBorrador={items.length === 0}
       />
 
-      {/* ── 5. Documentos extra del pliego (informativo) ─────────────── */}
+      {/* ── 6. Documentos extra del pliego (informativo) ─────────────── */}
       {docsExtra.length > 0 && <DocsExtraSection docs={docsExtra} />}
     </main>
   );
@@ -648,6 +654,79 @@ function PresentacionSection({
       )}
     </section>
   );
+}
+
+function CalculadoraAtajo({ expediente }: { expediente: string }) {
+  const versiones = useQuery({
+    queryKey: ["oferta-economica-list", EMPRESA_DEMO_ID, expediente],
+    queryFn: () => calculadoraApi.list(EMPRESA_DEMO_ID, expediente),
+  });
+
+  const ultima = versiones.data?.[0] as OfertaListItem | undefined;
+
+  return (
+    <section className="card mb-8 p-7">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <Calculator
+            className="mt-0.5 h-5 w-5 shrink-0 text-foreground"
+            strokeWidth={2}
+            aria-hidden="true"
+          />
+          <div>
+            <p className="eyebrow mb-1.5">Oferta económica</p>
+            <h2 className="font-display text-xl font-bold tracking-tight">
+              {ultima
+                ? "Última versión calculada"
+                : "Calcula la oferta económica"}
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              {ultima ? (
+                <>
+                  Baja{" "}
+                  <span className="font-semibold text-foreground">
+                    {parseFloat(ultima.baja_pct).toFixed(2)}%
+                  </span>{" "}
+                  → oferta{" "}
+                  <span className="font-semibold text-foreground">
+                    {fmtEur(parseFloat(ultima.importe_ofertado))}
+                  </span>
+                  {ultima.entra_en_temeraria && (
+                    <span className="ml-2 rounded bg-danger/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-danger">
+                      Temeraria
+                    </span>
+                  )}
+                </>
+              ) : (
+                "Te guía con la fórmula del pliego, el umbral de baja temeraria y la baja media histórica del órgano."
+              )}
+            </p>
+          </div>
+        </div>
+        <Link
+          href={`/calculadora/licitacion/${encodeURIComponent(expediente)}`}
+          className={ultima ? "btn-secondary" : "btn-primary"}
+        >
+          <Calculator
+            className="h-4 w-4"
+            strokeWidth={2}
+            aria-hidden="true"
+          />
+          {ultima ? "Abrir calculadora" : "Ir a la calculadora"}
+          <ArrowRight className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function fmtEur(v: number): string {
+  if (!isFinite(v)) return "—";
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(v);
 }
 
 function DocsExtraSection({ docs }: { docs: string[] }) {
