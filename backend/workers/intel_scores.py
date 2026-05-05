@@ -62,7 +62,8 @@ def _licitacion_to_input(lic: Licitacion) -> LicitacionInput:
     return LicitacionInput(
         codi_organ=str(lic.organismo_id) if lic.organismo_id else "unknown",
         codi_cpv=cpv,
-        tipus_contracte="Obres",
+        tipus_contracte="Obres",  # raw catalán para lookup PSCP (motor agrega Obres)
+        tipo_contrato=lic.tipo_contrato,  # snake_case BD para hard_filter_tipo_contrato
         presupuesto=float(lic.importe_licitacion) if lic.importe_licitacion is not None else None,
         lloc_execucio=None,
         codi_nuts=nuts,
