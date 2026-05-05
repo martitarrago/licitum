@@ -26,6 +26,7 @@ from app.models.pscp import (
 )
 from app.models.sistema_gestion_empresa import SistemaGestionEmpresa
 from app.models.sobre_a_generacion import SobreAGeneracion
+from app.models.sobre_a_presentacion import SobreAPresentacion
 
 __all__ = [
     "CertificadoObra",
@@ -52,4 +53,5 @@ __all__ = [
     "PscpSyncLog",
     "SistemaGestionEmpresa",
     "SobreAGeneracion",
+    "SobreAPresentacion",
 ]

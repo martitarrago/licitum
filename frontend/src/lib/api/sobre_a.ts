@@ -16,6 +16,14 @@ export interface SobreARead extends SobreAListItem {
   datos_snapshot: Record<string, any>;
 }
 
+export interface SobreAPresentacion {
+  id: string;
+  empresa_id: string;
+  licitacion_id: string;
+  archivo_filename: string;
+  subido_at: string;
+}
+
 async function readError(res: Response): Promise<string> {
   try {
     const body = await res.json();
@@ -65,4 +73,58 @@ export const sobreAApi = {
     });
     if (!res.ok) throw new Error(await readError(res));
   },
+
+  /** URL para descargar el snapshot como .docx (browser dispara la descarga). */
+  docxUrl: (snapshotId: string): string =>
+    `${API_BASE}/api/v1/sobre-a/${snapshotId}/docx`,
+
+  // ─── Presentación final (PDF firmado) ─────────────────────────────────
+
+  presentadoGet: async (
+    expediente: string,
+    empresa_id: string,
+  ): Promise<SobreAPresentacion | null> => {
+    const res = await fetch(
+      `${API_BASE}/api/v1/sobre-a/${encodeURIComponent(
+        expediente,
+      )}/presentado?empresa_id=${empresa_id}`,
+    );
+    if (!res.ok) throw new Error(await readError(res));
+    return res.json();
+  },
+
+  presentadoSubir: async (
+    expediente: string,
+    empresa_id: string,
+    pdf: File,
+  ): Promise<SobreAPresentacion> => {
+    const fd = new FormData();
+    fd.append("pdf", pdf);
+    const res = await fetch(
+      `${API_BASE}/api/v1/sobre-a/${encodeURIComponent(
+        expediente,
+      )}/presentado?empresa_id=${empresa_id}`,
+      { method: "POST", body: fd },
+    );
+    if (!res.ok) throw new Error(await readError(res));
+    return res.json();
+  },
+
+  presentadoBorrar: async (
+    expediente: string,
+    empresa_id: string,
+  ): Promise<void> => {
+    const res = await fetch(
+      `${API_BASE}/api/v1/sobre-a/${encodeURIComponent(
+        expediente,
+      )}/presentado?empresa_id=${empresa_id}`,
+      { method: "DELETE" },
+    );
+    if (!res.ok) throw new Error(await readError(res));
+  },
+
+  presentadoPdfUrl: (expediente: string, empresa_id: string): string =>
+    `${API_BASE}/api/v1/sobre-a/${encodeURIComponent(
+      expediente,
+    )}/presentado/pdf?empresa_id=${empresa_id}`,
 };
