@@ -98,15 +98,22 @@ celery_app.conf.update(
             "options": {"expires": 60 * 60},
         },
         # ── Adjudicaciones históricas + mviews — 1x/día ───────────────────
+        # Antes a las 06:00 Madrid (= 04:00 UTC). Beat solo dispara crons que
+        # vencen mientras está vivo, y los pushes diarios entre 14-19 UTC
+        # reinician el worker; cuando entraba en producción (~05:00 UTC) ya
+        # había pasado la ventana de las 04:00 UTC y el cron se perdía. A las
+        # 22:00 Madrid (= 20-21 UTC) hay 19h sin pushes hasta el día siguiente,
+        # ventana segura. PSCP publica todo el día, cambiar la hora no impacta
+        # frescura del dato. Ver catchup_pscp_incremental.py si vuelve a fallar.
         "intel-pscp-incremental": {
             "task": "workers.intel_pscp.incremental_sync",
-            "schedule": crontab(hour=6, minute=0),
+            "schedule": crontab(hour=22, minute=0),
             "kwargs": {"lookback_hours": 36, "tipus_contracte": "Obres"},
             "options": {"expires": 30 * 60},
         },
         "intel-pscp-mview-refresh": {
             "task": "workers.intel_pscp.refresh_mviews",
-            "schedule": crontab(hour=6, minute=30),
+            "schedule": crontab(hour=22, minute=30),
             "options": {"expires": 30 * 60},
         },
         # ── RELIC — 1x/día ────────────────────────────────────────────────
