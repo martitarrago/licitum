@@ -484,7 +484,7 @@ function RelojItem({ item }: { item: TrackerFeedItem }) {
 
   return (
     <Link
-      href={`/sobre-a/licitacion/${encodeURIComponent(item.expediente)}`}
+      href={`/ofertas/${encodeURIComponent(item.expediente)}`}
       className="group relative flex items-stretch gap-4 overflow-hidden rounded-xl bg-surface-raised p-4 pl-5 ring-1 ring-amber-500/30 transition-all duration-200 ease-out-soft hover:-translate-y-0.5 hover:ring-amber-500/60 hover:shadow-card-hover"
     >
       <span
@@ -601,7 +601,7 @@ function ItemCard({
 
   return (
     <Link
-      href={`/sobre-a/licitacion/${encodeURIComponent(item.expediente)}`}
+      href={`/ofertas/${encodeURIComponent(item.expediente)}`}
       className="card-interactive group relative flex flex-col overflow-hidden p-4 pl-5"
     >
       <span
@@ -787,7 +787,7 @@ function EmptyState() {
       </h2>
       <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
         Desde el Radar, abre una licitación y pulsa{" "}
-        <strong className="text-foreground">Preparar Sobre A</strong>.
+        <strong className="text-foreground">Preparar oferta</strong>.
         Aparecerá aquí con su estado y los relojes legales que aplican.
       </p>
       <Link href="/radar" className="btn-primary mt-6">

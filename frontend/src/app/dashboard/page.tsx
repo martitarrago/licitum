@@ -421,7 +421,7 @@ function synthesizeNextSteps(
         ? `${estadoLabel}: presenta a tiempo`
         : `${estadoLabel}: revisa plazo`,
       detail: item.titulo ?? "(sin título)",
-      href: `/sobre-a/licitacion/${encodeURIComponent(item.expediente)}`,
+      href: `/ofertas/${encodeURIComponent(item.expediente)}`,
       dias,
     });
   }
@@ -641,7 +641,7 @@ function SeguimientoEnVivoCard({
           Desde el Radar, marca tus favoritas con el corazón. Cuando decidas
           presentarte, pulsa{" "}
           <strong className="font-semibold text-foreground">
-            preparar Sobre A
+            preparar oferta
           </strong>{" "}
           y aparecerá aquí.
         </p>

@@ -1,8 +1,7 @@
 import {
   Building2,
-  Calculator,
+  ClipboardList,
   FileSearch,
-  FileSignature,
   FolderCheck,
   HardHat,
   KanbanSquare,
@@ -86,19 +85,11 @@ export const MODULE_GROUPS: ModuleGroup[] = [
     label: "Preparar oferta",
     modules: [
       {
-        id: "sobre-a",
+        id: "ofertas",
         code: "",
-        label: "Sobre A · Declaración",
-        href: "/sobre-a",
-        icon: FileSignature,
-        available: true,
-      },
-      {
-        id: "calculadora",
-        code: "",
-        label: "Calculadora económica",
-        href: "/calculadora",
-        icon: Calculator,
+        label: "Preparación de ofertas",
+        href: "/ofertas",
+        icon: ClipboardList,
         available: true,
       },
     ],

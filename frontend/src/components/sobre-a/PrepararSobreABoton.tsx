@@ -55,7 +55,7 @@ export function PrepararSobreABoton({
       });
       qc.invalidateQueries({ queryKey: ["tracker-feed"] });
       qc.invalidateQueries({ queryKey: ["tracker-resumen"] });
-      router.push(`/sobre-a/licitacion/${encodeURIComponent(expediente)}`);
+      router.push(`/ofertas/${encodeURIComponent(expediente)}`);
     },
   });
 
@@ -70,8 +70,8 @@ export function PrepararSobreABoton({
       className={cls}
       title={
         enPipeline
-          ? "Continuar la preparación del Sobre A"
-          : "Mover a pipeline y empezar a preparar el Sobre A"
+          ? "Continuar la preparación de la oferta"
+          : "Empezar a preparar la oferta para esta licitación"
       }
     >
       {preparar.isPending ? (
@@ -79,7 +79,7 @@ export function PrepararSobreABoton({
       ) : (
         <FileSignature className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
       )}
-      {enPipeline ? "Continuar Sobre A" : "Preparar Sobre A"}
+      {enPipeline ? "Continuar oferta" : "Preparar oferta"}
       <ArrowRight className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
     </button>
   );
