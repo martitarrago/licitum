@@ -39,11 +39,10 @@ export default function SobreAListPage() {
           sobres A generados
         </h1>
         <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-          Histórico de declaraciones responsables y DEUC simplificados generados
-          desde Licitum. Cada generación captura un{" "}
-          <strong className="text-foreground">snapshot</strong> de los datos de
-          tu empresa al momento — meses después puedes consultar exactamente qué
-          firmaste, aunque los datos hayan cambiado.
+          Histórico de declaraciones responsables generadas para cada
+          licitación. Cada versión guarda los datos de tu empresa tal y como
+          estaban en ese momento — meses después puedes consultar exactamente
+          qué firmaste, aunque los datos hayan cambiado.
         </p>
       </header>
 
@@ -93,7 +92,7 @@ function Item({
               {fmtFecha(item.created_at)}
             </strong>
             {" · "}
-            <span className="text-success">Snapshot persistido</span>
+            <span className="text-success">Versión guardada</span>
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">

@@ -131,18 +131,32 @@ async def generar_sobre_a(
         )
     )
     docs_extra: list[str] = []
+    clasif_exigida: dict[str, Any] | None = None
     if analisis and analisis.extracted_data:
         raw = analisis.extracted_data.get("docs_extra_sobre_a") or []
         if isinstance(raw, list):
             docs_extra = [str(d) for d in raw if d]
+        # Clasificación que exige el PCAP (extraída por M3). Si la pide,
+        # filtramos las clasificaciones de la empresa para mostrar SOLO la
+        # que matchea — no todo el catálogo.
+        grupo_pliego = analisis.extracted_data.get("clasificacion_grupo")
+        subgrupo_pliego = analisis.extracted_data.get("clasificacion_subgrupo")
+        cat_pliego = analisis.extracted_data.get("clasificacion_categoria")
+        if grupo_pliego:
+            clasif_exigida = {
+                "grupo": str(grupo_pliego),
+                "subgrupo": str(subgrupo_pliego) if subgrupo_pliego else None,
+                "categoria": int(cat_pliego) if cat_pliego is not None else None,
+            }
 
     usa_relic = bool(relic and not relic.prohibicio)
 
-    clasificaciones: list[dict[str, Any]] = []
+    # Recolección de clasificaciones de OBRAS de la empresa (RELIC + manuales).
+    todas_clasif: list[dict[str, Any]] = []
     if relic:
         for c in relic.clasificaciones_relic:
             if c.tipus_cl == "OBRES" and not c.suspensio:
-                clasificaciones.append(
+                todas_clasif.append(
                     {
                         "grupo": c.grupo,
                         "subgrupo": c.subgrupo,
@@ -151,7 +165,7 @@ async def generar_sobre_a(
                     }
                 )
     for c in clasif_manual:
-        clasificaciones.append(
+        todas_clasif.append(
             {
                 "grupo": c.grupo,
                 "subgrupo": c.subgrupo,
@@ -160,13 +174,39 @@ async def generar_sobre_a(
             }
         )
 
+    # Filtrado: solo las relevantes para esta licitación.
+    # 1. Si el pliego exige clasificación X → solo mostrar las que matchean
+    #    grupo (y subgrupo si lo especifica). Categoría >= la exigida.
+    # 2. Si el pliego NO exige clasificación y la empresa está en RELIC →
+    #    no listar nada (RELIC ya las acredita por sí mismo).
+    # 3. Si no exige y no está en RELIC → no listar nada (la solvencia se
+    #    acredita por otros medios — volumen anual, experiencia).
+    clasificaciones_relevantes: list[dict[str, Any]] = []
+    if clasif_exigida:
+        for c in todas_clasif:
+            if c["grupo"] != clasif_exigida["grupo"]:
+                continue
+            if (
+                clasif_exigida.get("subgrupo")
+                and c.get("subgrupo") != clasif_exigida["subgrupo"]
+            ):
+                continue
+            if (
+                clasif_exigida.get("categoria") is not None
+                and c.get("categoria") is not None
+                and c["categoria"] < clasif_exigida["categoria"]
+            ):
+                continue
+            clasificaciones_relevantes.append(c)
+
     fecha = _fecha_larga_es(date.today())
     html = _render_html(
         empresa=empresa,
         licitacion=licitacion,
         relic=relic,
         usa_relic=usa_relic,
-        clasificaciones=clasificaciones,
+        clasif_exigida=clasif_exigida,
+        clasificaciones_relevantes=clasificaciones_relevantes,
         docs_extra=docs_extra,
         fecha=fecha,
     )
@@ -201,7 +241,11 @@ async def generar_sobre_a(
         },
         "usa_relic": usa_relic,
         "n_registral": relic.n_registral if relic else None,
-        "clasificaciones": clasificaciones,
+        # Clasificaciones FILTRADAS por relevancia para esta licitación
+        # (no el catálogo entero de la empresa). Si el pliego no exige
+        # clasificación, esta lista va vacía.
+        "clasificaciones": clasificaciones_relevantes,
+        "clasificacion_exigida": clasif_exigida,
         "docs_extra": docs_extra,
         "fecha_emision": fecha,
     }
@@ -215,7 +259,8 @@ def _render_html(
     licitacion: Licitacion,
     relic: EmpresaRelic | None,
     usa_relic: bool,
-    clasificaciones: list[dict[str, Any]],
+    clasif_exigida: dict[str, Any] | None,
+    clasificaciones_relevantes: list[dict[str, Any]],
     docs_extra: list[str],
     fecha: str,
 ) -> str:
@@ -257,45 +302,59 @@ def _render_html(
             "de firmar este documento.</p>"
         )
 
-    # Bloque solvencia
+    # Bloque RELIC — banner inicial cuando aplica.
     if usa_relic and relic is not None:
-        solvencia_html = (
+        relic_banner_html = (
             '<div class="relic-banner">'
-            "<p><strong>Empresa inscrita en RELIC.</strong> "
-            "A los efectos del artículo 159.4 de la Ley 9/2017 de Contratos del "
-            "Sector Público (LCSP) y la normativa de contratación pública "
-            "catalana aplicable, la presente declaración acredita la "
-            "personalidad jurídica, capacidad de obrar, representación y "
-            "solvencia económica/financiera y técnica/profesional mediante la "
-            "inscripción en el <em>Registre Electrònic d'Empreses Licitadores i "
-            "Classificades de Catalunya</em> con número registral "
-            f"<strong>{_e(relic.n_registral)}</strong>. Los datos completos "
-            "se encuentran consultables en el portal oficial RELIC.</p>"
+            "<p><strong>Empresa inscrita en el RELIC.</strong> "
+            "Conforme al artículo 159.4 LCSP y la normativa de contratación "
+            "pública catalana aplicable, esta inscripción exime al licitador "
+            "de aportar la documentación que ya consta en el "
+            "<em>Registre Electrònic d'Empreses Licitadores i Classificades "
+            "de Catalunya</em>. Número registral: "
+            f"<strong>{_e(relic.n_registral)}</strong>.</p>"
             "</div>"
         )
-        clasif_inline_html = ""  # No detallamos en versión RELIC simplificada
     else:
-        solvencia_html = ""
-        if clasificaciones:
+        relic_banner_html = ""
+
+    # Bloque clasificación: solo si el pliego la exige.
+    clasif_decl_html = ""
+    if clasif_exigida:
+        exig = clasif_exigida
+        exig_str = f"grupo {_e(exig['grupo'])}"
+        if exig.get("subgrupo"):
+            exig_str += f", subgrupo {_e(exig['subgrupo'])}"
+        if exig.get("categoria") is not None:
+            exig_str += f", categoría {_e(exig['categoria'])}"
+        if clasificaciones_relevantes:
+            # La empresa cumple la clasificación exigida.
             items = "".join(
-                f"<li>Clasificación grupo <strong>{_e(c['grupo'])}</strong>"
+                f"<li>Clasificación {_e(c['grupo'])}"
                 + (f"-{_e(c['subgrupo'])}" if c.get("subgrupo") else "")
-                + (f", categoría <strong>{_e(c['categoria'])}</strong>" if c.get("categoria") else "")
-                + (f' <span class="muted">(según RELIC)</span>' if c.get("fuente") == "relic" else "")
+                + (f", categoría {_e(c['categoria'])}" if c.get("categoria") else "")
+                + (
+                    ' <span class="muted">(acreditada en RELIC)</span>'
+                    if c.get("fuente") == "relic"
+                    else ""
+                )
                 + "</li>"
-                for c in clasificaciones
+                for c in clasificaciones_relevantes
             )
-            clasif_inline_html = f"<ul>{items}</ul>"
+            clasif_decl_html = (
+                f"<p>Clasificación exigida en el PCAP: <strong>{exig_str}</strong>. "
+                "El licitador la acredita con la siguiente clasificación vigente:</p>"
+                f"<ul>{items}</ul>"
+            )
         else:
-            clasif_inline_html = (
-                "<p>No se aportan clasificaciones empresariales — la solvencia "
-                "se acredita por los medios alternativos previstos en el pliego "
-                "(volumen anual de negocio y/o experiencia documentada).</p>"
-            )
-        if empresa.volumen_negocio_n is not None:
-            clasif_inline_html += (
-                f"<p>Volumen anual de negocio del último ejercicio: "
-                f"<strong>{_e(_fmt_eur(empresa.volumen_negocio_n))}</strong></p>"
+            # El pliego exige clasificación pero la empresa no la tiene.
+            # Aviso explícito — el usuario debe revisar antes de firmar.
+            clasif_decl_html = (
+                f'<p class="warning"><strong>⚠ Clasificación exigida no '
+                f"localizada.</strong> El PCAP requiere "
+                f"<strong>{exig_str}</strong> pero esta clasificación no "
+                "consta vigente en los datos del licitador. Revisa el "
+                "módulo Empresa antes de firmar este documento.</p>"
             )
 
     # Bloque docs_extra (si M3 detectó documentación adicional exigida)
@@ -306,23 +365,11 @@ def _render_html(
             '<section class="section">'
             "<h2>Documentación adicional exigida por el órgano contratante</h2>"
             "<p>Conforme al Pliego de Cláusulas Administrativas Particulares, "
-            "se incluye además la siguiente documentación:</p>"
+            "el licitador deberá aportar adicionalmente la siguiente "
+            "documentación al sobre único de la oferta:</p>"
             f"<ul>{items}</ul>"
             "</section>"
         )
-
-    # Numeración de declaraciones — la 7ª varía si hay RELIC o no
-    decl_extra_solvencia = ""
-    if not usa_relic:
-        decl_extra_solvencia = (
-            '<div class="declaration"><strong>7.</strong> Que la empresa '
-            "cumple los requisitos de solvencia económica y financiera y "
-            "técnica o profesional exigidos por el pliego, según el detalle "
-            f"siguiente:{clasif_inline_html}</div>"
-        )
-        n_compromiso, n_veracidad = 8, 9
-    else:
-        n_compromiso, n_veracidad = 7, 8
 
     ciudad_firma = empresa.direccion_ciudad or "—"
 
@@ -396,8 +443,8 @@ def _render_html(
 <body>
 
 <header>
-  <h1>SOBRE A</h1>
-  <p class="meta"><em>Documentación administrativa · Declaración responsable conforme al art. 140 LCSP</em></p>
+  <h1>DECLARACIÓN RESPONSABLE</h1>
+  <p class="meta"><em>Documentación administrativa del Sobre A · art. 159.4 LCSP</em></p>
   <p class="meta">
     <strong>Expediente:</strong> {_e(licitacion.expediente)}<br>
     {f'<strong>Objeto:</strong> {_e(licitacion.titulo)}<br>' if licitacion.titulo else ''}
@@ -406,6 +453,8 @@ def _render_html(
   </p>
 </header>
 
+{relic_banner_html}
+
 <section class="section">
   <h2>Datos del licitador</h2>
   <dl class="datos">
@@ -413,9 +462,9 @@ def _render_html(
     <dt>CIF</dt><dd>{_e(empresa.cif)}</dd>
     {f'<dt>IAE</dt><dd>{_e(empresa.iae)}</dd>' if empresa.iae else ''}
     {f'<dt>Tamaño</dt><dd>{_e(tamano_label)}</dd>' if tamano_label else ''}
-    {f'<dt>Domicilio</dt><dd>{_e(direccion)}</dd>' if direccion else ''}
-    {f'<dt>Email</dt><dd>{_e(empresa.email)}</dd>' if empresa.email else ''}
+    {f'<dt>Domicilio fiscal</dt><dd>{_e(direccion)}</dd>' if direccion else ''}
     {f'<dt>Teléfono</dt><dd>{_e(empresa.telefono)}</dd>' if empresa.telefono else ''}
+    {f'<dt>Email habilitado para notificaciones</dt><dd>{_e(empresa.email)}</dd>' if empresa.email else ''}
   </dl>
 </section>
 
@@ -425,27 +474,28 @@ def _render_html(
 </section>
 
 <section class="section">
-  <h2>Declaración responsable</h2>
-  {solvencia_html}
+  <h2>Declaración responsable (art. 159.4 LCSP)</h2>
   <p>El representante legal arriba identificado, en nombre y representación de la empresa licitadora, <strong>DECLARA BAJO SU RESPONSABILIDAD</strong>:</p>
 
-  <div class="declaration"><strong>1.</strong> Que la empresa está válidamente constituida y no se encuentra incursa en ninguna de las prohibiciones de contratar previstas en el artículo 71 de la Ley 9/2017 de Contratos del Sector Público (LCSP).</div>
+  <div class="declaration"><strong>1.</strong> Ostentar la <strong>representación válida y suficiente</strong> de la sociedad licitadora para concurrir al presente procedimiento.</div>
 
-  <div class="declaration"><strong>2.</strong> Que la empresa se halla al corriente del cumplimiento de las obligaciones tributarias con la Agencia Estatal de Administración Tributaria y, en su caso, con la Administración Tributaria de Cataluña.</div>
+  <div class="declaration"><strong>2.</strong> Que la empresa se halla <strong>válidamente constituida</strong>, dispone de la capacidad de obrar exigida por el art. 65 LCSP y cuenta con las <strong>autorizaciones administrativas</strong> precisas para el ejercicio de la actividad objeto de este contrato.</div>
 
-  <div class="declaration"><strong>3.</strong> Que la empresa se halla al corriente del cumplimiento de las obligaciones con la Tesorería General de la Seguridad Social.</div>
+  <div class="declaration"><strong>3.</strong> Que ni la empresa ni sus administradores incurren en ninguna de las <strong>prohibiciones de contratar</strong> previstas en el artículo 71 de la Ley 9/2017 de Contratos del Sector Público (LCSP).</div>
 
-  <div class="declaration"><strong>4.</strong> Que la empresa no se encuentra en situación de concurso de acreedores, declaración de insolvencia, intervención judicial, suspensión de actividades o disolución.</div>
+  <div class="declaration"><strong>4.</strong> Que la empresa cumple los <strong>requisitos de solvencia económica y financiera y técnica o profesional</strong> exigidos por el Pliego de Cláusulas Administrativas Particulares.{(' ' + clasif_decl_html) if clasif_decl_html else ''}</div>
 
-  <div class="declaration"><strong>5.</strong> Que ningún cargo directivo de la empresa se halla incurso en supuestos de incompatibilidad regulados por la Ley 3/2015 reguladora del ejercicio del alto cargo de la Administración General del Estado o normativa autonómica equivalente.</div>
+  <div class="declaration"><strong>5.</strong> Que la empresa se halla al <strong>corriente del cumplimiento de las obligaciones tributarias</strong> con la Agencia Estatal de Administración Tributaria y con la Administración Tributaria de Cataluña, así como de las <strong>obligaciones con la Tesorería General de la Seguridad Social</strong>.</div>
 
-  <div class="declaration"><strong>6.</strong> Que la empresa no ha cometido falsedad alguna al emitir declaraciones responsables o aportar información en procedimientos previos de contratación pública.</div>
+  <div class="declaration"><strong>6.</strong> Que la empresa <strong>no se encuentra en situación de concurso</strong> de acreedores, declaración de insolvencia, intervención judicial, suspensión de actividades o disolución.</div>
 
-  {decl_extra_solvencia}
+  <div class="declaration"><strong>7.</strong> Que la empresa <strong>no ha incurrido en falsedad</strong> al emitir declaraciones responsables o aportar información en procedimientos previos de contratación pública.</div>
 
-  <div class="declaration"><strong>{n_compromiso}.</strong> Que se compromete, en caso de resultar adjudicataria, a aportar en el plazo máximo de 10 días hábiles desde el requerimiento de la mesa de contratación la documentación acreditativa de los puntos anteriores y a constituir la garantía definitiva equivalente al 5 % del importe de adjudicación, conforme al artículo 150 LCSP.</div>
+  <div class="declaration"><strong>8.</strong> Que el licitador <strong>se compromete a adscribir a la ejecución del contrato</strong> los medios personales y materiales suficientes (art. 76.2 LCSP) y a aportar, en caso de resultar adjudicataria y dentro del plazo establecido por la mesa de contratación, la documentación acreditativa de los extremos declarados.</div>
 
-  <div class="declaration"><strong>{n_veracidad}.</strong> Que la información y los datos consignados en esta declaración son ciertos. Conoce que la falsedad podrá ser causa de la prohibición de contratar prevista en el artículo 71.1.e) LCSP.</div>
+  <div class="declaration"><strong>9.</strong> Que la empresa <strong>designa la dirección de correo electrónico</strong> arriba indicada como medio preferente para la práctica de las notificaciones derivadas de este procedimiento.</div>
+
+  <div class="declaration"><strong>10.</strong> Que la información y los datos consignados en esta declaración son <strong>ciertos</strong>. El firmante conoce que la falsedad podrá ser causa de la prohibición de contratar prevista en el art. 71.1.e) LCSP.</div>
 </section>
 
 {docs_extra_html}
@@ -456,8 +506,6 @@ def _render_html(
     Firma del representante legal &mdash; {_e(empresa.representante_nombre or '...')}
   </div>
 </div>
-
-<p class="footer">Generado por Licitum · Snapshot de los datos de empresa al momento de la generación · El sistema propone, el licitador firma.</p>
 
 </body>
 </html>

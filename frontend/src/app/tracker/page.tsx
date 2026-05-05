@@ -293,7 +293,7 @@ function NarrativaEstado({ grouped }: { grouped: GroupedFeed }) {
     }
   } else if (partes.length > 0) {
     subline = {
-      texto: "Sin relojes legales corriendo. Pipeline limpio.",
+      texto: "Sin relojes legales corriendo. No hay plazos urgentes.",
       tono: "success",
     };
   }
@@ -781,7 +781,7 @@ function Skeleton() {
 function EmptyState() {
   return (
     <div className="card flex flex-col items-center px-6 py-16 text-center">
-      <p className="eyebrow mb-3">pipeline vacío</p>
+      <p className="eyebrow mb-3">sin ofertas en marcha</p>
       <h2 className="font-display text-2xl font-bold tracking-tight">
         Aún no hay licitaciones en seguimiento
       </h2>

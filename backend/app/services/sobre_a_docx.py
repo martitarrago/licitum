@@ -18,24 +18,38 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Cm, Pt, RGBColor
 
-# Las declaraciones LCSP estándar — espina dorsal del Sobre A.
-DECLARACIONES_LCSP: list[str] = [
-    "Posee personalidad jurídica y, en su caso, representación suficiente "
-    "para concurrir a la presente licitación.",
-    "Cumple las condiciones establecidas legalmente para contratar con la "
-    "Administración Pública (art. 65 LCSP).",
-    "No se encuentra incursa en ninguna de las prohibiciones para contratar "
-    "previstas en el art. 71 LCSP.",
-    "Se encuentra al corriente del cumplimiento de sus obligaciones "
-    "tributarias con la Hacienda estatal y autonómica catalana.",
-    "Se encuentra al corriente del cumplimiento de sus obligaciones con la "
-    "Seguridad Social.",
-    "No se halla en situación de concurso de acreedores ni ha solicitado la "
-    "declaración del mismo.",
-    "No ha incurrido en falsedad al efectuar las declaraciones responsables "
-    "exigidas en este procedimiento.",
-    "Se compromete a aportar, en el plazo concedido, la documentación "
-    "acreditativa de los extremos declarados en caso de resultar adjudicataria.",
+# Declaraciones del art. 159.4 LCSP — el contenido mínimo de la
+# declaración responsable en procedimiento abierto simplificado.
+# Algunas se rellenan dinámicamente (ej. la 4 sobre solvencia/clasificación)
+# y se construyen en `generar_docx`; aquí definimos el resto.
+DECLARACIONES_BASE: list[str] = [
+    "Ostentar la representación válida y suficiente de la sociedad "
+    "licitadora para concurrir al presente procedimiento.",
+    "Que la empresa se halla válidamente constituida, dispone de la "
+    "capacidad de obrar exigida por el art. 65 LCSP y cuenta con las "
+    "autorizaciones administrativas precisas para el ejercicio de la "
+    "actividad objeto del contrato.",
+    "Que ni la empresa ni sus administradores incurren en ninguna de las "
+    "prohibiciones de contratar previstas en el art. 71 LCSP.",
+    # La declaración 4 (solvencia/clasificación) se construye dinámicamente.
+    "Que la empresa se halla al corriente del cumplimiento de las "
+    "obligaciones tributarias con la Hacienda estatal y autonómica "
+    "catalana, así como de las obligaciones con la Seguridad Social.",
+    "Que la empresa no se encuentra en situación de concurso de acreedores, "
+    "declaración de insolvencia, intervención judicial, suspensión de "
+    "actividades o disolución.",
+    "Que la empresa no ha incurrido en falsedad al emitir declaraciones "
+    "responsables o aportar información en procedimientos previos de "
+    "contratación pública.",
+    "Que el licitador se compromete a adscribir a la ejecución del contrato "
+    "los medios personales y materiales suficientes (art. 76.2 LCSP) y a "
+    "aportar, en caso de resultar adjudicataria, la documentación "
+    "acreditativa de los extremos declarados en el plazo establecido por "
+    "la mesa de contratación.",
+    # La 9 (designación email) se construye dinámicamente.
+    "Que la información y los datos consignados en esta declaración son "
+    "ciertos. El firmante conoce que la falsedad podrá ser causa de la "
+    "prohibición de contratar prevista en el art. 71.1.e) LCSP.",
 ]
 
 
@@ -88,12 +102,16 @@ def _add_para(doc: Document, text: str, *, italic: bool = False) -> None:
 
 
 def generar_docx(snapshot: dict[str, Any]) -> bytes:
-    """Construye el .docx desde el snapshot persistido y devuelve los bytes."""
+    """Construye el .docx desde la versión guardada y devuelve los bytes."""
     empresa = snapshot.get("empresa") or {}
     licitacion = snapshot.get("licitacion") or {}
     usa_relic = bool(snapshot.get("usa_relic"))
     n_registral = snapshot.get("n_registral")
+    # `clasificaciones` viene ya filtrada (sólo las relevantes para la
+    # licitación: las que matchean la exigida por el PCAP). Si el pliego
+    # no exige clasificación, esta lista está vacía y NO se renderiza.
     clasificaciones = snapshot.get("clasificaciones") or []
+    clasif_exigida = snapshot.get("clasificacion_exigida")
     docs_extra = snapshot.get("docs_extra") or []
     fecha_emision = snapshot.get("fecha_emision") or ""
 
@@ -112,13 +130,13 @@ def generar_docx(snapshot: dict[str, Any]) -> bytes:
     style.font.size = Pt(11)
 
     # ── Título ────────────────────────────────────────────────────────
-    _add_h1(doc, "DECLARACIÓN RESPONSABLE — SOBRE A")
+    _add_h1(doc, "DECLARACIÓN RESPONSABLE")
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_after = Pt(18)
     run = p.add_run(
-        f"Procedimiento abierto · {licitacion.get('titulo') or '(sin título)'}"
+        "Documentación administrativa del Sobre A · art. 159.4 LCSP"
     )
     run.italic = True
     run.font.size = Pt(10)
@@ -127,6 +145,7 @@ def generar_docx(snapshot: dict[str, Any]) -> bytes:
     # ── Datos de la licitación ───────────────────────────────────────
     _add_h2(doc, "Licitación")
     _add_kv(doc, "Expediente", licitacion.get("expediente"))
+    _add_kv(doc, "Objeto", licitacion.get("titulo"))
     _add_kv(doc, "Órgano de contratación", licitacion.get("organismo"))
     if licitacion.get("importe_licitacion"):
         _add_kv(
@@ -134,6 +153,22 @@ def generar_docx(snapshot: dict[str, Any]) -> bytes:
             "Presupuesto base de licitación",
             _fmt_eur(licitacion.get("importe_licitacion")),
         )
+
+    # ── Banner RELIC (si aplica) ─────────────────────────────────────
+    if usa_relic and n_registral:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(10)
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run("Empresa inscrita en el RELIC. ")
+        run.bold = True
+        run.font.size = Pt(11)
+        run = p.add_run(
+            f"Conforme al art. 159.4 LCSP, esta inscripción exime al "
+            f"licitador de aportar la documentación que ya consta en el "
+            f"Registre Electrònic d'Empreses Licitadores i Classificades "
+            f"de Catalunya. Número registral: {n_registral}."
+        )
+        run.font.size = Pt(11)
 
     # ── Datos del licitador ──────────────────────────────────────────
     _add_h2(doc, "Datos del licitador")
@@ -152,12 +187,12 @@ def generar_docx(snapshot: dict[str, Any]) -> bytes:
             if direccion
             else f"({empresa['direccion_provincia']})"
         )
-    _add_kv(doc, "Domicilio social", direccion or None)
+    _add_kv(doc, "Domicilio fiscal", direccion or None)
 
     if empresa.get("telefono"):
         _add_kv(doc, "Teléfono", empresa.get("telefono"))
     if empresa.get("email"):
-        _add_kv(doc, "Correo electrónico", empresa.get("email"))
+        _add_kv(doc, "Email habilitado para notificaciones", empresa.get("email"))
     if empresa.get("iae"):
         _add_kv(doc, "Epígrafe IAE", empresa.get("iae"))
 
@@ -178,56 +213,82 @@ def generar_docx(snapshot: dict[str, Any]) -> bytes:
             italic=True,
         )
 
-    # ── Solvencia ───────────────────────────────────────────────────
-    _add_h2(doc, "Solvencia")
-    if usa_relic and n_registral:
-        _add_para(
-            doc,
-            f"La empresa se encuentra inscrita en el Registro Electrónico de "
-            f"Empresas Licitadoras de la Generalitat de Catalunya (RELIC) con "
-            f"el número registral {n_registral}, lo que acredita los "
-            f"requisitos de capacidad y solvencia exigidos en el procedimiento "
-            f"abierto simplificado del art. 159.4 LCSP.",
-        )
-        if clasificaciones:
-            _add_para(doc, "Clasificaciones de obras vigentes:")
-            for c in clasificaciones:
-                cat = c.get("categoria")
-                grp = c.get("grupo") or "—"
-                sub = c.get("subgrupo") or "—"
-                fuente = c.get("fuente", "")
-                fuente_label = " (RELIC)" if fuente == "relic" else " (manual)"
-                line = f"   • Grupo {grp}, Subgrupo {sub}"
-                if cat is not None:
-                    line += f", Categoría {cat}"
-                line += fuente_label
-                _add_para(doc, line)
-    else:
-        if clasificaciones:
-            _add_para(doc, "Clasificaciones declaradas en obras:")
-            for c in clasificaciones:
-                cat = c.get("categoria")
-                grp = c.get("grupo") or "—"
-                sub = c.get("subgrupo") or "—"
-                line = f"   • Grupo {grp}, Subgrupo {sub}"
-                if cat is not None:
-                    line += f", Categoría {cat}"
-                _add_para(doc, line)
-        if empresa.get("volumen_negocio_n"):
-            _add_kv(
-                doc,
-                "Volumen anual de negocio (último ejercicio)",
-                _fmt_eur(empresa.get("volumen_negocio_n")),
-            )
-
-    # ── Declaraciones responsables ──────────────────────────────────
-    _add_h2(doc, "Declaraciones responsables")
+    # ── Declaraciones responsables (art. 159.4 LCSP) ─────────────────
+    _add_h2(doc, "Declaración responsable (art. 159.4 LCSP)")
     _add_para(
         doc,
-        "El representante firmante DECLARA, bajo su responsabilidad, lo "
-        "siguiente:",
+        "El representante legal arriba identificado, en nombre y "
+        "representación de la empresa licitadora, DECLARA BAJO SU "
+        "RESPONSABILIDAD:",
     )
-    for i, decl in enumerate(DECLARACIONES_LCSP, start=1):
+
+    declaraciones: list[str] = []
+    # 1, 2, 3 — base
+    declaraciones.extend(DECLARACIONES_BASE[:3])
+
+    # 4 — solvencia/clasificación, dinámico según el pliego
+    if clasif_exigida:
+        exig_str = f"grupo {clasif_exigida.get('grupo')}"
+        if clasif_exigida.get("subgrupo"):
+            exig_str += f", subgrupo {clasif_exigida['subgrupo']}"
+        if clasif_exigida.get("categoria") is not None:
+            exig_str += f", categoría {clasif_exigida['categoria']}"
+        if clasificaciones:
+            cumplidas = []
+            for c in clasificaciones:
+                line = c.get("grupo") or ""
+                if c.get("subgrupo"):
+                    line += f"-{c['subgrupo']}"
+                if c.get("categoria") is not None:
+                    line += f", cat. {c['categoria']}"
+                if c.get("fuente") == "relic":
+                    line += " (RELIC)"
+                cumplidas.append(line)
+            decl4 = (
+                "Que la empresa cumple los requisitos de solvencia económica "
+                "y financiera y técnica o profesional exigidos por el PCAP. "
+                f"Clasificación exigida: {exig_str}. "
+                f"Clasificación acreditada: {'; '.join(cumplidas)}."
+            )
+        else:
+            decl4 = (
+                "Que la empresa cumple los requisitos de solvencia económica "
+                "y financiera y técnica o profesional exigidos por el PCAP. "
+                f"[ATENCIÓN: el PCAP exige clasificación {exig_str} pero esta "
+                "no consta vigente en los datos del licitador — revisar "
+                "antes de firmar.]"
+            )
+    else:
+        decl4 = (
+            "Que la empresa cumple los requisitos de solvencia económica y "
+            "financiera y técnica o profesional exigidos por el Pliego de "
+            "Cláusulas Administrativas Particulares."
+        )
+    declaraciones.append(decl4)
+
+    # 5, 6, 7, 8 — base (índices 3, 4, 5, 6 en DECLARACIONES_BASE)
+    declaraciones.extend(DECLARACIONES_BASE[3:7])
+
+    # 9 — designación email para notificaciones, dinámico
+    email = empresa.get("email")
+    if email:
+        decl9 = (
+            f"Que el licitador designa la dirección de correo electrónico "
+            f"{email} como medio preferente para la práctica de las "
+            f"notificaciones derivadas de este procedimiento."
+        )
+    else:
+        decl9 = (
+            "Que el licitador designa como medio preferente para la práctica "
+            "de las notificaciones la dirección de correo electrónico "
+            "[completar antes de firmar]."
+        )
+    declaraciones.append(decl9)
+
+    # 10 — veracidad (último elemento de DECLARACIONES_BASE)
+    declaraciones.append(DECLARACIONES_BASE[7])
+
+    for i, decl in enumerate(declaraciones, start=1):
         p = doc.add_paragraph()
         p.paragraph_format.space_after = Pt(4)
         p.paragraph_format.left_indent = Cm(0.6)

@@ -800,13 +800,13 @@ function ConclusionPanel({
               <span className="font-semibold">
                 No recomendamos presentarse a esta licitación.
               </span>{" "}
-              Si decides hacerlo de todos modos, el botón abrirá el espacio
-              de trabajo y moverá la oferta al pipeline en{" "}
+              Si decides hacerlo de todos modos, el botón abre el espacio de
+              trabajo y deja la oferta en{" "}
               <span className="font-medium">en preparación</span>.
             </>
           ) : (
             <>
-              Mueve la oferta al pipeline en estado{" "}
+              Deja la oferta en estado{" "}
               <span className="font-medium text-foreground">
                 en preparación
               </span>{" "}

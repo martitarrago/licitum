@@ -283,7 +283,7 @@ function BorradorSection({
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             {ultimo
-              ? "Cada vez que pulses regenerar se crea una versión nueva con un snapshot completo de los datos de tu empresa al momento."
+              ? "Cada vez que pulses regenerar se crea una versión nueva con tus datos al momento. Las anteriores se mantienen en el histórico."
               : "El primer borrador se genera con los datos actuales de tu empresa (RELIC, certificados, representante)."}
           </p>
         </div>
@@ -499,8 +499,8 @@ function PresentacionSection({
                 </span>{" "}
                 el {fmtFechaHora(presentacion.subido_at)}. La oferta está
                 marcada como{" "}
-                <span className="font-medium text-foreground">presentada</span>{" "}
-                en el pipeline.
+                <span className="font-medium text-foreground">presentada</span>
+                {" "}en el seguimiento de ofertas.
               </p>
             </div>
           </div>
@@ -652,27 +652,42 @@ function PresentacionSection({
 
 function DocsExtraSection({ docs }: { docs: string[] }) {
   return (
-    <section className="card p-8">
-      <p className="eyebrow mb-1.5">Documentos extra del pliego</p>
-      <h2 className="font-display text-xl font-bold tracking-tight">
-        Recuerda preparar también
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        El análisis IA del PCAP detectó documentación complementaria que el
-        pliego exige aportar en el Sobre A. No se genera automáticamente —
-        revísala una a una.
-      </p>
-      <ul className="mt-5 space-y-2 text-sm">
-        {docs.map((d, i) => (
-          <li key={i} className="flex items-start gap-2.5">
-            <span
-              className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/60"
-              aria-hidden="true"
-            />
-            <span className="leading-relaxed">{d}</span>
-          </li>
-        ))}
-      </ul>
+    <section className="rounded-2xl border-l-4 border-warning bg-warning/[0.06] p-7 ring-1 ring-warning/25 shadow-card">
+      <div className="flex items-start gap-3">
+        <AlertTriangle
+          className="mt-0.5 h-5 w-5 shrink-0 text-warning"
+          strokeWidth={2}
+          aria-hidden="true"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="eyebrow mb-1.5 text-warning">
+            Atención · documentación adicional
+          </p>
+          <h2 className="font-display text-xl font-bold tracking-tight">
+            El pliego exige aportar también lo siguiente
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Estos documentos se piden en el PCAP y{" "}
+            <strong className="text-foreground">no se generan</strong> con la
+            declaración responsable. Tienes que prepararlos por separado y
+            adjuntarlos a la oferta junto con el PDF firmado.
+          </p>
+          <ul className="mt-5 space-y-2.5 text-sm">
+            {docs.map((d, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-2.5 rounded-lg bg-surface-raised/60 px-3 py-2 ring-1 ring-warning/15"
+              >
+                <span
+                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
+                  aria-hidden="true"
+                />
+                <span className="leading-relaxed">{d}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </section>
   );
 }
