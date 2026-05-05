@@ -743,11 +743,12 @@ function ConclusionPanel({
     recomendacion.razones_riesgo.length > 0 ||
     recomendacion.razones_no.length > 0;
   // El CTA "Preparar Sobre A" como primario cuando recomienda IR; secundario
-  // cuando hay riesgo o el pliego está incompleto; oculto cuando claramente
-  // no recomienda presentarse (no_ir).
+  // cuando hay riesgo, el pliego está incompleto, o no se recomienda — en
+  // este último caso también se permite preparar (la decisión final es del
+  // usuario), pero acompañado de un aviso explícito.
   const veredicto = recomendacion.veredicto;
   const ctaPrimario = veredicto === "ir";
-  const ctaVisible = veredicto !== "no_ir";
+  const ctaContraindicado = veredicto === "no_ir";
 
   return (
     <section
@@ -784,19 +785,33 @@ function ConclusionPanel({
         </div>
       )}
 
-      {ctaVisible && (
-        <div className="mt-7 border-t border-border/60 pt-6">
-          <PrepararSobreABoton
-            expediente={expediente}
-            primario={ctaPrimario}
-          />
-          <p className="mt-2 text-xs text-muted-foreground">
-            Mueve la oferta al pipeline en estado{" "}
-            <span className="font-medium text-foreground">en preparación</span>{" "}
-            y abre el espacio de trabajo del Sobre A.
-          </p>
-        </div>
-      )}
+      <div className="mt-7 border-t border-border/60 pt-6">
+        <PrepararSobreABoton expediente={expediente} primario={ctaPrimario} />
+        <p
+          className={`mt-2 text-xs ${
+            ctaContraindicado ? "text-danger" : "text-muted-foreground"
+          }`}
+        >
+          {ctaContraindicado ? (
+            <>
+              <span className="font-semibold">
+                No recomendamos presentarse a esta licitación.
+              </span>{" "}
+              Si decides hacerlo de todos modos, el botón abrirá el espacio
+              de trabajo y moverá la oferta al pipeline en{" "}
+              <span className="font-medium">en preparación</span>.
+            </>
+          ) : (
+            <>
+              Mueve la oferta al pipeline en estado{" "}
+              <span className="font-medium text-foreground">
+                en preparación
+              </span>{" "}
+              y abre el espacio de trabajo del Sobre A.
+            </>
+          )}
+        </p>
+      </div>
     </section>
   );
 }

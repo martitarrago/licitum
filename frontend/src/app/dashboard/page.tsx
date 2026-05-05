@@ -421,7 +421,7 @@ function synthesizeNextSteps(
         ? `${estadoLabel}: presenta a tiempo`
         : `${estadoLabel}: revisa plazo`,
       detail: item.titulo ?? "(sin título)",
-      href: `/radar/${encodeURIComponent(item.expediente)}`,
+      href: `/sobre-a/licitacion/${encodeURIComponent(item.expediente)}`,
       dias,
     });
   }
