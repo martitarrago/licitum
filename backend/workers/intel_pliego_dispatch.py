@@ -1,9 +1,11 @@
 """Worker dispatch — encola análisis IA de pliegos para todas las licitaciones
 viables (score >= MIN_SCORE_ANALISIS) de una empresa.
 
-Garantía: ninguna licitación con score >= 50 puede quedarse sin análisis de
-pliego. El análisis puede bajar el score (vía hard_filter_pliego o señal
-pliego_check) pero nunca subirlo — no hay riesgo de bucles de re-ranking.
+Garantía: toda licitación con score >= 50 se encola para análisis *una vez*
+en el ciclo de vida de la licitación. Si la extracción falla, la fila queda
+en `fallido` y NO se reintenta automáticamente — el reintento es manual
+desde la UI vía POST /pliegos/{exp}/reextraer o /analizar. Si la extracción
+completa, la fila queda en `completado` y nunca se re-analiza por el cron.
 
 Patrón:
   1. Análisis es global por licitación (cache en `licitacion_analisis_ia`).
@@ -12,7 +14,11 @@ Patrón:
      ordenadas por score desc para priorizar las mejores en el budget guard.
   3. Budget guard: MAX_NEW_PER_RUN (15) por ejecución. Con el cron cada 4h
      son hasta 60 análisis nuevos/día — suficiente para cualquier empresa.
-  4. TTL 30 días: después se re-analiza si la licitación sigue viable.
+  4. Sin TTL: las pliegos modificados durante el plazo de presentación
+     (errata, aclaración) requieren reintento manual del usuario. Se evita
+     re-análisis ciego que sobrescribe `extracted_data` y consume tokens
+     sin saber si el pliego cambió. Out of scope MVP — detectar cambios
+     reales (hash de PDF, fecha PSCP) es trabajo posterior.
 
 Wiring: `_run_recalc_empresa` en intel_scores encola esta tarea tras cada
 recálculo exitoso.
@@ -22,7 +28,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select, text
@@ -45,10 +51,6 @@ MIN_SCORE_ANALISIS = 50
 # Con 4 ejecuciones/día (cron cada 4h) son hasta 60 análisis/día.
 # Una empresa que arranca de cero con 50 viables queda cubierta en ~2 ciclos.
 MAX_NEW_PER_RUN = 15
-
-# TTL del análisis. Pasado ese tiempo, una licitación que siga viable
-# se re-analizará (útil cuando el pliego cambia).
-TTL_DIAS = 30
 
 
 @celery_app.task(name="workers.intel_pliego_dispatch.analizar_top_pendientes_empresa")
@@ -100,28 +102,36 @@ async def _run_dispatch(empresa_id: uuid.UUID) -> dict[str, Any]:
                 result["finished_at"] = datetime.now().isoformat()
                 return result
 
-            # 2) ¿Cuáles ya tienen análisis vigente (estado=completado y
-            #    procesado dentro de TTL_DIAS)? Esos se saltan.
-            ttl_cutoff = datetime.now(tz=timezone.utc) - timedelta(days=TTL_DIAS)
+            # 2) ¿Cuáles ya tienen análisis completado? Esos se saltan
+            # permanentemente (no hay TTL — re-análisis sólo manual desde UI).
             analyzed_q = await session.execute(
                 select(LicitacionAnalisisIA.licitacion_id).where(
                     LicitacionAnalisisIA.licitacion_id.in_(top_ids),
                     LicitacionAnalisisIA.estado == EstadoAnalisisPliego.completado,
-                    LicitacionAnalisisIA.procesado_at.is_not(None),
-                    LicitacionAnalisisIA.procesado_at >= ttl_cutoff,
                 )
             )
             ya_analizados = {row[0] for row in analyzed_q.fetchall()}
 
-            # También considerar las que ya están en estado pendiente o
-            # procesando (ya en cola desde un dispatch previo) — no
-            # encolar de nuevo.
+            # También considerar las que ya están en estado pendiente,
+            # procesando o fallido — no encolar de nuevo.
+            #
+            # `fallido` se incluye aquí para evitar que cualquier pliego que
+            # falló (timeout de Claude, JSON malformado, OCR roto, PDF no
+            # disponible…) se re-procese eternamente en cada cron run. Antes
+            # cada cron lo reintentaba de cero — coste real Sonnet 4.6, no
+            # solo SQL — multiplicando el gasto por 4/día por pliego fallido.
+            #
+            # Reintento ahora es responsabilidad del usuario vía
+            # POST /pliegos/{exp}/reextraer o /analizar (router.py:381,305).
+            # Esos endpoints resetean la fila a pendiente y el cron la
+            # vuelve a ver como "en curso", no como "fallida".
             inflight_q = await session.execute(
                 select(LicitacionAnalisisIA.licitacion_id).where(
                     LicitacionAnalisisIA.licitacion_id.in_(top_ids),
                     LicitacionAnalisisIA.estado.in_([
                         EstadoAnalisisPliego.pendiente,
                         EstadoAnalisisPliego.procesando,
+                        EstadoAnalisisPliego.fallido,
                     ]),
                 )
             )
