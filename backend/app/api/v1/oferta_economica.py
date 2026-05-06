@@ -199,6 +199,25 @@ async def _intel_baja(
     }
 
 
+# Mínimo de observaciones históricas para fiarnos de `ofertes_avg` al elegir
+# qué regla LCSP 149.2 aplicar. Por debajo de este umbral, asumimos n>=4
+# (regla 149.2.d, threshold = media + 10pp) que es el caso empírico habitual
+# en obra pública. Evita que `ofertes_avg=2.25` con 4 muestras dispare la
+# regla rígida 149.2.b (threshold 20%).
+_MIN_N_OBS_OFERTES_FIABLE = 10
+
+
+def _ofertes_esperadas_fiables(intel_dict: dict[str, Any]) -> float | None:
+    """Devuelve `ofertes_avg` solo si hay observaciones suficientes; si no,
+    devuelve 4.0 para que el motor caiga en LCSP 149.2.d (media + 10pp)."""
+    n_obs = intel_dict.get("n_obs") or 0
+    if n_obs >= _MIN_N_OBS_OFERTES_FIABLE:
+        return intel_dict.get("ofertes_avg")
+    if intel_dict.get("baja_avg_pct") is not None:
+        return 4.0
+    return intel_dict.get("ofertes_avg")
+
+
 def _extract_pliego_data(
     analisis: LicitacionAnalisisIA | None,
 ) -> dict[str, Any]:
@@ -246,17 +265,18 @@ async def contexto(
     cpv4 = (cpv_codes[0][:4] if cpv_codes else None) if cpv_codes else None
 
     intel_dict = await _intel_baja(db, licitacion.organismo_id, cpv4)
+    ofertes_esperadas = _ofertes_esperadas_fiables(intel_dict)
 
     # Estimación temeraria (fallback ex-ante)
     temer = estimar_baja_temeraria(
-        ofertes_esperadas=intel_dict.get("ofertes_avg"),
+        ofertes_esperadas=ofertes_esperadas,
         baja_media_historica=intel_dict.get("baja_avg_pct"),
     )
 
     rec = recomendar_baja(
         formula_tipo=pliego.get("formula_tipo"),
         baja_media_historica_pct=intel_dict.get("baja_avg_pct"),
-        ofertes_esperadas=intel_dict.get("ofertes_avg"),
+        ofertes_esperadas=ofertes_esperadas,
         umbral_saciedad_pct=pliego.get("umbral_saciedad_pct"),
     )
 
@@ -339,7 +359,7 @@ async def calcular_endpoint(
         formula_tipo=pliego.get("formula_tipo"),
         umbral_saciedad_pct=pliego.get("umbral_saciedad_pct"),
         baja_media_historica_pct=intel_dict.get("baja_avg_pct"),
-        ofertes_esperadas=intel_dict.get("ofertes_avg"),
+        ofertes_esperadas=_ofertes_esperadas_fiables(intel_dict),
     )
 
     return CalculoOut(
@@ -415,7 +435,7 @@ async def generar(
         formula_tipo=pliego.get("formula_tipo"),
         umbral_saciedad_pct=pliego.get("umbral_saciedad_pct"),
         baja_media_historica_pct=intel_dict.get("baja_avg_pct"),
-        ofertes_esperadas=intel_dict.get("ofertes_avg"),
+        ofertes_esperadas=_ofertes_esperadas_fiables(intel_dict),
     )
 
     fecha = _fecha_larga_es(date.today())

@@ -263,11 +263,15 @@ def recomendar_baja(
             confianza="ninguna",
         )
 
-    # Si hay umbral de saciedad → óptimo es justo en el umbral
+    margen_seguridad = 2.0  # pp de margen al threshold temerario
+    techo_seguro = max(0.0, threshold - margen_seguridad)
+
+    # Si hay umbral de saciedad → óptimo es justo en el umbral, siempre clampado
+    # bajo el techo seguro
     if umbral_saciedad_pct is not None and umbral_saciedad_pct > 0:
-        sugerido = min(umbral_saciedad_pct, threshold - 0.5)
+        sugerido = max(0.0, min(umbral_saciedad_pct, techo_seguro))
         return Recomendacion(
-            rango_optimo_min_pct=round(sugerido - 1.0, 2),
+            rango_optimo_min_pct=round(max(sugerido - 1.0, 0.0), 2),
             rango_optimo_max_pct=round(sugerido, 2),
             pct_sugerido=round(sugerido, 2),
             razonamiento=(
@@ -279,17 +283,42 @@ def recomendar_baja(
             confianza="alta" if confianza_temer == "alta" else "media",
         )
 
-    # Histórico disponible — ventana entre baja media y threshold-margen
     media = baja_media_historica_pct or 0.0
-    margen_seguridad = 2.0  # 2 pp de margen al threshold
-    techo_seguro = threshold - margen_seguridad
+    confianza_final: Literal["alta", "media", "baja", "ninguna"] = (
+        "alta" if confianza_temer == "alta" else "media"
+    )
+
+    # Caso conflictivo: la baja media histórica está pegada al techo seguro
+    # (no queda hueco para diferenciarse). Suele pasar cuando la regla rígida
+    # LCSP (149.2.a/b con n=1 ó 2) da un threshold bajo (25/20%) que choca con
+    # un histórico alto. Pegamos al techo seguro y avisamos que el umbral
+    # rígido es muy restrictivo.
+    if media + 1.0 >= techo_seguro:
+        sugerido = techo_seguro
+        rango_max_v = techo_seguro
+        rango_min_v = max(min(media - 2.0, rango_max_v - 1.0), 0.0)
+        razonamiento = (
+            f"La baja media histórica del órgano ({media:.1f}%) iguala o supera "
+            f"el umbral temerario estimado ({threshold:.1f}%). En este caso la "
+            "regla rígida LCSP es más restrictiva que el comportamiento real "
+            f"del órgano. Sugerencia: pegarse al umbral con {margen_seguridad:.0f} pp "
+            f"de margen ({sugerido:.1f}%) y preparar justificación de costes "
+            "por si la mesa pide explicación."
+        )
+        return Recomendacion(
+            rango_optimo_min_pct=round(rango_min_v, 2),
+            rango_optimo_max_pct=round(rango_max_v, 2),
+            pct_sugerido=round(sugerido, 2),
+            razonamiento=razonamiento,
+            confianza="baja",
+        )
 
     # Lineal y cuadrática: cuanto más baja, más puntos → tirar al techo seguro
     # Proporcional inversa: idem (la mejor baja se lleva los puntos)
     if formula_tipo in ("lineal", "cuadratica", "proporcional_inversa"):
-        rango_min = max(media + 1.0, media)  # justo por encima de la media
-        rango_max = max(techo_seguro, rango_min + 1.0)
-        sugerido = (rango_min + rango_max) / 2.0
+        rango_min = media + 1.0
+        rango_max = techo_seguro
+        sugerido = min((rango_min + rango_max) / 2.0, techo_seguro)
         razonamiento = (
             f"La baja media histórica del órgano es {media:.1f}%. "
             f"Para diferenciarte sin acercarte al umbral temerario "
@@ -297,10 +326,11 @@ def recomendar_baja(
             "según tu margen. La fórmula del PCAP premia bajas mayores."
         )
     else:
-        # Sin fórmula clara: rango conservador en torno a la media
+        # Sin fórmula clara: rango conservador en torno a la media, todo
+        # clampado bajo el techo seguro.
         rango_min = max(media - 1.0, 0.0)
         rango_max = min(media + 3.0, techo_seguro)
-        sugerido = media + 1.5
+        sugerido = min(media + 1.5, rango_max)
         razonamiento = (
             f"Fórmula no detectada con claridad. Histórico del órgano: "
             f"{media:.1f}% baja media. Recomendamos un rango cercano "
@@ -313,7 +343,7 @@ def recomendar_baja(
         rango_optimo_max_pct=round(rango_max, 2),
         pct_sugerido=round(sugerido, 2),
         razonamiento=razonamiento,
-        confianza="alta" if confianza_temer == "alta" else "media",
+        confianza=confianza_final,
     )
 
 
