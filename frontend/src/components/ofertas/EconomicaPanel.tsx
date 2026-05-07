@@ -23,6 +23,8 @@ import {
   type CalculoResultado,
   type ContextoCalculadora,
   type OfertaListItem,
+  type PuntoLabel,
+  type PuntoReferencia,
 } from "@/lib/api/calculadora";
 import { EMPRESA_DEMO_ID } from "@/lib/constants";
 
@@ -33,6 +35,33 @@ const FORMULA_LABELS: Record<string, string> = {
   cuadratica: "Cuadrática",
   otra: "Otra (revisar pliego)",
   no_detectado: "No detectada en el pliego",
+};
+
+const REF_LABELS: Record<PuntoLabel, string> = {
+  conservadora: "Conservadora",
+  competitiva: "Competitiva",
+  saciedad: "Saciedad",
+  techo_legal: "Techo legal",
+};
+
+const REF_HINTS: Record<PuntoLabel, string> = {
+  conservadora: "Mediana histórica",
+  competitiva: "P90 histórico",
+  saciedad: "Umbral del PCAP",
+  techo_legal: "Margen de seguridad",
+};
+
+const REF_SHORT: Record<PuntoLabel, string> = {
+  conservadora: "cons.",
+  competitiva: "comp.",
+  saciedad: "saciedad",
+  techo_legal: "techo",
+};
+
+const FUENTE_LABELS: Record<string, string> = {
+  pcap: "definido por el PCAP",
+  lcsp_149: "estimado por LCSP 149.2",
+  fallback: "fallback conservador",
 };
 
 const fmtEur = (v: number | null | undefined): string =>
@@ -162,7 +191,11 @@ export function EconomicaPanel({ expediente }: Props) {
         <ContextoCompetencia ctx={ctx} />
       </div>
 
-      <RecomendacionPanel ctx={ctx} onUseSuggested={(v) => setBajaPct(v)} />
+      <RecomendacionPanel
+        ctx={ctx}
+        bajaPct={bajaPct}
+        onUseSuggested={(v) => setBajaPct(v)}
+      />
 
       <SliderYResultado
         ctx={ctx}
@@ -286,19 +319,23 @@ function ContextoCompetencia({ ctx }: { ctx: ContextoCalculadora }) {
       ) : (
         <dl className="space-y-3 text-sm">
           <DataRow
-            label="Baja media histórica"
+            label="Mediana histórica"
             value={
               <span className="display-num text-xl font-bold text-foreground">
-                {fmtPct(intel.baja_avg_pct)}
+                {fmtPct(intel.baja_median_pct ?? intel.baja_avg_pct)}
               </span>
             }
           />
           {intel.baja_p90_pct != null && (
             <DataRow
-              label="Baja P90 (top 10%)"
+              label="P90 (top 10% más agresivos)"
               value={fmtPct(intel.baja_p90_pct)}
             />
           )}
+          {intel.baja_avg_pct != null &&
+            intel.baja_median_pct != null && (
+              <DataRow label="Media" value={fmtPct(intel.baja_avg_pct)} />
+            )}
           {intel.ofertes_avg != null && (
             <DataRow
               label="Ofertas medias por concurso"
@@ -311,29 +348,23 @@ function ContextoCompetencia({ ctx }: { ctx: ContextoCalculadora }) {
           />
         </dl>
       )}
-      <div className="mt-4 rounded-lg bg-muted/40 px-3 py-2.5 text-xs leading-relaxed">
-        <p className="font-semibold text-foreground">Umbral temerario estimado</p>
-        <p className="mt-1 display-num text-lg text-foreground">
-          {ctx.temeraria_estimada.threshold_pct.toFixed(1)}%
-        </p>
-        <p className="mt-1 text-muted-foreground">
-          {ctx.temeraria_estimada.metodo}
-        </p>
-      </div>
     </section>
   );
 }
 
 function RecomendacionPanel({
   ctx,
+  bajaPct,
   onUseSuggested,
 }: {
   ctx: ContextoCalculadora;
+  bajaPct: number;
   onUseSuggested: (v: number) => void;
 }) {
   const rec = ctx.recomendacion;
   const tieneSugerencia = rec.pct_sugerido != null;
   const isSinDatos = rec.confianza === "ninguna";
+  const sugLabel = rec.pct_sugerido_label;
 
   return (
     <section
@@ -354,25 +385,48 @@ function RecomendacionPanel({
             Recomendación inteligente
           </p>
           {tieneSugerencia ? (
-            <h2 className="font-display text-xl font-bold tracking-tight">
-              Oferta sugerida:{" "}
-              <span className="display-num">{fmtPct(rec.pct_sugerido)}</span>
-              {rec.rango_optimo_min_pct != null &&
-                rec.rango_optimo_max_pct != null && (
-                  <span className="ml-2 text-base font-normal text-muted-foreground">
-                    rango {fmtPct(rec.rango_optimo_min_pct)}–
-                    {fmtPct(rec.rango_optimo_max_pct)}
+            <>
+              <h2 className="font-display text-2xl font-bold tracking-tight">
+                Oferta sugerida:{" "}
+                <span className="display-num">{fmtPct(rec.pct_sugerido)}</span>
+              </h2>
+              {sugLabel && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {REF_LABELS[sugLabel]}
                   </span>
-                )}
-            </h2>
+                  {" — "}
+                  {REF_HINTS[sugLabel]}
+                </p>
+              )}
+            </>
           ) : (
-            <h2 className="font-display text-xl font-bold tracking-tight">
+            <h2 className="font-display text-2xl font-bold tracking-tight">
               Decide tú la baja
             </h2>
           )}
-          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted-foreground">
             {rec.razonamiento}
           </p>
+          {rec.advertencias.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {rec.advertencias.map((adv, i) => (
+                <div
+                  key={i}
+                  className="flex gap-2 rounded-lg bg-warning/10 px-3 py-2.5 ring-1 ring-warning/30"
+                >
+                  <AlertTriangle
+                    className="mt-0.5 h-4 w-4 shrink-0 text-warning"
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  />
+                  <p className="text-xs leading-relaxed text-foreground/90">
+                    {adv}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
           {tieneSugerencia && rec.pct_sugerido != null && (
             <button
               onClick={() => onUseSuggested(rec.pct_sugerido!)}
@@ -382,9 +436,79 @@ function RecomendacionPanel({
               Usar oferta sugerida
             </button>
           )}
+          {rec.referencias.length > 1 && (
+            <div className="mt-6">
+              <p className="eyebrow mb-2.5">Otras referencias</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {rec.referencias.map((r) => (
+                  <ReferenciaCard
+                    key={r.label}
+                    refPunto={r}
+                    onClick={() => onUseSuggested(r.pct)}
+                    isActive={Math.abs(bajaPct - r.pct) < 0.5}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {rec.techo_temerario_pct != null && rec.techo_temerario_fuente && (
+            <p className="mt-4 text-[11px] text-muted-foreground">
+              Umbral temerario:{" "}
+              <span className="font-semibold text-foreground tabular-nums">
+                {rec.techo_temerario_pct.toFixed(1)}%
+              </span>{" "}
+              ({FUENTE_LABELS[rec.techo_temerario_fuente] ??
+                rec.techo_temerario_fuente})
+              {rec.peso_precio_pct != null && (
+                <>
+                  {" · "}precio pondera{" "}
+                  <span className="font-semibold text-foreground tabular-nums">
+                    {rec.peso_precio_pct.toFixed(0)}%
+                  </span>
+                </>
+              )}
+            </p>
+          )}
         </div>
       </div>
     </section>
+  );
+}
+
+function ReferenciaCard({
+  refPunto,
+  onClick,
+  isActive,
+}: {
+  refPunto: PuntoReferencia;
+  onClick: () => void;
+  isActive: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={refPunto.descripcion}
+      className={`group rounded-xl px-3 py-2.5 text-left ring-1 transition-all hover:ring-foreground/40 ${
+        isActive
+          ? "bg-foreground/[0.04] ring-foreground/50"
+          : "bg-surface ring-border"
+      }`}
+    >
+      <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {REF_LABELS[refPunto.label]}
+        {refPunto.es_default && (
+          <span className="rounded bg-foreground/10 px-1 py-0.5 text-[9px] normal-case tracking-normal text-foreground">
+            sugerida
+          </span>
+        )}
+      </p>
+      <p className="display-num mt-0.5 text-lg font-bold tabular-nums text-foreground">
+        {refPunto.pct.toFixed(1)}%
+      </p>
+      <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+        {REF_HINTS[refPunto.label]}
+      </p>
+    </button>
   );
 }
 
@@ -401,22 +525,47 @@ function SliderYResultado({
   calculo: CalculoResultado | null;
   calculando: boolean;
 }) {
+  const thresholdPct =
+    ctx.recomendacion.techo_temerario_pct ??
+    ctx.temeraria_estimada?.threshold_pct ??
+    null;
   const max = useMemo(
     () =>
-      Math.max(35, Math.ceil(ctx.temeraria_estimada.threshold_pct * 1.3)),
-    [ctx],
+      thresholdPct != null
+        ? Math.max(35, Math.ceil(thresholdPct * 1.3))
+        : 35,
+    [thresholdPct],
   );
+  const pos = (pct: number) => Math.min(100, Math.max(0, (pct / max) * 100));
 
-  const thresholdPct = ctx.temeraria_estimada.threshold_pct;
-  const tempMarkerPos = useMemo(
-    () => Math.min(100, (thresholdPct / max) * 100),
-    [thresholdPct, max],
-  );
-  const mediaMarkerPos = useMemo(() => {
-    const m = ctx.intel?.baja_avg_pct;
-    if (m == null) return null;
-    return Math.min(100, (m / max) * 100);
-  }, [ctx.intel, max]);
+  const refs = ctx.recomendacion.referencias;
+  const conservadora = refs.find((r) => r.label === "conservadora");
+  const techoLegal = refs.find((r) => r.label === "techo_legal");
+  const consPos = conservadora ? pos(conservadora.pct) : 0;
+  const techoPos =
+    techoLegal != null
+      ? pos(techoLegal.pct)
+      : thresholdPct != null
+        ? pos(thresholdPct - 2)
+        : null;
+  const tempPos = thresholdPct != null ? pos(thresholdPct) : null;
+
+  // 3 zonas: 0→conservadora (success), conservadora→techo (warning), techo→max (danger).
+  // Si no hay threshold, el track es neutro — no inventamos zona roja.
+  const trackStyle: React.CSSProperties =
+    techoPos != null
+      ? {
+          background: `linear-gradient(to right,
+      rgb(22 163 74 / 0.14) 0%,
+      rgb(22 163 74 / 0.14) ${consPos}%,
+      rgb(202 138 4 / 0.18) ${consPos}%,
+      rgb(202 138 4 / 0.18) ${techoPos}%,
+      rgb(220 38 38 / 0.20) ${techoPos}%,
+      rgb(220 38 38 / 0.20) 100%)`,
+        }
+      : {
+          background: "hsl(var(--muted) / 0.6)",
+        };
 
   const nivel = calculo?.nivel_riesgo ?? "seguro";
   const RiesgoIcon =
@@ -424,11 +573,14 @@ function SliderYResultado({
       ? XCircle
       : nivel === "atencion"
         ? AlertTriangle
-        : CheckCircle2;
+        : nivel === "no_estimable"
+          ? Info
+          : CheckCircle2;
   const riesgoColors: Record<string, string> = {
     seguro: "bg-success/10 ring-success/25 text-success",
     atencion: "bg-warning/10 ring-warning/25 text-warning",
     temerario: "bg-danger/10 ring-danger/25 text-danger",
+    no_estimable: "bg-muted/50 ring-border text-muted-foreground",
   };
 
   return (
@@ -457,7 +609,20 @@ function SliderYResultado({
             {bajaPct.toFixed(2)}%
           </span>
         </div>
-        <div className="relative">
+        <div className="relative h-7">
+          {/* Track propio con zonas (success/warning/danger) */}
+          <div
+            className="pointer-events-none absolute left-0 right-0 top-1/2 h-2 -translate-y-1/2 rounded-full ring-1 ring-border/60"
+            style={trackStyle}
+          />
+          {/* Línea vertical fina marcando el umbral temerario exacto */}
+          {tempPos != null && (
+            <div
+              className="pointer-events-none absolute top-1/2 h-3 w-px -translate-x-1/2 -translate-y-1/2 bg-danger/60"
+              style={{ left: `${tempPos}%` }}
+              aria-hidden="true"
+            />
+          )}
           <input
             type="range"
             min={0}
@@ -465,29 +630,25 @@ function SliderYResultado({
             step={0.25}
             value={bajaPct}
             onChange={(e) => onBajaChange(Number(e.target.value))}
-            className="w-full cursor-pointer accent-foreground"
+            className="slider-zoned absolute inset-0"
             aria-label="% de baja sobre el presupuesto base"
           />
-          {mediaMarkerPos != null && (
-            <div
-              className="pointer-events-none absolute top-full mt-1 -translate-x-1/2 text-[10px] text-muted-foreground"
-              style={{ left: `${mediaMarkerPos}%` }}
-              title="Baja media histórica del órgano"
-            >
-              <span className="block h-2 w-px bg-muted-foreground/40 mx-auto" />
-              <span>media</span>
-            </div>
-          )}
-          <div
-            className="pointer-events-none absolute top-full mt-1 -translate-x-1/2 text-[10px] font-semibold text-danger"
-            style={{ left: `${tempMarkerPos}%` }}
-            title="Umbral baja temeraria"
-          >
-            <span className="block h-2 w-px bg-danger mx-auto" />
-            <span>temer.</span>
-          </div>
         </div>
-        <div className="mt-8 flex justify-between text-[11px] text-muted-foreground">
+
+        {/* Marcas por referencia debajo del slider */}
+        <div className="relative mt-2 h-12">
+          {refs.map((r) => (
+            <ReferenceMark
+              key={r.label}
+              refPunto={r}
+              positionPct={pos(r.pct)}
+              isActive={Math.abs(bajaPct - r.pct) < 0.5}
+              onClick={() => onBajaChange(r.pct)}
+            />
+          ))}
+        </div>
+
+        <div className="mt-3 flex justify-between text-[11px] text-muted-foreground">
           <span>0%</span>
           <span>{max}%</span>
         </div>
@@ -541,7 +702,9 @@ function SliderYResultado({
               ? "Margen seguro"
               : nivel === "atencion"
                 ? "Atención — cerca del umbral temerario"
-                : "Baja temeraria"}
+                : nivel === "temerario"
+                  ? "Baja temeraria"
+                  : "Riesgo no estimable"}
           </p>
           <p className="mt-0.5 text-sm">
             {calculo?.nota_riesgo ??
@@ -550,6 +713,53 @@ function SliderYResultado({
         </div>
       </div>
     </section>
+  );
+}
+
+function ReferenceMark({
+  refPunto,
+  positionPct,
+  isActive,
+  onClick,
+}: {
+  refPunto: PuntoReferencia;
+  positionPct: number;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const tickColor = refPunto.es_temerario
+    ? "bg-danger"
+    : refPunto.es_default
+      ? "bg-foreground"
+      : "bg-foreground/40";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={refPunto.descripcion}
+      className="group absolute top-0 -translate-x-1/2 flex flex-col items-center cursor-pointer"
+      style={{ left: `${positionPct}%` }}
+    >
+      <span
+        className={`block h-2 w-px ${tickColor} transition-all group-hover:h-3`}
+      />
+      <span
+        className={`mt-1 whitespace-nowrap text-[10px] font-medium uppercase tracking-wider ${
+          isActive
+            ? "text-foreground"
+            : "text-muted-foreground group-hover:text-foreground"
+        }`}
+      >
+        {REF_SHORT[refPunto.label]}
+      </span>
+      <span
+        className={`whitespace-nowrap text-[10px] font-bold tabular-nums ${
+          isActive ? "text-foreground" : "text-foreground/70"
+        }`}
+      >
+        {refPunto.pct.toFixed(1)}%
+      </span>
+    </button>
   );
 }
 

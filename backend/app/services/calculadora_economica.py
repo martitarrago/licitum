@@ -7,13 +7,14 @@ de una oferta dado:
   - puntos_max: puntos máximos asignados al criterio económico
   - parámetros específicos según fórmula (umbral saciedad, baja media, etc.)
 
-También combina con `estimar_baja_temeraria` (LCSP art. 149) y la baja
-media histórica del órgano para producir una **recomendación** de
-rango óptimo de baja: "para máxima puntuación sin entrar en temeraria,
-oferta entre X y Y %".
+`recomendar_baja` produce una recomendación con 3 puntos de referencia
+(conservadora=mediana, competitiva=p90, saciedad si aplica) + el techo
+legal. Decide el default por reglas multi-factor (peso del precio, n_obs,
+fórmula, caso conflicto mediana>temeraria).
 """
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 from typing import Any, Literal
@@ -31,6 +32,21 @@ FormulaTipo = Literal[
     "no_detectado",
 ]
 
+PuntoLabel = Literal["conservadora", "competitiva", "saciedad", "techo_legal"]
+ThresholdFuente = Literal["pcap", "lcsp_149", "fallback"]
+
+# Mínimo de observaciones para fiarnos de baja_p90 (si hay menos, p90 es
+# ruido y caemos a mediana+buffer).
+_MIN_N_OBS_P90_FIABLE = 10
+# Margen de seguridad pp por debajo del threshold temerario.
+_MARGEN_SEGURIDAD_PP = 2.0
+# Umbral de peso del precio bajo el cual sugerimos siempre conservador
+# (la memoria técnica decide).
+_PESO_PRECIO_BAJO_PCT = 40.0
+
+
+NivelRiesgo = Literal["seguro", "atencion", "temerario", "no_estimable"]
+
 
 @dataclass(frozen=True)
 class CalculoResultado:
@@ -42,7 +58,7 @@ class CalculoResultado:
     diff_vs_baja_media: float | None  # baja_pct - baja_media_historica
     entra_en_temeraria: bool
     temeraria: TemerariaEstimate | None
-    nivel_riesgo: Literal["seguro", "atencion", "temerario"]
+    nivel_riesgo: NivelRiesgo
     nota_riesgo: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -53,12 +69,29 @@ class CalculoResultado:
 
 
 @dataclass(frozen=True)
+class PuntoReferencia:
+    label: PuntoLabel
+    pct: float
+    importe: float | None
+    es_default: bool
+    es_temerario: bool
+    descripcion: str
+
+
+@dataclass(frozen=True)
 class Recomendacion:
+    pct_sugerido: float | None
+    pct_sugerido_label: PuntoLabel | None
+    referencias: list[PuntoReferencia]
+    techo_temerario_pct: float | None
+    techo_temerario_fuente: ThresholdFuente | None
+    peso_precio_pct: float | None
+    razonamiento: str
+    advertencias: list[str]
+    confianza: Literal["alta", "media", "baja", "ninguna"]
+    # Campos legacy mantenidos para compat con frontend hasta el PR del slider:
     rango_optimo_min_pct: float | None
     rango_optimo_max_pct: float | None
-    pct_sugerido: float | None
-    razonamiento: str
-    confianza: Literal["alta", "media", "baja", "ninguna"]
 
 
 def calcular_puntos(
@@ -80,30 +113,20 @@ def calcular_puntos(
     if not formula_tipo or formula_tipo in ("otra", "no_detectado"):
         return None
     if baja_max_observada_pct <= 0:
-        # Sin contexto de baja máxima → no podemos estimar relativamente.
-        # Para fórmulas lineales, asumimos la propia baja como "techo" de
-        # referencia: es decir, si nadie más oferta más baja, te llevas
-        # los puntos máximos.
         baja_max_observada_pct = max(baja_pct, 1.0)
 
-    # Lineal directa: puntos proporcionales a la baja respecto al techo.
     if formula_tipo == "lineal":
         if baja_max_observada_pct <= 0:
             return 0.0
         ratio = min(1.0, max(0.0, baja_pct / baja_max_observada_pct))
         return round(puntos_max * ratio, 2)
 
-    # Proporcional inversa: forma típica P = Pmax * (mejor_baja / tu_baja)
-    # invertida — premia la mejor baja con max puntos. Aproximamos con
-    # baja_max_observada como la "mejor" del lote.
     if formula_tipo == "proporcional_inversa":
         if baja_pct <= 0:
             return 0.0
-        # Si tu baja es la mayor (== max), te llevas puntos_max
         ratio = min(1.0, baja_pct / baja_max_observada_pct)
         return round(puntos_max * ratio, 2)
 
-    # Lineal con umbral de saciedad: por encima del umbral los puntos no suben.
     if formula_tipo == "lineal_con_saciedad":
         umbral = umbral_saciedad_pct or baja_max_observada_pct
         if umbral <= 0:
@@ -111,9 +134,6 @@ def calcular_puntos(
         ratio = min(1.0, max(0.0, baja_pct / umbral))
         return round(puntos_max * ratio, 2)
 
-    # Cuadrática: penaliza más fuerte las bajas medias y premia los extremos
-    # (formato P = Pmax * (baja/max)^2 — variante común para incentivar
-    # bajas agresivas pero no temerarias).
     if formula_tipo == "cuadratica":
         if baja_max_observada_pct <= 0:
             return 0.0
@@ -135,12 +155,7 @@ def calcular(
     ofertes_esperadas: float | None = None,
     temeraria_threshold_override: float | None = None,
 ) -> CalculoResultado:
-    """Cálculo en vivo a partir de un % de baja.
-
-    Devuelve importe ofertado, riesgo temerario, comparativa con baja
-    media histórica y estimación de puntos económicos. NO persiste —
-    se llama en cada cambio del slider del frontend.
-    """
+    """Cálculo en vivo a partir de un % de baja."""
     presupuesto_base = max(0.0, float(presupuesto_base))
     baja_pct = max(0.0, float(baja_pct))
 
@@ -156,9 +171,8 @@ def calcular(
         else None
     )
 
-    # Threshold temeraria: si el PCAP lo dice explícito, lo usamos; si no,
-    # estimación ex-ante con histórico.
     temeraria: TemerariaEstimate | None = None
+    threshold: float | None
     if temeraria_threshold_override is not None:
         threshold = float(temeraria_threshold_override)
     else:
@@ -166,32 +180,42 @@ def calcular(
             ofertes_esperadas=ofertes_esperadas,
             baja_media_historica=baja_media_historica_pct,
         )
-        threshold = temeraria.threshold_pct
+        threshold = temeraria.threshold_pct if temeraria is not None else None
 
-    entra_temeraria = baja_pct >= threshold
-
-    # Nivel de riesgo: 3 zonas
-    margen = threshold - baja_pct
-    if entra_temeraria:
-        nivel: Literal["seguro", "atencion", "temerario"] = "temerario"
+    if threshold is None:
+        # Sin base para estimar el umbral. No inventamos: marcamos como no
+        # estimable y dejamos que el usuario lo valore con prudencia.
+        nivel: NivelRiesgo = "no_estimable"
+        entra_temeraria = False
         nota = (
-            f"La baja propuesta ({baja_pct:.1f}%) iguala o supera el umbral "
-            f"de baja anormalmente baja estimado ({threshold:.1f}%). Si "
-            "presentas esta oferta el órgano puede pedirte justificación o "
-            "rechazarla."
-        )
-    elif margen <= 2.0:
-        nivel = "atencion"
-        nota = (
-            f"Estás a {margen:.1f} pp del umbral temerario "
-            f"({threshold:.1f}%). Hay riesgo razonable de tener que justificar."
+            "No hay base para estimar el umbral temerario ex-ante (se necesita "
+            "número esperado de ofertas o media histórica de bajas en el "
+            "órgano). No podemos valorar el riesgo LCSP 149 hasta tener más "
+            "datos."
         )
     else:
-        nivel = "seguro"
-        nota = (
-            f"La baja queda {margen:.1f} pp por debajo del umbral temerario "
-            f"({threshold:.1f}%). Margen de seguridad cómodo."
-        )
+        entra_temeraria = baja_pct >= threshold
+        margen = threshold - baja_pct
+        if entra_temeraria:
+            nivel = "temerario"
+            nota = (
+                f"La baja propuesta ({baja_pct:.1f}%) iguala o supera el umbral "
+                f"de baja anormalmente baja estimado ({threshold:.1f}%). Si "
+                "presentas esta oferta el órgano puede pedirte justificación o "
+                "rechazarla."
+            )
+        elif margen <= 2.0:
+            nivel = "atencion"
+            nota = (
+                f"Estás a {margen:.1f} pp del umbral temerario "
+                f"({threshold:.1f}%). Hay riesgo razonable de tener que justificar."
+            )
+        else:
+            nivel = "seguro"
+            nota = (
+                f"La baja queda {margen:.1f} pp por debajo del umbral temerario "
+                f"({threshold:.1f}%). Margen de seguridad cómodo."
+            )
 
     diff = (
         round(baja_pct - baja_media_historica_pct, 2)
@@ -199,10 +223,6 @@ def calcular(
         else None
     )
 
-    # Puntos estimados — comparamos contra la propia baja como mejor del lote
-    # (caso más optimista) y como baja media histórica (caso esperado).
-    # Para el "estimado por defecto" usamos baja media histórica si está,
-    # sino la propia baja.
     referencia_baja = baja_media_historica_pct or baja_pct
     puntos = calcular_puntos(
         formula_tipo=formula_tipo,
@@ -226,6 +246,146 @@ def calcular(
     )
 
 
+# ─── Threshold temerario desde el extracto del PCAP ──────────────────────────
+
+# Patrones aceptados — sólo expresiones unívocas. Si la cláusula es ambigua
+# preferimos None y dejar que LCSP/IA decidan, antes que inventar.
+#   (a) "X% sobre el presupuesto"            → threshold absoluto = X
+#   (b) "X puntos / pp / percentuales sobre la media" → threshold = media + X
+#   (c) "media + X" / "mitjana + X"          → threshold = media + X
+# DELIBERADAMENTE NO aceptamos "X% sobre la media" — ambiguo (puede ser
+# pp o porcentaje del propio valor). Si el PCAP es claro lo dirá con "puntos".
+_RE_PCT_SOBRE_PRESUPUESTO = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*%\s*(?:sobre|de|s/?)\s*(?:el\s+|la\s+|l['']?\s*)?"
+    r"(?:presupost|pressupost|presupuesto|importe|licitaci[oó]n)",
+    re.IGNORECASE,
+)
+_RE_PUNTOS_SOBRE_MEDIA = re.compile(
+    r"(\d+(?:[.,]\d+)?)"
+    r"\s*(?:p\.?p\.?|punt(?:o|os|s)?(?:\s+percentual(?:s|es)?)?|percentual(?:s|es)?)"
+    r"[^.\n]{0,40}?(?:media|mitjana|mitja)",
+    re.IGNORECASE,
+)
+_RE_MEDIA_MAS_X = re.compile(
+    r"(?:media|mitjana|mitja)\s*\+\s*(\d+(?:[.,]\d+)?)",
+    re.IGNORECASE,
+)
+
+
+def extraer_threshold_pcap(
+    extracto: str | None,
+    baja_media_historica: float | None,
+) -> tuple[float, str] | None:
+    """Intenta extraer un threshold temerario numérico del extracto del PCAP.
+
+    Sólo devuelve un valor cuando el patrón es inequívoco. Para patrones
+    relativos a la media requiere `baja_media_historica`. Si la cláusula es
+    ambigua o no matchea, devuelve None y el motor cae a LCSP — preferimos
+    silencio a un número fabricado.
+    """
+    if not extracto:
+        return None
+    s = str(extracto)
+
+    m = _RE_PCT_SOBRE_PRESUPUESTO.search(s)
+    if m:
+        pct = float(m.group(1).replace(",", "."))
+        if 0 < pct < 100:
+            return pct, f"PCAP fija temeraria en {pct:.1f}% sobre presupuesto base"
+
+    if baja_media_historica is not None:
+        for regex in (_RE_PUNTOS_SOBRE_MEDIA, _RE_MEDIA_MAS_X):
+            m = regex.search(s)
+            if m:
+                x = float(m.group(1).replace(",", "."))
+                if 0 < x < 50:
+                    threshold = round(baja_media_historica + x, 2)
+                    return (
+                        threshold,
+                        f"PCAP fija temeraria en media + {x:.1f}pp "
+                        f"(≈ {threshold:.1f}% con histórico actual)",
+                    )
+
+    return None
+
+
+# ─── Recomendador con 3 referencias + reglas multi-factor ────────────────────
+
+
+def _clamp(v: float, *, lo: float = 0.0, hi: float | None = None) -> float:
+    if hi is not None:
+        v = min(v, hi)
+    return max(lo, v)
+
+
+def _importe(presupuesto: float | None, pct: float) -> float | None:
+    if presupuesto is None or presupuesto <= 0:
+        return None
+    return round(presupuesto * (1 - pct / 100.0), 2)
+
+
+def _resolver_threshold(
+    *,
+    temeraria_threshold_override: float | None,
+    baja_temeraria_pct: float | None,
+    baja_temeraria_base: str | None,
+    baja_temeraria_extracto: str | None,
+    baja_media_historica_pct: float | None,
+    ofertes_esperadas: float | None,
+) -> tuple[
+    float | None,
+    ThresholdFuente | None,
+    str | None,
+    Literal["alta", "media", "baja"] | None,
+]:
+    """Devuelve (threshold, fuente, motivo, confianza) según prioridad:
+    override → campo explícito IA → extracto regex → LCSP 149.2.
+
+    Si ninguna fuente proporciona base sólida, devuelve (None, None, None, None).
+    Nunca inventa un valor por defecto.
+    """
+    if temeraria_threshold_override is not None:
+        return (
+            float(temeraria_threshold_override),
+            "pcap",
+            f"Threshold definido manualmente: {temeraria_threshold_override:.1f}%",
+            "alta",
+        )
+
+    # Campo numérico extraído por IA (Paso C). Sólo lo usamos si la base es
+    # absoluta (sobre presupuesto). Para bases relativas (media) la IA no nos
+    # da el pct directamente — caemos a la regex o LCSP.
+    if (
+        baja_temeraria_pct is not None
+        and baja_temeraria_pct > 0
+        and baja_temeraria_base == "presupuesto_base"
+    ):
+        return (
+            float(baja_temeraria_pct),
+            "pcap",
+            (
+                f"PCAP fija temeraria en {baja_temeraria_pct:.1f}% sobre "
+                "presupuesto base (extracción IA)"
+            ),
+            "alta",
+        )
+
+    extraido = extraer_threshold_pcap(
+        baja_temeraria_extracto, baja_media_historica_pct
+    )
+    if extraido is not None:
+        threshold, motivo = extraido
+        return threshold, "pcap", motivo, "alta"
+
+    t = estimar_baja_temeraria(
+        ofertes_esperadas=ofertes_esperadas,
+        baja_media_historica=baja_media_historica_pct,
+    )
+    if t is None:
+        return None, None, None, None
+    return t.threshold_pct, "lcsp_149", t.metodo, t.confianza  # type: ignore[return-value]
+
+
 def recomendar_baja(
     *,
     formula_tipo: str | None,
@@ -233,118 +393,438 @@ def recomendar_baja(
     ofertes_esperadas: float | None,
     umbral_saciedad_pct: float | None = None,
     temeraria_threshold_override: float | None = None,
+    baja_mediana_historica_pct: float | None = None,
+    baja_p90_historica_pct: float | None = None,
+    n_obs_historico: int | None = None,
+    pct_criterios_objetivos: float | None = None,
+    baja_temeraria_extracto: str | None = None,
+    baja_temeraria_pct: float | None = None,
+    baja_temeraria_base: str | None = None,
+    presupuesto_base: float | None = None,
 ) -> Recomendacion:
-    """Devuelve un rango óptimo y un % sugerido para maximizar puntos
-    económicos sin entrar en temeraria.
-    """
-    # Threshold de temeraria
-    if temeraria_threshold_override is not None:
-        threshold = float(temeraria_threshold_override)
-        confianza_temer = "alta"
-    else:
-        t = estimar_baja_temeraria(
-            ofertes_esperadas=ofertes_esperadas,
-            baja_media_historica=baja_media_historica_pct,
-        )
-        threshold = t.threshold_pct
-        confianza_temer = t.confianza
+    """Recomendación multi-referencia para la oferta económica.
 
-    # Sin histórico ni saciedad → recomendación blanda
-    if baja_media_historica_pct is None and umbral_saciedad_pct is None:
+    Devuelve una `Recomendacion` con:
+      - 3 referencias (conservadora=mediana, competitiva=p90, saciedad
+        si la fórmula la tiene, techo_legal)
+      - default elegido por reglas multi-factor (peso del precio,
+        n_obs, fórmula, caso conflicto mediana>temeraria)
+      - razonamiento + lista de advertencias
+      - threshold temerario con su fuente (pcap | lcsp_149 | fallback)
+
+    Mantiene compat con campos legacy `rango_optimo_min_pct`/`rango_optimo_max_pct`
+    para no romper el frontend antes del PR del slider con marks.
+    """
+    threshold, threshold_fuente, threshold_motivo, confianza_threshold = (
+        _resolver_threshold(
+            temeraria_threshold_override=temeraria_threshold_override,
+            baja_temeraria_pct=baja_temeraria_pct,
+            baja_temeraria_base=baja_temeraria_base,
+            baja_temeraria_extracto=baja_temeraria_extracto,
+            baja_media_historica_pct=baja_media_historica_pct,
+            ofertes_esperadas=ofertes_esperadas,
+        )
+    )
+    techo_seguro: float | None = (
+        max(0.0, threshold - _MARGEN_SEGURIDAD_PP)
+        if threshold is not None
+        else None
+    )
+
+    advertencias: list[str] = []
+    referencias: list[PuntoReferencia] = []
+
+    # Anclas históricas — la mediana es la ancla; sin ella, no hay base
+    # estadística. NO caemos al avg para disimular ausencia de datos.
+    mediana = baja_mediana_historica_pct
+    n_obs = n_obs_historico or 0
+    p90_fiable = (
+        baja_p90_historica_pct
+        if baja_p90_historica_pct is not None and n_obs >= _MIN_N_OBS_P90_FIABLE
+        else None
+    )
+
+    sin_historico = mediana is None
+    tiene_saciedad = (
+        umbral_saciedad_pct is not None and umbral_saciedad_pct > 0
+    )
+
+    # ── Caso especial: sin histórico ni saciedad ──────────────────────────
+    if sin_historico and not tiene_saciedad:
+        if threshold is not None and techo_seguro is not None:
+            referencias.append(
+                PuntoReferencia(
+                    label="techo_legal",
+                    pct=round(techo_seguro, 2),
+                    importe=_importe(presupuesto_base, techo_seguro),
+                    es_default=False,
+                    es_temerario=False,
+                    descripcion=(
+                        f"Justo bajo el umbral temerario ({threshold:.1f}%). "
+                        "Sólo elegir aquí con justificación de costes preparada."
+                    ),
+                )
+            )
+            razonamiento = (
+                "Sin histórico del órgano y sin umbral de saciedad declarado. "
+                "Decisión a criterio del licitador. El umbral temerario "
+                f"estimado es {threshold:.1f}%."
+            )
+        else:
+            razonamiento = (
+                "Sin histórico del órgano, sin umbral de saciedad, y sin base "
+                "para estimar el umbral temerario ex-ante (LCSP 149.2 requiere "
+                "número esperado de ofertas o media histórica). Decisión a "
+                "criterio del licitador."
+            )
         return Recomendacion(
+            pct_sugerido=None,
+            pct_sugerido_label=None,
+            referencias=referencias,
+            techo_temerario_pct=(
+                round(threshold, 2) if threshold is not None else None
+            ),
+            techo_temerario_fuente=threshold_fuente,
+            peso_precio_pct=pct_criterios_objetivos,
+            razonamiento=razonamiento,
+            advertencias=advertencias,
+            confianza="ninguna",
             rango_optimo_min_pct=None,
             rango_optimo_max_pct=None,
-            pct_sugerido=None,
-            razonamiento=(
-                "Sin histórico suficiente del órgano para esta categoría. "
-                "Decisión a criterio del licitador. El umbral temerario "
-                f"estimado es {threshold:.1f}% — no superarlo."
-            ),
-            confianza="ninguna",
         )
 
-    margen_seguridad = 2.0  # pp de margen al threshold temerario
-    techo_seguro = max(0.0, threshold - margen_seguridad)
-
-    # Si hay umbral de saciedad → óptimo es justo en el umbral, siempre clampado
-    # bajo el techo seguro
-    if umbral_saciedad_pct is not None and umbral_saciedad_pct > 0:
-        sugerido = max(0.0, min(umbral_saciedad_pct, techo_seguro))
-        return Recomendacion(
-            rango_optimo_min_pct=round(max(sugerido - 1.0, 0.0), 2),
-            rango_optimo_max_pct=round(sugerido, 2),
-            pct_sugerido=round(sugerido, 2),
-            razonamiento=(
-                f"El PCAP fija un umbral de saciedad en {umbral_saciedad_pct:.1f}%. "
-                "Por encima de ese punto los puntos económicos no crecen; "
-                "por debajo, sí. La oferta óptima es exactamente el umbral, "
-                f"siempre que quede bajo el threshold temerario ({threshold:.1f}%)."
-            ),
-            confianza="alta" if confianza_temer == "alta" else "media",
+    # ── Construir las referencias disponibles ─────────────────────────────
+    # CONSERVADORA — sólo cuando tenemos mediana real.
+    if mediana is not None:
+        pct_cons = (
+            _clamp(mediana, hi=techo_seguro)
+            if techo_seguro is not None
+            else mediana
+        )
+        es_temerario_cons = (
+            techo_seguro is not None and mediana > techo_seguro
+        )
+        descripcion_cons = (
+            f"Mediana histórica del órgano. El 50% de los adjudicatarios "
+            f"ganaron con bajas iguales o menores."
+        )
+        if es_temerario_cons:
+            descripcion_cons = (
+                f"Mediana histórica ({mediana:.1f}%) supera el umbral temerario; "
+                f"clampada a {pct_cons:.1f}%."
+            )
+        referencias.append(
+            PuntoReferencia(
+                label="conservadora",
+                pct=round(pct_cons, 2),
+                importe=_importe(presupuesto_base, pct_cons),
+                es_default=False,
+                es_temerario=es_temerario_cons,
+                descripcion=descripcion_cons,
+            )
         )
 
-    media = baja_media_historica_pct or 0.0
-    confianza_final: Literal["alta", "media", "baja", "ninguna"] = (
-        "alta" if confianza_temer == "alta" else "media"
+    # COMPETITIVA — sólo si tenemos P90 fiable. Sin él, no inventamos
+    # mediana+2pp; preferimos no mostrar la referencia.
+    if p90_fiable is not None:
+        pct_comp_raw = p90_fiable
+        pct_comp = (
+            _clamp(pct_comp_raw, hi=techo_seguro)
+            if techo_seguro is not None
+            else pct_comp_raw
+        )
+        es_temerario_comp = (
+            techo_seguro is not None and pct_comp_raw > techo_seguro
+        )
+        referencias.append(
+            PuntoReferencia(
+                label="competitiva",
+                pct=round(pct_comp, 2),
+                importe=_importe(presupuesto_base, pct_comp),
+                es_default=False,
+                es_temerario=es_temerario_comp,
+                descripcion=(
+                    "P90 histórico — sólo el 10% de adjudicatarios ganaron "
+                    "con bajas mayores. Diferenciación sin entrar en temeraria."
+                ),
+            )
+        )
+
+    # SACIEDAD — si la fórmula lo declara.
+    if tiene_saciedad:
+        pct_sac_raw = float(umbral_saciedad_pct or 0)
+        pct_sac = (
+            _clamp(pct_sac_raw, hi=techo_seguro)
+            if techo_seguro is not None
+            else pct_sac_raw
+        )
+        es_temerario_sac = (
+            techo_seguro is not None and pct_sac_raw > techo_seguro
+        )
+        descripcion_sac = (
+            f"Umbral de saciedad del PCAP ({umbral_saciedad_pct:.1f}%). "
+            "Por encima los puntos económicos no crecen."
+        )
+        if es_temerario_sac:
+            descripcion_sac = (
+                f"Umbral de saciedad ({umbral_saciedad_pct:.1f}%) supera el "
+                f"techo temerario; clampado a {pct_sac:.1f}%."
+            )
+        referencias.append(
+            PuntoReferencia(
+                label="saciedad",
+                pct=round(pct_sac, 2),
+                importe=_importe(presupuesto_base, pct_sac),
+                es_default=False,
+                es_temerario=es_temerario_sac,
+                descripcion=descripcion_sac,
+            )
+        )
+
+    # TECHO LEGAL — sólo si conocemos el threshold.
+    if threshold is not None and techo_seguro is not None:
+        referencias.append(
+            PuntoReferencia(
+                label="techo_legal",
+                pct=round(techo_seguro, 2),
+                importe=_importe(presupuesto_base, techo_seguro),
+                es_default=False,
+                es_temerario=False,
+                descripcion=(
+                    f"Margen de seguridad ({_MARGEN_SEGURIDAD_PP:.0f} pp) "
+                    f"bajo el umbral temerario ({threshold:.1f}%, "
+                    f"{threshold_motivo})."
+                ),
+            )
+        )
+
+    # ── Elegir el default por reglas (en orden de prioridad) ──────────────
+    default_label, motivo_default, confianza_rec = _elegir_default(
+        formula_tipo=formula_tipo,
+        mediana=mediana,
+        techo_seguro=techo_seguro,
+        threshold=threshold,
+        n_obs=n_obs,
+        p90_fiable=p90_fiable,
+        peso_precio_pct=pct_criterios_objetivos,
+        tiene_saciedad=tiene_saciedad,
+        confianza_threshold=confianza_threshold,
+        advertencias=advertencias,
     )
 
-    # Caso conflictivo: la baja media histórica está pegada al techo seguro
-    # (no queda hueco para diferenciarse). Suele pasar cuando la regla rígida
-    # LCSP (149.2.a/b con n=1 ó 2) da un threshold bajo (25/20%) que choca con
-    # un histórico alto. Pegamos al techo seguro y avisamos que el umbral
-    # rígido es muy restrictivo.
-    if media + 1.0 >= techo_seguro:
-        sugerido = techo_seguro
-        rango_max_v = techo_seguro
-        rango_min_v = max(min(media - 2.0, rango_max_v - 1.0), 0.0)
-        razonamiento = (
-            f"La baja media histórica del órgano ({media:.1f}%) iguala o supera "
-            f"el umbral temerario estimado ({threshold:.1f}%). En este caso la "
-            "regla rígida LCSP es más restrictiva que el comportamiento real "
-            f"del órgano. Sugerencia: pegarse al umbral con {margen_seguridad:.0f} pp "
-            f"de margen ({sugerido:.1f}%) y preparar justificación de costes "
-            "por si la mesa pide explicación."
+    # ── Marcar default y devolver ─────────────────────────────────────────
+    referencias = [
+        PuntoReferencia(
+            label=r.label,
+            pct=r.pct,
+            importe=r.importe,
+            es_default=(r.label == default_label),
+            es_temerario=r.es_temerario,
+            descripcion=r.descripcion,
         )
-        return Recomendacion(
-            rango_optimo_min_pct=round(rango_min_v, 2),
-            rango_optimo_max_pct=round(rango_max_v, 2),
-            pct_sugerido=round(sugerido, 2),
-            razonamiento=razonamiento,
-            confianza="baja",
-        )
+        for r in referencias
+    ]
+    default_ref = next(
+        (r for r in referencias if r.label == default_label), None
+    )
+    pct_sugerido = default_ref.pct if default_ref else None
 
-    # Lineal y cuadrática: cuanto más baja, más puntos → tirar al techo seguro
-    # Proporcional inversa: idem (la mejor baja se lleva los puntos)
-    if formula_tipo in ("lineal", "cuadratica", "proporcional_inversa"):
-        rango_min = media + 1.0
-        rango_max = techo_seguro
-        sugerido = min((rango_min + rango_max) / 2.0, techo_seguro)
-        razonamiento = (
-            f"La baja media histórica del órgano es {media:.1f}%. "
-            f"Para diferenciarte sin acercarte al umbral temerario "
-            f"({threshold:.1f}%) busca un rango {rango_min:.1f}–{rango_max:.1f}% "
-            "según tu margen. La fórmula del PCAP premia bajas mayores."
-        )
-    else:
-        # Sin fórmula clara: rango conservador en torno a la media, todo
-        # clampado bajo el techo seguro.
-        rango_min = max(media - 1.0, 0.0)
-        rango_max = min(media + 3.0, techo_seguro)
-        sugerido = min(media + 1.5, rango_max)
-        razonamiento = (
-            f"Fórmula no detectada con claridad. Histórico del órgano: "
-            f"{media:.1f}% baja media. Recomendamos un rango cercano "
-            f"({rango_min:.1f}–{rango_max:.1f}%) que se diferencie "
-            "ligeramente de la media sin pasarse."
-        )
+    razonamiento = _construir_razonamiento(
+        default_label=default_label,
+        default_ref=default_ref,
+        motivo_default=motivo_default,
+        threshold=threshold,
+        threshold_fuente=threshold_fuente,
+        peso_precio_pct=pct_criterios_objetivos,
+    )
+
+    # Compat legacy: rango_min = conservadora, rango_max = default.
+    cons_ref = next((r for r in referencias if r.label == "conservadora"), None)
+    rango_min = cons_ref.pct if cons_ref else None
+    rango_max = pct_sugerido
+    if rango_min is not None and rango_max is not None and rango_min > rango_max:
+        rango_min, rango_max = rango_max, rango_min
 
     return Recomendacion(
-        rango_optimo_min_pct=round(rango_min, 2),
-        rango_optimo_max_pct=round(rango_max, 2),
-        pct_sugerido=round(sugerido, 2),
+        pct_sugerido=pct_sugerido,
+        pct_sugerido_label=default_label,
+        referencias=referencias,
+        techo_temerario_pct=(
+            round(threshold, 2) if threshold is not None else None
+        ),
+        techo_temerario_fuente=threshold_fuente,
+        peso_precio_pct=pct_criterios_objetivos,
         razonamiento=razonamiento,
-        confianza=confianza_final,
+        advertencias=advertencias,
+        confianza=confianza_rec,
+        rango_optimo_min_pct=rango_min,
+        rango_optimo_max_pct=rango_max,
     )
+
+
+def _elegir_default(
+    *,
+    formula_tipo: str | None,
+    mediana: float | None,
+    techo_seguro: float | None,
+    threshold: float | None,
+    n_obs: int,
+    p90_fiable: float | None,
+    peso_precio_pct: float | None,
+    tiene_saciedad: bool,
+    confianza_threshold: Literal["alta", "media", "baja"] | None,
+    advertencias: list[str],
+) -> tuple[
+    PuntoLabel | None,
+    str,
+    Literal["alta", "media", "baja", "ninguna"],
+]:
+    """Aplica la pirámide de reglas para elegir cuál de las referencias es la
+    sugerencia por defecto. Devuelve (label, motivo, confianza). label=None si
+    no podemos sugerir nada con honestidad (p.ej. la regla decide
+    'conservadora' pero no tenemos mediana real)."""
+    # 1) Caso patológico: mediana > techo_seguro. Sólo aplica si conocemos
+    # ambos. Pegarse al techo y advertir.
+    if (
+        mediana is not None
+        and techo_seguro is not None
+        and threshold is not None
+        and mediana > techo_seguro
+    ):
+        advertencias.append(
+            f"La mediana histórica ({mediana:.1f}%) supera el umbral temerario "
+            f"({threshold:.1f}%). El órgano adjudica habitualmente con bajas "
+            "que LCSP considera anormales — los ganadores justifican costes "
+            "según art. 149.4. Si llegas a este nivel, prepara justificación."
+        )
+        return (
+            "techo_legal",
+            "Mediana histórica supera el umbral temerario; pegarse al techo seguro",
+            "baja",
+        )
+
+    # 2) Peso del precio bajo (memoria técnica decide) → conservador.
+    if (
+        peso_precio_pct is not None
+        and peso_precio_pct < _PESO_PRECIO_BAJO_PCT
+        and mediana is not None
+    ):
+        return (
+            "conservadora",
+            (
+                f"El precio sólo pondera {peso_precio_pct:.0f}% del total — "
+                "la memoria técnica decide la adjudicación, no merece la pena "
+                "comprimir margen."
+            ),
+            _confianza_normal(confianza_threshold),
+        )
+
+    # 3) Histórico insuficiente — sólo si tenemos mediana y faltan obs
+    # para confiar en p90.
+    if (
+        mediana is not None
+        and n_obs < _MIN_N_OBS_P90_FIABLE
+    ):
+        return (
+            "conservadora",
+            f"Histórico limitado ({n_obs} adjudicaciones); ancla en la mediana.",
+            "baja" if confianza_threshold == "baja" else "media",
+        )
+
+    # 4) Fórmula con saciedad declarada → óptimo es el umbral.
+    if formula_tipo == "lineal_con_saciedad" and tiene_saciedad:
+        return (
+            "saciedad",
+            (
+                "Fórmula con umbral de saciedad: por encima los puntos no "
+                "crecen, así que el óptimo es exactamente el umbral."
+            ),
+            _confianza_normal(confianza_threshold),
+        )
+
+    # 5) Fórmula que premia bajas + peso suficiente + p90 fiable → competitiva.
+    # Si no tenemos p90 (n_obs<10), no inventamos; caemos a (6).
+    if (
+        formula_tipo in ("lineal", "cuadratica", "proporcional_inversa")
+        and p90_fiable is not None
+        and (
+            peso_precio_pct is None
+            or peso_precio_pct >= _PESO_PRECIO_BAJO_PCT
+        )
+    ):
+        return (
+            "competitiva",
+            (
+                "La fórmula premia bajas mayores y el precio pondera lo "
+                "suficiente. El P90 supera al 90% de adjudicatarios sin "
+                "entrar en temeraria."
+            ),
+            _confianza_normal(confianza_threshold),
+        )
+
+    # 6) Fallback: conservadora si tenemos mediana, si no, sin sugerencia.
+    if mediana is not None:
+        return (
+            "conservadora",
+            "Fórmula no estándar o caso no cubierto; ancla en lo que históricamente gana.",
+            _confianza_normal(confianza_threshold),
+        )
+
+    return (
+        None,
+        "No hay base estadística suficiente para sugerir un punto sin inventar.",
+        "ninguna",
+    )
+
+
+def _confianza_normal(
+    confianza_threshold: Literal["alta", "media", "baja"] | None,
+) -> Literal["alta", "media", "baja"]:
+    if confianza_threshold is None:
+        return "baja"
+    return "alta" if confianza_threshold == "alta" else "media"
+
+
+def _construir_razonamiento(
+    *,
+    default_label: PuntoLabel | None,
+    default_ref: PuntoReferencia | None,
+    motivo_default: str,
+    threshold: float | None,
+    threshold_fuente: ThresholdFuente | None,
+    peso_precio_pct: float | None,
+) -> str:
+    if default_ref is None or default_label is None:
+        return motivo_default
+
+    ancla = (
+        f"Sugerencia: {default_ref.pct:.1f}% ({_label_human(default_label)}). "
+    )
+    motivacion = motivo_default + " "
+    contexto = ""
+    if threshold is not None and threshold_fuente is not None:
+        fuente_txt = {
+            "pcap": "definido por el PCAP",
+            "lcsp_149": "estimado por LCSP 149.2",
+            "fallback": "fallback conservador (sin histórico)",
+        }[threshold_fuente]
+        contexto = f"Umbral temerario {fuente_txt} en {threshold:.1f}%. "
+    else:
+        contexto = "Umbral temerario no estimable ex-ante. "
+    cierre = ""
+    if peso_precio_pct is not None:
+        cierre = f"Precio pondera {peso_precio_pct:.0f}%."
+
+    return (ancla + motivacion + contexto + cierre).strip()
+
+
+def _label_human(label: PuntoLabel) -> str:
+    return {
+        "conservadora": "anclada en la mediana",
+        "competitiva": "anclada en el P90",
+        "saciedad": "umbral de saciedad",
+        "techo_legal": "techo seguro",
+    }[label]
 
 
 def to_float(v: Decimal | float | int | None) -> float | None:

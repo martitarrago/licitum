@@ -78,12 +78,28 @@ class CalculoOut(BaseModel):
     nota_riesgo: str
 
 
+class PuntoReferenciaOut(BaseModel):
+    label: str
+    pct: float
+    importe: float | None = None
+    es_default: bool
+    es_temerario: bool
+    descripcion: str
+
+
 class RecomendacionOut(BaseModel):
+    pct_sugerido: float | None = None
+    pct_sugerido_label: str | None = None
+    referencias: list[PuntoReferenciaOut] = []
+    techo_temerario_pct: float | None = None
+    techo_temerario_fuente: str | None = None
+    peso_precio_pct: float | None = None
+    razonamiento: str
+    advertencias: list[str] = []
+    confianza: str
+    # Legacy — kept for frontend compat hasta el PR del slider con marks.
     rango_optimo_min_pct: float | None = None
     rango_optimo_max_pct: float | None = None
-    pct_sugerido: float | None = None
-    razonamiento: str
-    confianza: str
 
 
 class IntelOut(BaseModel):
@@ -108,7 +124,9 @@ class ContextoOut(BaseModel):
     umbral_saciedad_pct: float | None
     plazo_ejecucion_meses: int | None
     intel: IntelOut
-    temeraria_estimada: TemerariaInfo
+    # None cuando no hay base ex-ante para estimar el threshold (ni ofertes
+    # esperadas ni media histórica). Ver lcsp.estimar_baja_temeraria.
+    temeraria_estimada: TemerariaInfo | None = None
     recomendacion: RecomendacionOut
 
 
@@ -199,22 +217,14 @@ async def _intel_baja(
     }
 
 
-# Mínimo de observaciones históricas para fiarnos de `ofertes_avg` al elegir
-# qué regla LCSP 149.2 aplicar. Por debajo de este umbral, asumimos n>=4
-# (regla 149.2.d, threshold = media + 10pp) que es el caso empírico habitual
-# en obra pública. Evita que `ofertes_avg=2.25` con 4 muestras dispare la
-# regla rígida 149.2.b (threshold 20%).
-_MIN_N_OBS_OFERTES_FIABLE = 10
-
-
 def _ofertes_esperadas_fiables(intel_dict: dict[str, Any]) -> float | None:
-    """Devuelve `ofertes_avg` solo si hay observaciones suficientes; si no,
-    devuelve 4.0 para que el motor caiga en LCSP 149.2.d (media + 10pp)."""
-    n_obs = intel_dict.get("n_obs") or 0
-    if n_obs >= _MIN_N_OBS_OFERTES_FIABLE:
-        return intel_dict.get("ofertes_avg")
-    if intel_dict.get("baja_avg_pct") is not None:
-        return 4.0
+    """Devuelve el ofertes_avg histórico real, sin fabricar.
+
+    Usa el dato observado tal cual; el motor LCSP aplica el caso 149.2 que
+    corresponde según el n redondeado. Si la muestra es pequeña, la confianza
+    se propaga abajo (la mview ya tiene n_obs); pero NO inventamos un n
+    "típico" de obra pública porque eso era una distorsión.
+    """
     return intel_dict.get("ofertes_avg")
 
 
@@ -233,6 +243,8 @@ def _extract_pliego_data(
         "pct_criterios_objetivos": to_float(d.get("pct_criterios_objetivos")),
         "pct_criterios_subjetivos": to_float(d.get("pct_criterios_subjetivos")),
         "baja_temeraria_extracto": d.get("baja_temeraria_extracto"),
+        "baja_temeraria_pct": to_float(d.get("baja_temeraria_pct")),
+        "baja_temeraria_base": d.get("baja_temeraria_base"),
         "umbral_saciedad_pct": to_float(d.get("umbral_saciedad_pct")),
         "plazo_ejecucion_meses": d.get("plazo_ejecucion_meses"),
     }
@@ -267,25 +279,36 @@ async def contexto(
     intel_dict = await _intel_baja(db, licitacion.organismo_id, cpv4)
     ofertes_esperadas = _ofertes_esperadas_fiables(intel_dict)
 
-    # Estimación temeraria (fallback ex-ante)
+    # Estimación temeraria ex-ante. None cuando no hay base (sin ofertes
+    # esperadas y sin media histórica). NO inventamos un fallback.
     temer = estimar_baja_temeraria(
         ofertes_esperadas=ofertes_esperadas,
         baja_media_historica=intel_dict.get("baja_avg_pct"),
     )
 
+    presupuesto = pliego.get("presupuesto_base") or to_float(
+        licitacion.importe_licitacion
+    )
     rec = recomendar_baja(
         formula_tipo=pliego.get("formula_tipo"),
         baja_media_historica_pct=intel_dict.get("baja_avg_pct"),
         ofertes_esperadas=ofertes_esperadas,
         umbral_saciedad_pct=pliego.get("umbral_saciedad_pct"),
+        baja_mediana_historica_pct=intel_dict.get("baja_median_pct"),
+        baja_p90_historica_pct=intel_dict.get("baja_p90_pct"),
+        n_obs_historico=intel_dict.get("n_obs"),
+        pct_criterios_objetivos=pliego.get("pct_criterios_objetivos"),
+        baja_temeraria_extracto=pliego.get("baja_temeraria_extracto"),
+        baja_temeraria_pct=pliego.get("baja_temeraria_pct"),
+        baja_temeraria_base=pliego.get("baja_temeraria_base"),
+        presupuesto_base=presupuesto,
     )
 
     return ContextoOut(
         expediente=licitacion.expediente,
         titulo=licitacion.titulo,
         organismo=licitacion.organismo,
-        presupuesto_base=pliego.get("presupuesto_base")
-        or to_float(licitacion.importe_licitacion),
+        presupuesto_base=presupuesto,
         iva_pct=pliego.get("iva_pct"),
         formula_tipo=pliego.get("formula_tipo"),
         formula_extracto=pliego.get("formula_extracto"),
@@ -297,18 +320,38 @@ async def contexto(
         intel=IntelOut(**intel_dict)
         if intel_dict.get("n_obs")
         else IntelOut(n_obs=0),
-        temeraria_estimada=TemerariaInfo(
-            threshold_pct=temer.threshold_pct,
-            metodo=temer.metodo,
-            confianza=temer.confianza,
-            n_ofertas_supuesto=temer.n_ofertas_supuesto,
+        temeraria_estimada=(
+            TemerariaInfo(
+                threshold_pct=temer.threshold_pct,
+                metodo=temer.metodo,
+                confianza=temer.confianza,
+                n_ofertas_supuesto=temer.n_ofertas_supuesto,
+            )
+            if temer is not None
+            else None
         ),
         recomendacion=RecomendacionOut(
+            pct_sugerido=rec.pct_sugerido,
+            pct_sugerido_label=rec.pct_sugerido_label,
+            referencias=[
+                PuntoReferenciaOut(
+                    label=r.label,
+                    pct=r.pct,
+                    importe=r.importe,
+                    es_default=r.es_default,
+                    es_temerario=r.es_temerario,
+                    descripcion=r.descripcion,
+                )
+                for r in rec.referencias
+            ],
+            techo_temerario_pct=rec.techo_temerario_pct,
+            techo_temerario_fuente=rec.techo_temerario_fuente,
+            peso_precio_pct=rec.peso_precio_pct,
+            razonamiento=rec.razonamiento,
+            advertencias=rec.advertencias,
+            confianza=rec.confianza,
             rango_optimo_min_pct=rec.rango_optimo_min_pct,
             rango_optimo_max_pct=rec.rango_optimo_max_pct,
-            pct_sugerido=rec.pct_sugerido,
-            razonamiento=rec.razonamiento,
-            confianza=rec.confianza,
         ),
     )
 

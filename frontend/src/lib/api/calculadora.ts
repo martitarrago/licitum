@@ -15,12 +15,36 @@ export interface IntelInfo {
   ofertes_avg?: number | null;
 }
 
+export type PuntoLabel =
+  | "conservadora"
+  | "competitiva"
+  | "saciedad"
+  | "techo_legal";
+
+export type ThresholdFuente = "pcap" | "lcsp_149" | "fallback";
+
+export interface PuntoReferencia {
+  label: PuntoLabel;
+  pct: number;
+  importe: number | null;
+  es_default: boolean;
+  es_temerario: boolean;
+  descripcion: string;
+}
+
 export interface RecomendacionInfo {
+  pct_sugerido: number | null;
+  pct_sugerido_label: PuntoLabel | null;
+  referencias: PuntoReferencia[];
+  techo_temerario_pct: number | null;
+  techo_temerario_fuente: ThresholdFuente | null;
+  peso_precio_pct: number | null;
+  razonamiento: string;
+  advertencias: string[];
+  confianza: "alta" | "media" | "baja" | "ninguna";
+  // Legacy — mantenido para compat hasta migrar todo el panel.
   rango_optimo_min_pct: number | null;
   rango_optimo_max_pct: number | null;
-  pct_sugerido: number | null;
-  razonamiento: string;
-  confianza: "alta" | "media" | "baja" | "ninguna";
 }
 
 export interface ContextoCalculadora {
@@ -37,7 +61,8 @@ export interface ContextoCalculadora {
   umbral_saciedad_pct: number | null;
   plazo_ejecucion_meses: number | null;
   intel: IntelInfo;
-  temeraria_estimada: TemerariaInfo;
+  // null cuando no hay base ex-ante para estimar (sin ofertes, sin media).
+  temeraria_estimada: TemerariaInfo | null;
   recomendacion: RecomendacionInfo;
 }
 
@@ -50,7 +75,7 @@ export interface CalculoResultado {
   diff_vs_baja_media: number | null;
   entra_en_temeraria: boolean;
   temeraria: TemerariaInfo | null;
-  nivel_riesgo: "seguro" | "atencion" | "temerario";
+  nivel_riesgo: "seguro" | "atencion" | "temerario" | "no_estimable";
   nota_riesgo: string;
 }
 

@@ -32,22 +32,22 @@ class TemerariaEstimate:
 def estimar_baja_temeraria(
     ofertes_esperadas: float | None,
     baja_media_historica: float | None = None,
-) -> TemerariaEstimate:
-    """Estima el threshold temerario aplicando LCSP art. 149.2.
+) -> TemerariaEstimate | None:
+    """Estima el threshold temerario aplicando LCSP art. 149.2 ex-ante.
 
-    Casos cubiertos:
-      n=1  → temeraria si baja > 25% sobre presupuesto base (149.2.a)
-      n=2  → temeraria si baja > 20% sobre la otra (149.2.b)
-      n=3  → temeraria si baja > media + 10 pp, descartando extremos (149.2.c)
-      n≥4  → temeraria si baja > media + 10 pp (149.2.d)
+    Devuelve `None` cuando no hay base suficiente para calcular un valor sin
+    inventar. Casos:
+      n=1  → 25% sobre presupuesto base (149.2.a)                 [literal LCSP]
+      n=2  → 20% sobre la otra (149.2.b)                          [literal LCSP]
+      n=3  → media + 10 pp, descartando extremos (149.2.c)        [literal LCSP, requiere media]
+      n≥4  → media + 10 pp (149.2.d)                              [literal LCSP, requiere media]
 
-    Cuando n≥3 y disponemos de baja_media_historica, usamos
-    threshold ≈ media_histórica + 10 pp como aproximación ex-ante.
-
-    Si no hay histórico, fallback conservador a 15%.
+    Si n no es estimable (sin ofertes_esperadas) o si n≥3 y no hay media
+    histórica → devolvemos None y el motor lo propaga como "no estimable
+    ex-ante", sin inventar un valor.
     """
     if ofertes_esperadas is None or ofertes_esperadas < 1:
-        ofertes_esperadas = 1.0
+        return None
     n = max(1, round(ofertes_esperadas))
 
     if n == 1:
@@ -65,23 +65,17 @@ def estimar_baja_temeraria(
             confianza="media",
             n_ofertas_supuesto=2,
         )
-    # n ≥ 3
-    if baja_media_historica is not None and baja_media_historica >= 0:
-        threshold = round(baja_media_historica + 10.0, 2)
-        confianza = "alta" if n >= 4 else "media"
-        return TemerariaEstimate(
-            threshold_pct=threshold,
-            metodo=(
-                f"{n} ofertas previstas → temeraria si baja > media + 10pp (LCSP 149.2.{'d' if n>=4 else 'c'}). "
-                f"Aproximación ex-ante con histórico ({baja_media_historica:.1f}% + 10pp)."
-            ),
-            confianza=confianza,
-            n_ofertas_supuesto=n,
-        )
-    # Sin histórico — fallback conservador
+    # n ≥ 3 — la regla LCSP exige la media. Sin histórico, no estimable ex-ante.
+    if baja_media_historica is None or baja_media_historica < 0:
+        return None
+    threshold = round(baja_media_historica + 10.0, 2)
+    confianza = "alta" if n >= 4 else "media"
     return TemerariaEstimate(
-        threshold_pct=15.0,
-        metodo=f"{n} ofertas previstas pero sin histórico de baja → fallback conservador 15%",
-        confianza="baja",
+        threshold_pct=threshold,
+        metodo=(
+            f"{n} ofertas previstas → temeraria si baja > media + 10pp (LCSP 149.2.{'d' if n>=4 else 'c'}). "
+            f"Aproximación ex-ante con histórico ({baja_media_historica:.1f}% + 10pp)."
+        ),
+        confianza=confianza,
         n_ofertas_supuesto=n,
     )

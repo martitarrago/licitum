@@ -161,9 +161,44 @@ PLIEGO_EXTRACTION_TOOL: dict = {
                     "(ofertas anormalmente bajas o desproporcionadas). NUNCA parafrasees."
                 ),
             },
+            "baja_temeraria_pct": {
+                "type": ["number", "null"],
+                "description": (
+                    "Threshold numérico en % cuando el PCAP fija un valor explícito y unívoco "
+                    "(no relativo). Ejemplos: 'baja superior al 20% sobre el presupuesto base' → 20; "
+                    "'baixa anormal superior al 15% s/ pressupost de licitació' → 15. "
+                    "Null si el threshold es relativo a la media de ofertas presentadas, si delega "
+                    "al art. 149 LCSP, o si el PCAP no fija valor numérico."
+                ),
+            },
+            "baja_temeraria_base": {
+                "type": ["string", "null"],
+                "enum": [
+                    "presupuesto_base",
+                    "media_aritmetica",
+                    "media_recortada",
+                    "lcsp_default",
+                    None,
+                ],
+                "description": (
+                    "Sobre qué se calcula el threshold temerario:\n"
+                    "- 'presupuesto_base': % aplicado directamente sobre el pressupost base de licitació.\n"
+                    "- 'media_aritmetica': relativo a la media de las ofertas presentadas (LCSP 149.2.d típico).\n"
+                    "- 'media_recortada': media de ofertas descartando la más alta y más baja (LCSP 149.2.c).\n"
+                    "- 'lcsp_default': el PCAP delega expresamente en el art. 149 LCSP sin precisar valor.\n"
+                    "- null: el PCAP no aborda el tema o es ambiguo."
+                ),
+            },
             "umbral_saciedad_pct": {
                 "type": ["number", "null"],
-                "description": "% de baja a partir del cual la puntuación económica deja de aumentar. Null si no hay.",
+                "description": (
+                    "% de baja a partir del cual la puntuación económica deja de aumentar (techo). "
+                    "Sólo cuando la fórmula expresa numéricamente un tope. Patrones:\n"
+                    "- 'Puntos = Pmax · min(baja/15, 1)' → 15\n"
+                    "- 'A partir del 12% de baja se otorga puntuación máxima' → 12\n"
+                    "- 'Saturación al 10% de baja' → 10\n"
+                    "- Fórmula lineal pura sin tope, cuadrática, o proporcional inversa → null"
+                ),
             },
             "mejoras_descripcion": {
                 "type": ["string", "null"],
@@ -279,6 +314,13 @@ Tu única tarea es llamar a la herramienta guardar_pliego_extraido con los datos
 6. `idioma_detectado`: 'es' o 'ca'. Si dudas, mira el encabezado oficial.
 7. Para fechas, usa formato ISO YYYY-MM-DD. Si solo aparece la fecha sin hora, usa solo la fecha.
 8. Para importes, número decimal sin separadores de miles: '1.234.567,89' → 1234567.89.
+9. `umbral_saciedad_pct`: SOLO cuando la fórmula económica expresa un tope numérico de baja por encima del cual los puntos no crecen. Si la fórmula es lineal pura, cuadrática o proporcional inversa, devuelve null. Pista: la fórmula con saciedad típicamente incluye un `min(...)` o un "hasta el X%" / "fins al X%".
+10. `baja_temeraria_pct` y `baja_temeraria_base` deben ser coherentes con `baja_temeraria_extracto`:
+    - "Es consideraran baixes anormals aquelles superiors al 20% sobre el pressupost base" → pct=20, base="presupuesto_base"
+    - "Bajas que excedan en más de 10 puntos a la media aritmética" → pct=null (relativo), base="media_aritmetica"
+    - "Conforme al art. 149.2 LCSP" → pct=null, base="lcsp_default"
+    - PCAP no aborda el tema → ambos null
+    Si NO encuentras una cláusula clara, devuelve null en ambos. NO mezcles fuentes (no inventes pct si solo hay base, ni viceversa).
 
 ## Glosario rápido catalán → castellano
 
