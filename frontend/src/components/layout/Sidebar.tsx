@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Building2, ChevronsLeft, ChevronsRight, LogOut } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { MODULE_GROUPS, type Module, type SubModule } from "./modules";
+import { logout, useEmpresaActual } from "@/lib/auth";
+import { empresaApi, type Empresa } from "@/lib/api/empresa";
+import { useQuery } from "@tanstack/react-query";
 
 const RAIL_WIDTH = 64; // px — anchura cuando está plegado
 const EXPANDED_WIDTH = 256; // px — anchura cuando está abierto
@@ -323,64 +326,100 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* FOOTER — toggle + empresa demo */}
-      <div
-        className="border-t border-border"
-        onClick={(e) => e.stopPropagation()}
+      {/* FOOTER — toggle + empresa + logout */}
+      <SidebarFooter collapsed={collapsed} toggle={toggle} />
+    </aside>
+  );
+}
+
+function SidebarFooter({
+  collapsed,
+  toggle,
+}: {
+  collapsed: boolean;
+  toggle: () => void;
+}) {
+  const empresaActual = useEmpresaActual();
+  const empresaId = empresaActual.empresaId;
+
+  const { data: empresa } = useQuery<Empresa>({
+    queryKey: ["empresa", empresaId],
+    queryFn: () => empresaApi.get(empresaId),
+    staleTime: 60_000,
+  });
+
+  const empresaNombre = empresa?.nombre ?? "Cargando…";
+  const userEmail = empresaActual.email;
+
+  return (
+    <div className="border-t border-border" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={collapsed ? "Mostrar menú" : "Esconder menú"}
+        title={collapsed ? "Mostrar menú" : "Esconder menú"}
+        className={[
+          "group/toggle flex w-full items-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
+          collapsed ? "justify-center px-2 py-2.5" : "gap-2 px-3 py-2",
+        ].join(" ")}
       >
-        <button
-          type="button"
-          onClick={toggle}
-          aria-label={collapsed ? "Mostrar menú" : "Esconder menú"}
-          title={collapsed ? "Mostrar menú" : "Esconder menú"}
+        {collapsed ? (
+          <ChevronsRight className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />
+        ) : (
+          <>
+            <ChevronsLeft className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />
+            <span className="text-[12px] font-medium">Esconder menú</span>
+          </>
+        )}
+      </button>
+
+      <div className={collapsed ? "px-2 py-2 space-y-1" : "px-3 py-3 space-y-1"}>
+        <div
+          title={collapsed ? empresaNombre : undefined}
           className={[
-            "group/toggle flex w-full items-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
-            collapsed ? "justify-center px-2 py-2.5" : "gap-2 px-3 py-2",
+            "flex w-full items-center rounded-lg text-left",
+            collapsed ? "justify-center px-1 py-1.5" : "gap-3 px-2 py-2",
           ].join(" ")}
         >
-          {collapsed ? (
-            <ChevronsRight className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />
-          ) : (
-            <>
-              <ChevronsLeft className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />
-              <span className="text-[12px] font-medium">Esconder menú</span>
-            </>
+          <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted ring-1 ring-border">
+            <Building2
+              className="h-3.5 w-3.5 text-muted-foreground"
+              aria-hidden="true"
+              strokeWidth={1.75}
+            />
+            <span
+              aria-hidden="true"
+              className="absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full bg-success ring-2 ring-surface-raised"
+            />
+          </span>
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium text-foreground">
+                {empresaNombre}
+              </p>
+              <p className="truncate font-mono text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground/65">
+                {userEmail || "Plan interno · v0.1"}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => logout()}
+          title={collapsed ? "Cerrar sesión" : undefined}
+          aria-label="Cerrar sesión"
+          className={[
+            "group/logout flex w-full items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
+            collapsed ? "justify-center px-2 py-2" : "gap-2 px-2 py-1.5",
+          ].join(" ")}
+        >
+          <LogOut className="h-3.5 w-3.5" aria-hidden="true" strokeWidth={1.75} />
+          {!collapsed && (
+            <span className="text-[12px] font-medium">Cerrar sesión</span>
           )}
         </button>
-
-        <div className={collapsed ? "px-2 py-2" : "px-3 py-3"}>
-          <button
-            type="button"
-            title={collapsed ? "Empresa Demo" : undefined}
-            className={[
-              "group/footer flex w-full items-center rounded-lg text-left transition-colors hover:bg-muted/60",
-              collapsed ? "justify-center px-1 py-1.5" : "gap-3 px-2 py-2",
-            ].join(" ")}
-          >
-            <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted ring-1 ring-border">
-              <Building2
-                className="h-3.5 w-3.5 text-muted-foreground"
-                aria-hidden="true"
-                strokeWidth={1.75}
-              />
-              <span
-                aria-hidden="true"
-                className="absolute -right-0.5 -bottom-0.5 h-2 w-2 rounded-full bg-success ring-2 ring-surface-raised"
-              />
-            </span>
-            {!collapsed && (
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-medium text-foreground">
-                  Empresa Demo
-                </p>
-                <p className="truncate font-mono text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground/65">
-                  Plan interno · v0.1
-                </p>
-              </div>
-            )}
-          </button>
-        </div>
       </div>
-    </aside>
+    </div>
   );
 }

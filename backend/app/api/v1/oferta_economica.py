@@ -24,10 +24,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.intel.scoring.lcsp import estimar_baja_temeraria
 from app.models.empresa import Empresa
@@ -137,7 +138,10 @@ class CalculoIn(BaseModel):
 
 
 class GenerarIn(BaseModel):
-    empresa_id: UUID
+    """`empresa_id` ya no es obligatorio — el backend lo deriva del JWT."""
+
+    model_config = ConfigDict(extra="ignore")
+
     baja_pct: float
 
 
@@ -436,15 +440,16 @@ async def generar(
     expediente: str,
     body: GenerarIn,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> OfertaEconomicaGeneracion:
     licitacion = await _get_licitacion_or_404(db, expediente)
 
     empresa = (
-        await db.execute(select(Empresa).where(Empresa.id == body.empresa_id))
+        await db.execute(select(Empresa).where(Empresa.id == empresa_id))
     ).scalar_one_or_none()
     if empresa is None:
         raise HTTPException(
-            status.HTTP_404_NOT_FOUND, f"Empresa {body.empresa_id} no existe"
+            status.HTTP_404_NOT_FOUND, f"Empresa {empresa_id} no existe"
         )
 
     analisis = (
@@ -524,7 +529,7 @@ async def generar(
     html = render_html(snapshot)
 
     obj = OfertaEconomicaGeneracion(
-        empresa_id=body.empresa_id,
+        empresa_id=empresa_id,
         licitacion_id=licitacion.id,
         expediente=licitacion.expediente,
         presupuesto_base=Decimal(str(presupuesto)),
@@ -552,8 +557,8 @@ async def generar(
 )
 async def listar(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID,
     expediente: str | None = None,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> Sequence[OfertaEconomicaGeneracion]:
     stmt = (
         select(OfertaEconomicaGeneracion)

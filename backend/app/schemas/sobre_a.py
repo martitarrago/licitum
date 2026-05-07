@@ -8,9 +8,13 @@ from pydantic import BaseModel, ConfigDict
 
 
 class SobreAGenerar(BaseModel):
-    """Body de POST /sobre-a/{exp}/generar."""
+    """Body de POST /sobre-a/{exp}/generar.
 
-    empresa_id: uuid.UUID
+    `empresa_id` ya no es obligatorio — el backend lo deriva del JWT.
+    Aceptamos un body vacío `{}` o cualquier campo extra (se ignora).
+    """
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class SobreAListItem(BaseModel):

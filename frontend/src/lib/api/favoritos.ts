@@ -17,28 +17,20 @@ async function readError(res: Response): Promise<string> {
 }
 
 export const favoritosApi = {
-  marcar: async (
-    expediente: string,
-    empresa_id: string,
-  ): Promise<FavoritoState> => {
+  // empresa_id se deriva del JWT en el backend; las firmas reciben el ID
+  // sólo para mantener compatibilidad con los callsites — se ignora.
+  marcar: async (expediente: string, _empresa_id: string): Promise<FavoritoState> => {
     const res = await fetch(
       `${API_BASE}/api/v1/favoritos/${encodeURIComponent(expediente)}`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ empresa_id }),
-      },
+      { method: "PUT" },
     );
     if (!res.ok) throw new Error(await readError(res));
     return res.json();
   },
 
-  quitar: async (
-    expediente: string,
-    empresa_id: string,
-  ): Promise<FavoritoState> => {
+  quitar: async (expediente: string, _empresa_id: string): Promise<FavoritoState> => {
     const res = await fetch(
-      `${API_BASE}/api/v1/favoritos/${encodeURIComponent(expediente)}?empresa_id=${empresa_id}`,
+      `${API_BASE}/api/v1/favoritos/${encodeURIComponent(expediente)}`,
       { method: "DELETE" },
     );
     if (!res.ok) throw new Error(await readError(res));

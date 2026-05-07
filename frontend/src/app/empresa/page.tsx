@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import { empresaApi } from "@/lib/api/empresa";
 import { certificadosApi } from "@/lib/api/certificados";
 import { clasificacionesApi } from "@/lib/api/clasificaciones";
@@ -28,29 +28,30 @@ function nonEmpty(v: string | number | null | undefined): boolean {
 }
 
 export default function EmpresaResumenPage() {
+  const empresaId = useEmpresaId();
   const empresa = useQuery({
-    queryKey: ["empresa", EMPRESA_DEMO_ID],
-    queryFn: () => empresaApi.get(EMPRESA_DEMO_ID),
+    queryKey: ["empresa", empresaId],
+    queryFn: () => empresaApi.get(empresaId),
   });
   const solvencia = useQuery({
-    queryKey: ["resumen-solvencia"],
-    queryFn: () => certificadosApi.resumenSolvencia(EMPRESA_DEMO_ID),
+    queryKey: ["resumen-solvencia", empresaId],
+    queryFn: () => certificadosApi.resumenSolvencia(empresaId),
   });
   const clasif = useQuery({
-    queryKey: ["clasificaciones", EMPRESA_DEMO_ID],
-    queryFn: () => clasificacionesApi.list({ empresa_id: EMPRESA_DEMO_ID }),
+    queryKey: ["clasificaciones", empresaId],
+    queryFn: () => clasificacionesApi.list({ empresa_id: empresaId }),
   });
   const relic = useQuery({
-    queryKey: ["relic", EMPRESA_DEMO_ID],
-    queryFn: () => relicApi.get(EMPRESA_DEMO_ID),
+    queryKey: ["relic", empresaId],
+    queryFn: () => relicApi.get(empresaId),
   });
   const docs = useQuery({
-    queryKey: ["documentos-resumen", EMPRESA_DEMO_ID],
-    queryFn: () => documentosApi.resumenSalud(EMPRESA_DEMO_ID),
+    queryKey: ["documentos-resumen", empresaId],
+    queryFn: () => documentosApi.resumenSalud(empresaId),
   });
   const prefs = useQuery({
-    queryKey: ["preferencias", EMPRESA_DEMO_ID],
-    queryFn: () => preferenciasApi.get(EMPRESA_DEMO_ID),
+    queryKey: ["preferencias", empresaId],
+    queryFn: () => preferenciasApi.get(empresaId),
   });
 
   const e = empresa.data;

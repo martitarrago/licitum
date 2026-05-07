@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
 from app.models.licitacion_estado_empresa import LicitacionEstadoEmpresa
@@ -58,7 +59,9 @@ async def generar(
     expediente: str,
     data: SobreAGenerar,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> SobreAGeneracion:
+    del data  # body se ignora — empresa_id viene del JWT
     licitacion = (
         await db.execute(
             select(Licitacion).where(Licitacion.expediente == expediente)
@@ -71,12 +74,12 @@ async def generar(
         )
 
     try:
-        result = await generar_sobre_a(db, data.empresa_id, expediente)
+        result = await generar_sobre_a(db, empresa_id, expediente)
     except ValueError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
 
     obj = SobreAGeneracion(
-        empresa_id=data.empresa_id,
+        empresa_id=empresa_id,
         licitacion_id=licitacion.id,
         expediente=expediente,
         html=result.html,
@@ -96,11 +99,11 @@ async def generar(
 )
 async def listar(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID,
     expediente: Annotated[
         str | None,
         Query(description="Filtra por expediente concreto (workspace por licitación)."),
     ] = None,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> Sequence[SobreAGeneracion]:
     stmt = (
         select(SobreAGeneracion)
@@ -208,7 +211,7 @@ async def subir_presentado(
     pdf: Annotated[
         UploadFile, File(description="PDF firmado tal como se subió al portal")
     ],
-    empresa_id: UUID,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> SobreAPresentacion:
     if pdf.content_type != "application/pdf":
         raise HTTPException(
@@ -313,8 +316,8 @@ async def subir_presentado(
 )
 async def obtener_presentado(
     expediente: str,
-    empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> SobreAPresentacion | None:
     licitacion = (
         await db.execute(select(Licitacion).where(Licitacion.expediente == expediente))
@@ -338,9 +341,9 @@ async def obtener_presentado(
 )
 async def borrar_presentado(
     expediente: str,
-    empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
     storage: Annotated[R2Storage, Depends(get_storage)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> None:
     licitacion = await _get_licitacion_or_404(db, expediente)
     obj = (
@@ -386,9 +389,9 @@ async def borrar_presentado(
 )
 async def proxy_presentado_pdf(
     expediente: str,
-    empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
     storage: Annotated[R2Storage, Depends(get_storage)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> StreamingResponse:
     licitacion = await _get_licitacion_or_404(db, expediente)
     obj = (

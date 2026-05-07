@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { ESTADO_LABELS, type EstadoTracker } from "@/lib/api/tracker";
 import { decidirTabs, ofertasApi, type OfertaItem } from "@/lib/api/ofertas";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 const ESTADO_TONO: Record<string, string> = {
   en_preparacion: "bg-sky-500/15 text-sky-700 ring-sky-500/30 dark:text-sky-300",
@@ -42,11 +42,12 @@ const ESTADO_DOT: Record<string, string> = {
 const ESTADOS_RECHAZADAS = new Set<string>(["perdida", "excluida"]);
 
 export default function OfertasListPage() {
+  const empresaId = useEmpresaId();
   const [ocultarRechazadas, setOcultarRechazadas] = useState(false);
 
   const list = useQuery({
-    queryKey: ["ofertas-list", EMPRESA_DEMO_ID, ocultarRechazadas],
-    queryFn: () => ofertasApi.list(EMPRESA_DEMO_ID, ocultarRechazadas),
+    queryKey: ["ofertas-list", empresaId, ocultarRechazadas],
+    queryFn: () => ofertasApi.list(empresaId, ocultarRechazadas),
   });
 
   const total = list.data?.length ?? 0;

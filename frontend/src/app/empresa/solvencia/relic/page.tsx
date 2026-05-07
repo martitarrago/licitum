@@ -4,16 +4,16 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCcw } from "lucide-react";
 import { relicApi, type EmpresaRelic } from "@/lib/api/relic";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import { ClasificacionesRelicTabla } from "@/components/empresa/ClasificacionesRelicTabla";
 
-const QUERY_KEY = ["relic", EMPRESA_DEMO_ID] as const;
-
 export default function RelicPage() {
+  const empresaId = useEmpresaId();
+  const QUERY_KEY = ["relic", empresaId] as const;
   const qc = useQueryClient();
   const { data: relic, isLoading } = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => relicApi.get(EMPRESA_DEMO_ID),
+    queryFn: () => relicApi.get(empresaId),
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: QUERY_KEY });
@@ -53,12 +53,13 @@ function Skeleton() {
 // ─── Estado: sin inscripción RELIC ──────────────────────────────────────────
 
 function ConectarForm({ onSuccess }: { onSuccess: () => void }) {
+  const empresaId = useEmpresaId();
   const [n, setN] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const sync = useMutation({
     mutationFn: (n_registral: string) =>
-      relicApi.sincronizar(EMPRESA_DEMO_ID, n_registral),
+      relicApi.sincronizar(empresaId, n_registral),
     onSuccess: () => {
       setError(null);
       setN("");
@@ -238,13 +239,14 @@ function ResumenCard({
   relic: EmpresaRelic;
   onChange: () => void;
 }) {
+  const empresaId = useEmpresaId();
   const sync = useMutation({
-    mutationFn: () => relicApi.sincronizar(EMPRESA_DEMO_ID, relic.n_registral),
+    mutationFn: () => relicApi.sincronizar(empresaId, relic.n_registral),
     onSuccess: () => onChange(),
   });
 
   const desconectar = useMutation({
-    mutationFn: () => relicApi.desconectar(EMPRESA_DEMO_ID),
+    mutationFn: () => relicApi.desconectar(empresaId),
     onSuccess: () => onChange(),
   });
 

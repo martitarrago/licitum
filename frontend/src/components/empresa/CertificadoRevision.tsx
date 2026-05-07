@@ -31,7 +31,7 @@ import {
   type ExtractedData,
   certificadosApi,
 } from "@/lib/api/certificados";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import { DatePicker } from "@/components/ui/DatePicker";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -87,9 +87,10 @@ const compactFormatter = new Intl.NumberFormat("es-ES", {
 // ─── SolvenciaWidget ─────────────────────────────────────────────────────────
 
 function SolvenciaWidget({ cert }: { cert: CertificadoObraRead }) {
+  const empresaId = useEmpresaId();
   const { data } = useQuery({
-    queryKey: ["resumen-solvencia"],
-    queryFn: () => certificadosApi.resumenSolvencia(EMPRESA_DEMO_ID),
+    queryKey: ["resumen-solvencia", empresaId],
+    queryFn: () => certificadosApi.resumenSolvencia(empresaId),
     staleTime: 60_000,
   });
 

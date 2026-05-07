@@ -8,6 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.models.empresa_preferencias import (
     EmpresaPreferenciaCpv,
@@ -44,7 +45,7 @@ async def _load_full(
 )
 async def leer(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> EmpresaPreferencias | None:
     return await _load_full(db, empresa_id)
 
@@ -57,13 +58,8 @@ async def leer(
 async def upsert(
     data: EmpresaPreferenciasUpsert,
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> EmpresaPreferencias:
-    if not empresa_id:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "empresa_id es obligatorio"
-        )
-
     obj = await _load_full(db, empresa_id)
     scalar = data.model_dump(exclude={"territorios", "cpvs"})
 

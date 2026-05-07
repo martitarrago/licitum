@@ -4,15 +4,15 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { calculadoraApi, type OfertaListItem } from "@/lib/api/calculadora";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
-
-const QUERY_KEY = ["oferta-economica-list", EMPRESA_DEMO_ID] as const;
+import { useEmpresaId } from "@/lib/auth";
 
 export default function CalculadoraListPage() {
+  const empresaId = useEmpresaId();
+  const QUERY_KEY = ["oferta-economica-list", empresaId] as const;
   const qc = useQueryClient();
   const list = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => calculadoraApi.list(EMPRESA_DEMO_ID),
+    queryFn: () => calculadoraApi.list(empresaId),
   });
 
   const del = useMutation({

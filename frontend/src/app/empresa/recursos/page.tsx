@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import { personalApi } from "@/lib/api/personal";
 import { maquinariaApi } from "@/lib/api/maquinaria";
 import { sistemasGestionApi } from "@/lib/api/sistemas_gestion";
@@ -42,21 +42,22 @@ function Kpi({ k }: { k: KpiSpec }) {
 }
 
 export default function RecursosResumenPage() {
+  const empresaId = useEmpresaId();
   const personal = useQuery({
-    queryKey: ["personal", EMPRESA_DEMO_ID],
-    queryFn: () => personalApi.list(EMPRESA_DEMO_ID),
+    queryKey: ["personal", empresaId],
+    queryFn: () => personalApi.list(empresaId),
   });
   const maquinaria = useQuery({
-    queryKey: ["maquinaria", EMPRESA_DEMO_ID],
-    queryFn: () => maquinariaApi.list(EMPRESA_DEMO_ID),
+    queryKey: ["maquinaria", empresaId],
+    queryFn: () => maquinariaApi.list(empresaId),
   });
   const sistemas = useQuery({
-    queryKey: ["sistemas-gestion", EMPRESA_DEMO_ID],
-    queryFn: () => sistemasGestionApi.list(EMPRESA_DEMO_ID),
+    queryKey: ["sistemas-gestion", empresaId],
+    queryFn: () => sistemasGestionApi.list(empresaId),
   });
   const obrasDestacadas = useQuery({
-    queryKey: ["certificados-destacados", EMPRESA_DEMO_ID],
-    queryFn: () => certificadosApi.list({ empresa_id: EMPRESA_DEMO_ID }),
+    queryKey: ["certificados-destacados", empresaId],
+    queryFn: () => certificadosApi.list({ empresa_id: empresaId }),
     select: (items) => items.filter((c) => c.destacado_sobre_b).length,
   });
 

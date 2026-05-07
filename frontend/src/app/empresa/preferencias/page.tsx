@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Loader2, Save, Trash2 } from "lucide-react";
 import { CustomSelect } from "@/components/ui/CustomSelect";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import {
   CPV_DIVISIONES,
   ESTADO_ACEPTACION_LABELS,
@@ -20,8 +20,6 @@ import {
   type PrioridadCpv,
   type PrioridadTerritorio,
 } from "@/lib/api/preferencias";
-
-const QUERY_KEY = ["preferencias", EMPRESA_DEMO_ID] as const;
 
 type FormState = {
   obras_simultaneas_max: string;
@@ -93,10 +91,12 @@ function toPayload(f: FormState): PreferenciasUpsertPayload {
 }
 
 export default function PreferenciasPage() {
+  const empresaId = useEmpresaId();
+  const QUERY_KEY = ["preferencias", empresaId] as const;
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => preferenciasApi.get(EMPRESA_DEMO_ID),
+    queryFn: () => preferenciasApi.get(empresaId),
   });
 
   const [form, setForm] = useState<FormState>(empty);
@@ -108,7 +108,7 @@ export default function PreferenciasPage() {
 
   const save = useMutation({
     mutationFn: (payload: PreferenciasUpsertPayload) =>
-      preferenciasApi.upsert(EMPRESA_DEMO_ID, payload),
+      preferenciasApi.upsert(empresaId, payload),
     onSuccess: (updated) => {
       qc.setQueryData(QUERY_KEY, updated);
       setSavedTick((t) => t + 1);

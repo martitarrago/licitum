@@ -20,7 +20,7 @@ import { RadarFilterBar } from "@/components/radar/RadarFilterBar";
 import { RadarActiveChips } from "@/components/radar/RadarActiveChips";
 import { DescartadasSection } from "@/components/radar/DescartadasSection";
 import { tierToScoreRange, useRadarFilters } from "@/lib/hooks/useRadarFilters";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 const PAGE_SIZE = 24;
 
@@ -78,13 +78,14 @@ export default function RadarPage() {
 }
 
 function RadarPageContent() {
+  const empresaId = useEmpresaId();
   const filtersState = useRadarFilters();
   const { filters, patchFilters, clearFilters, activeCount } = filtersState;
   const [infoOpen, setInfoOpen] = useState(false);
 
   const tierRange = tierToScoreRange(filters.tier);
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
-    queryKey: ["licitaciones", filters, EMPRESA_DEMO_ID],
+    queryKey: ["licitaciones", filters, empresaId],
     queryFn: () =>
       licitacionesApi.list({
         provincia: filters.provincia.length > 0 ? filters.provincia : null,
@@ -97,7 +98,7 @@ function RadarPageContent() {
         cpv_prefix: filters.cpv_prefix,
         q: filters.q || null,
         order_by: filters.order_by,
-        empresa_id: EMPRESA_DEMO_ID,
+        empresa_id: empresaId,
         // Tier "no_apta" implica ver descartadas también (el motor las pone score 0).
         incluye_descartadas: filters.tier === "no_apta" ? true : null,
         min_score: tierRange.min,
@@ -493,7 +494,7 @@ function RadarPageContent() {
           {/* Sección descartadas — colapsable, agrupada por razón.
               Si hay búsqueda activa, las descartadas que matchean ya
               aparecen mezcladas en el feed principal con su badge gris. */}
-          {!filters.q && <DescartadasSection empresaId={EMPRESA_DEMO_ID} />}
+          {!filters.q && <DescartadasSection empresaId={empresaId} />}
         </>
       )}
     </main>

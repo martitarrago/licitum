@@ -10,25 +10,25 @@ import {
   type EstadoDocumento,
   type ResumenSaludDocumental,
 } from "@/lib/api/documentos";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import { DocumentosUploadModal } from "@/components/empresa/DocumentosUploadModal";
 
-const QUERY_KEYS = {
-  list: ["documentos", EMPRESA_DEMO_ID] as const,
-  resumen: ["documentos-resumen", EMPRESA_DEMO_ID] as const,
-};
-
 export default function DocumentosPage() {
+  const empresaId = useEmpresaId();
+  const QUERY_KEYS = {
+    list: ["documentos", empresaId] as const,
+    resumen: ["documentos-resumen", empresaId] as const,
+  };
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
 
   const list = useQuery({
     queryKey: QUERY_KEYS.list,
-    queryFn: () => documentosApi.list(EMPRESA_DEMO_ID),
+    queryFn: () => documentosApi.list(empresaId),
   });
   const resumen = useQuery({
     queryKey: QUERY_KEYS.resumen,
-    queryFn: () => documentosApi.resumenSalud(EMPRESA_DEMO_ID),
+    queryFn: () => documentosApi.resumenSalud(empresaId),
   });
 
   const del = useMutation({

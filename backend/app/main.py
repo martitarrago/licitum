@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.config import settings
+from app.core.auth_middleware import SupabaseAuthMiddleware
 
 
 def create_app() -> FastAPI:
@@ -16,6 +17,9 @@ def create_app() -> FastAPI:
     if settings.cors_origin_regex:
         cors_kwargs["allow_origin_regex"] = settings.cors_origin_regex
     app.add_middleware(CORSMiddleware, **cors_kwargs)
+    # Auth se añade DESPUÉS de CORS (orden inverso de ejecución en Starlette):
+    # CORS corre primero en la request entrante para responder OPTIONS, luego auth.
+    app.add_middleware(SupabaseAuthMiddleware)
 
     app.include_router(api_router)
 

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { FileSignature, Loader2 } from "lucide-react";
 import { sobreAApi } from "@/lib/api/sobre_a";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 interface Props {
   expediente: string;
@@ -13,9 +13,10 @@ interface Props {
 
 export function GenerarSobreABoton({ expediente, variant = "secondary" }: Props) {
   const router = useRouter();
+  const empresaId = useEmpresaId();
 
   const generar = useMutation({
-    mutationFn: () => sobreAApi.generar(expediente, EMPRESA_DEMO_ID),
+    mutationFn: () => sobreAApi.generar(expediente, empresaId),
     onSuccess: (data) => {
       router.push(`/sobre-a/${data.id}`);
     },

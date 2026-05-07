@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { CustomSelect } from "@/components/ui/CustomSelect";
 import { DatePicker } from "@/components/ui/DatePicker";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import {
   TIPO_SISTEMA_LABELS,
   TIPO_SISTEMA_OPTIONS,
@@ -15,8 +15,6 @@ import {
   type SistemaGestionPatchPayload,
   type TipoSistemaGestion,
 } from "@/lib/api/sistemas_gestion";
-
-const QUERY_KEY = ["sistemas-gestion", EMPRESA_DEMO_ID] as const;
 
 type FormState = {
   tipo: TipoSistemaGestion;
@@ -61,8 +59,8 @@ function buildPatch(f: FormState): SistemaGestionPatchPayload {
   };
 }
 
-function buildCreate(f: FormState): SistemaGestionCreatePayload {
-  return { empresa_id: EMPRESA_DEMO_ID, ...buildPatch(f) } as SistemaGestionCreatePayload;
+function buildCreate(f: FormState, empresaId: string): SistemaGestionCreatePayload {
+  return { empresa_id: empresaId, ...buildPatch(f) } as SistemaGestionCreatePayload;
 }
 
 function estadoCaducidad(fecha: string | null): {
@@ -80,10 +78,12 @@ function estadoCaducidad(fecha: string | null): {
 }
 
 export default function SistemasGestionPage() {
+  const empresaId = useEmpresaId();
+  const QUERY_KEY = ["sistemas-gestion", empresaId] as const;
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => sistemasGestionApi.list(EMPRESA_DEMO_ID),
+    queryFn: () => sistemasGestionApi.list(empresaId),
   });
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -106,7 +106,7 @@ export default function SistemasGestionPage() {
     mutationFn: () =>
       editing
         ? sistemasGestionApi.patch(editing.id, buildPatch(form))
-        : sistemasGestionApi.create(buildCreate(form)),
+        : sistemasGestionApi.create(buildCreate(form, empresaId)),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       close();

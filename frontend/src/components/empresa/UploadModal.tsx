@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, FileUp, PenLine, X } from "lucide-react";
 import { certificadosApi } from "@/lib/api/certificados";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { CustomSelect } from "@/components/ui/CustomSelect";
 
@@ -29,6 +29,7 @@ type Tab = "pdf" | "manual";
 // ─── Pestaña PDF ────────────────────────────────────────────────────────────
 
 function TabPdf({ onClose }: { onClose: () => void }) {
+  const empresaId = useEmpresaId();
   const router = useRouter();
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,7 +75,7 @@ function TabPdf({ onClose }: { onClose: () => void }) {
 
     const fd = new FormData();
     fd.append("pdf", file);
-    fd.append("empresa_id", EMPRESA_DEMO_ID);
+    fd.append("empresa_id", empresaId);
 
     try {
       const cert = await certificadosApi.upload(fd, () => {});
@@ -213,6 +214,7 @@ function TabPdf({ onClose }: { onClose: () => void }) {
 // ─── Pestaña Manual ─────────────────────────────────────────────────────────
 
 function TabManual({ onClose }: { onClose: () => void }) {
+  const empresaId = useEmpresaId();
   const qc = useQueryClient();
 
   const [saving, setSaving] = useState(false);
@@ -236,7 +238,7 @@ function TabManual({ onClose }: { onClose: () => void }) {
     setError(null);
     try {
       await certificadosApi.createManual({
-        empresa_id: EMPRESA_DEMO_ID,
+        empresa_id: empresaId,
         tipo_documento: tipoDocumento,
         titulo: titulo || undefined,
         organismo: organismo || undefined,

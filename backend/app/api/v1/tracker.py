@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
 from app.models.licitacion_estado_empresa import LicitacionEstadoEmpresa
@@ -77,12 +78,13 @@ async def upsert_estado(
     expediente: str,
     data: EstadoUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> LicitacionEstadoEmpresa:
     lic = await _get_licitacion_or_404(db, expediente)
     obj = (
         await db.execute(
             select(LicitacionEstadoEmpresa).where(
-                LicitacionEstadoEmpresa.empresa_id == data.empresa_id,
+                LicitacionEstadoEmpresa.empresa_id == empresa_id,
                 LicitacionEstadoEmpresa.licitacion_id == lic.id,
             )
         )
@@ -103,7 +105,7 @@ async def upsert_estado(
     now = datetime.now(tz=timezone.utc)
     if obj is None:
         obj = LicitacionEstadoEmpresa(
-            empresa_id=data.empresa_id,
+            empresa_id=empresa_id,
             licitacion_id=lic.id,
             estado=data.estado,
             deadline_actual=deadline,
@@ -129,8 +131,8 @@ async def upsert_estado(
 )
 async def borrar_estado(
     expediente: str,
-    empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> None:
     lic = await _get_licitacion_or_404(db, expediente)
     obj = (
@@ -154,8 +156,8 @@ async def borrar_estado(
 )
 async def obtener_estado(
     expediente: str,
-    empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> LicitacionEstadoEmpresa:
     lic = await _get_licitacion_or_404(db, expediente)
     obj = (
@@ -181,11 +183,11 @@ async def obtener_estado(
 )
 async def feed(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID,
     estado: Annotated[
         list[str] | None,
         Query(description="Filtrar por uno o varios estados"),
     ] = None,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> list[TrackerFeedItem]:
     stmt = (
         select(LicitacionEstadoEmpresa, Licitacion)
@@ -209,10 +211,10 @@ async def feed(
 )
 async def resumen(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID,
     dias_alerta: Annotated[
         int, Query(ge=1, le=60, description="Ventana de plazos críticos en días")
     ] = 7,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> TrackerResumen:
     # Counts por estado
     counts_stmt = (

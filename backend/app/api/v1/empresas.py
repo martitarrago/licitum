@@ -9,11 +9,21 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.models.empresa import Empresa
 from app.schemas.empresa import EmpresaCreate, EmpresaRead, EmpresaUpdate
 
 router = APIRouter()
+
+
+def _ensure_owner(path_empresa_id: UUID, jwt_empresa_id: UUID) -> None:
+    """Devuelve 403 si el path empresa_id no coincide con la del JWT."""
+    if path_empresa_id != jwt_empresa_id:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "No tienes acceso a esta empresa",
+        )
 
 
 async def _get_empresa_or_404(db: AsyncSession, empresa_id: UUID) -> Empresa:
@@ -74,7 +84,9 @@ async def listar_empresas(
 async def obtener_empresa(
     empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    jwt_empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> Empresa:
+    _ensure_owner(empresa_id, jwt_empresa_id)
     return await _get_empresa_or_404(db, empresa_id)
 
 
@@ -87,7 +99,9 @@ async def actualizar_empresa(
     empresa_id: UUID,
     data: EmpresaUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
+    jwt_empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> Empresa:
+    _ensure_owner(empresa_id, jwt_empresa_id)
     empresa = await _get_empresa_or_404(db, empresa_id)
     updates = data.model_dump(exclude_unset=True)
     if not updates:
@@ -111,7 +125,9 @@ async def actualizar_empresa(
 async def eliminar_empresa(
     empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    jwt_empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> None:
+    _ensure_owner(empresa_id, jwt_empresa_id)
     empresa = await _get_empresa_or_404(db, empresa_id)
     empresa.deleted_at = datetime.now(timezone.utc)
     await db.commit()

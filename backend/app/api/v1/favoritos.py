@@ -8,15 +8,12 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
 from app.models.licitacion_favorita_empresa import LicitacionFavoritaEmpresa
 
 router = APIRouter()
-
-
-class FavoritoToggleIn(BaseModel):
-    empresa_id: UUID
 
 
 class FavoritoState(BaseModel):
@@ -44,14 +41,14 @@ async def _get_licitacion_or_404(db: AsyncSession, expediente: str) -> Licitacio
 )
 async def marcar_favorito(
     expediente: str,
-    data: FavoritoToggleIn,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> FavoritoState:
     lic = await _get_licitacion_or_404(db, expediente)
     existing = (
         await db.execute(
             select(LicitacionFavoritaEmpresa).where(
-                LicitacionFavoritaEmpresa.empresa_id == data.empresa_id,
+                LicitacionFavoritaEmpresa.empresa_id == empresa_id,
                 LicitacionFavoritaEmpresa.licitacion_id == lic.id,
             )
         )
@@ -59,7 +56,7 @@ async def marcar_favorito(
     if existing is None:
         db.add(
             LicitacionFavoritaEmpresa(
-                empresa_id=data.empresa_id,
+                empresa_id=empresa_id,
                 licitacion_id=lic.id,
             )
         )
@@ -74,8 +71,8 @@ async def marcar_favorito(
 )
 async def quitar_favorito(
     expediente: str,
-    empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> FavoritoState:
     lic = await _get_licitacion_or_404(db, expediente)
     obj = (

@@ -8,11 +8,12 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import RedirectResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.core.enums import EstadoCertificado
 from app.db.session import get_db
 from app.models.certificado_obra import CertificadoObra
@@ -67,7 +68,7 @@ async def crear_certificado(
     db: Annotated[AsyncSession, Depends(get_db)],
     storage: Annotated[R2Storage, Depends(get_storage)],
     pdf: Annotated[UploadFile, File(description="Certificado/acta de recepción en PDF")],
-    empresa_id: Annotated[UUID, Form()],
+    empresa_id: UUID = Depends(get_current_empresa_id),
     titulo: Annotated[str | None, Form(max_length=512)] = None,
     organismo: Annotated[str | None, Form(max_length=255)] = None,
     importe_adjudicacion: Annotated[Decimal | None, Form(ge=0)] = None,
@@ -148,7 +149,10 @@ TIPOS_VALIDOS_SOLVENCIA = {"cert_buena_ejecucion", "acta_recepcion", "cert_rolec
 
 
 class CertificadoManualCreate(BaseModel):
-    empresa_id: UUID
+    """`empresa_id` ya no es obligatorio — el backend lo deriva del JWT."""
+
+    model_config = ConfigDict(extra="ignore")
+
     tipo_documento: str
     titulo: str | None = None
     organismo: str | None = None
@@ -172,10 +176,11 @@ class CertificadoManualCreate(BaseModel):
 async def crear_certificado_manual(
     data: CertificadoManualCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> CertificadoObra:
     es_valido = data.tipo_documento in TIPOS_VALIDOS_SOLVENCIA
     certificado = CertificadoObra(
-        empresa_id=data.empresa_id,
+        empresa_id=empresa_id,
         titulo=data.titulo,
         organismo=data.organismo,
         importe_adjudicacion=data.importe_adjudicacion,
@@ -217,16 +222,17 @@ async def crear_certificado_manual(
 )
 async def listar_certificados(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID | None = None,
     estado: EstadoCertificado | None = None,
     clasificacion_grupo: str | None = None,
     clasificacion_subgrupo: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> Sequence[CertificadoObra]:
-    stmt = select(CertificadoObra).where(CertificadoObra.deleted_at.is_(None))
-    if empresa_id is not None:
-        stmt = stmt.where(CertificadoObra.empresa_id == empresa_id)
+    stmt = select(CertificadoObra).where(
+        CertificadoObra.deleted_at.is_(None),
+        CertificadoObra.empresa_id == empresa_id,
+    )
     if estado is not None:
         stmt = stmt.where(CertificadoObra.estado == estado)
     if clasificacion_grupo is not None:
@@ -262,8 +268,8 @@ class ResumenSolvencia(BaseModel):
     summary="Resumen de solvencia acreditada — últimos 5 años, solo certificados válidos",
 )
 async def resumen_solvencia(
-    empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> ResumenSolvencia:
     periodo_fin = date.today()
     periodo_inicio = periodo_fin - timedelta(days=5 * 365)

@@ -23,9 +23,14 @@ class ClasificacionRelicRead(BaseModel):
 
 
 class EmpresaRelicSincronizar(BaseModel):
-    """Body de POST /api/v1/empresa/relic/sincronizar."""
+    """Body de POST /api/v1/empresa/relic/sincronizar.
 
-    empresa_id: uuid.UUID
+    `empresa_id` ya no es obligatorio: el backend lo deriva del JWT.
+    Aceptamos el campo (lo ignoramos) para no romper clientes antiguos.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
     n_registral: str = Field(min_length=3, max_length=64)
 
 

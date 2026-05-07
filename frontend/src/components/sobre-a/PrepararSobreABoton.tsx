@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, FileSignature, Loader2 } from "lucide-react";
 import { trackerApi } from "@/lib/api/tracker";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 interface Props {
   expediente: string;
@@ -29,10 +29,11 @@ export function PrepararSobreABoton({
 }: Props) {
   const router = useRouter();
   const qc = useQueryClient();
+  const empresaId = useEmpresaId();
 
   const estado = useQuery({
-    queryKey: ["tracker-estado", expediente, EMPRESA_DEMO_ID],
-    queryFn: () => trackerApi.getEstado(expediente, EMPRESA_DEMO_ID),
+    queryKey: ["tracker-estado", expediente, empresaId],
+    queryFn: () => trackerApi.getEstado(expediente, empresaId),
   });
 
   const enPipeline = !!estado.data;
@@ -44,14 +45,14 @@ export function PrepararSobreABoton({
       // ganada, etc.) — no queremos pisarlo con en_preparacion.
       if (!enPipeline) {
         await trackerApi.upsertEstado(expediente, {
-          empresa_id: EMPRESA_DEMO_ID,
+          empresa_id: empresaId,
           estado: "en_preparacion",
         });
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({
-        queryKey: ["tracker-estado", expediente, EMPRESA_DEMO_ID],
+        queryKey: ["tracker-estado", expediente, empresaId],
       });
       qc.invalidateQueries({ queryKey: ["tracker-feed"] });
       qc.invalidateQueries({ queryKey: ["tracker-resumen"] });

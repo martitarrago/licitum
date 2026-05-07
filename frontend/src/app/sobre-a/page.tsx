@@ -4,15 +4,15 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { sobreAApi, type SobreAListItem } from "@/lib/api/sobre_a";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
-
-const QUERY_KEY = ["sobre-a", EMPRESA_DEMO_ID] as const;
+import { useEmpresaId } from "@/lib/auth";
 
 export default function SobreAListPage() {
+  const empresaId = useEmpresaId();
+  const QUERY_KEY = ["sobre-a", empresaId] as const;
   const qc = useQueryClient();
   const list = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => sobreAApi.list(EMPRESA_DEMO_ID),
+    queryFn: () => sobreAApi.list(empresaId),
   });
 
   const del = useMutation({

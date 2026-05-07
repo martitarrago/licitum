@@ -9,7 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { sobreAApi, type SobreAListItem } from "@/lib/api/sobre_a";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 interface Props {
   expediente: string;
@@ -24,23 +24,24 @@ interface Props {
  * confirmación si ya hay PDF firmado), histórico de versiones.
  */
 export function DeclaracionPanel({ expediente, haPresentado }: Props) {
+  const empresaId = useEmpresaId();
   const qc = useQueryClient();
 
   const snapshots = useQuery({
-    queryKey: ["sobre-a-snapshots", EMPRESA_DEMO_ID, expediente],
-    queryFn: () => sobreAApi.list(EMPRESA_DEMO_ID, expediente),
+    queryKey: ["sobre-a-snapshots", empresaId, expediente],
+    queryFn: () => sobreAApi.list(empresaId, expediente),
   });
 
   const items = snapshots.data ?? [];
   const ultimo = items[0];
 
   const generar = useMutation({
-    mutationFn: () => sobreAApi.generar(expediente, EMPRESA_DEMO_ID),
+    mutationFn: () => sobreAApi.generar(expediente, empresaId),
     onSuccess: () => {
       qc.invalidateQueries({
-        queryKey: ["sobre-a-snapshots", EMPRESA_DEMO_ID, expediente],
+        queryKey: ["sobre-a-snapshots", empresaId, expediente],
       });
-      qc.invalidateQueries({ queryKey: ["ofertas-list", EMPRESA_DEMO_ID] });
+      qc.invalidateQueries({ queryKey: ["ofertas-list", empresaId] });
     },
   });
 

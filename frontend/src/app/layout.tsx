@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Fraunces, Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { Shell } from "@/components/layout/Shell";
 import "./globals.css";
 
 const inter = Inter({
@@ -48,12 +48,7 @@ export default function RootLayout({
     >
       <body className="font-sans antialiased">
         <Providers>
-          <div className="flex h-screen overflow-hidden bg-surface">
-            <Sidebar />
-            <main className="flex flex-1 flex-col overflow-y-auto">
-              {children}
-            </main>
-          </div>
+          <Shell>{children}</Shell>
         </Providers>
       </body>
     </html>

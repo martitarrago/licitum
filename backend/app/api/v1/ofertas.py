@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
 from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
@@ -76,11 +77,11 @@ class OfertaItem(BaseModel):
 )
 async def listar_ofertas(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID,
     ocultar_rechazadas: bool = Query(
         False,
         description="Si true, oculta las licitaciones perdidas o excluidas.",
     ),
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> Sequence[OfertaItem]:
     # Subqueries de conteo por componente — devuelve cero si no hay filas.
     sub_decl = (

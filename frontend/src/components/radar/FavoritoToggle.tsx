@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Heart } from "lucide-react";
 import { favoritosApi } from "@/lib/api/favoritos";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 type Variant = "card" | "detail";
 
@@ -29,6 +29,7 @@ interface Props {
  * vuelta del valor real.
  */
 export function FavoritoToggle({ expediente, favorito, variant = "card" }: Props) {
+  const empresaId = useEmpresaId();
   const qc = useQueryClient();
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
   const isOn = optimistic ?? favorito;
@@ -46,9 +47,9 @@ export function FavoritoToggle({ expediente, favorito, variant = "card" }: Props
   const toggle = useMutation({
     mutationFn: async (nextOn: boolean) => {
       if (nextOn) {
-        await favoritosApi.marcar(expediente, EMPRESA_DEMO_ID);
+        await favoritosApi.marcar(expediente, empresaId);
       } else {
-        await favoritosApi.quitar(expediente, EMPRESA_DEMO_ID);
+        await favoritosApi.quitar(expediente, empresaId);
       }
       return nextOn;
     },

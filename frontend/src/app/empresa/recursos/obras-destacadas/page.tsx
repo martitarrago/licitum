@@ -7,9 +7,7 @@ import {
   certificadosApi,
   type CertificadoObraListItem,
 } from "@/lib/api/certificados";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
-
-const QUERY_KEY = ["certificados", EMPRESA_DEMO_ID, "validos"] as const;
+import { useEmpresaId } from "@/lib/auth";
 
 type Filtro = "todos" | "destacados";
 
@@ -27,6 +25,8 @@ function formatPeriodo(c: CertificadoObraListItem): string {
 }
 
 export default function ObrasDestacadasPage() {
+  const empresaId = useEmpresaId();
+  const QUERY_KEY = ["certificados", empresaId, "validos"] as const;
   const qc = useQueryClient();
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [editando, setEditando] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export default function ObrasDestacadasPage() {
     queryKey: QUERY_KEY,
     queryFn: () =>
       certificadosApi.list({
-        empresa_id: EMPRESA_DEMO_ID,
+        empresa_id: empresaId,
         estado: "validado",
       }),
   });

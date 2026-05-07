@@ -26,7 +26,7 @@ import {
   type PuntoLabel,
   type PuntoReferencia,
 } from "@/lib/api/calculadora";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 const FORMULA_LABELS: Record<string, string> = {
   lineal: "Lineal directa",
@@ -97,6 +97,7 @@ interface Props {
  * descargar .docx.
  */
 export function EconomicaPanel({ expediente }: Props) {
+  const empresaId = useEmpresaId();
   const qc = useQueryClient();
 
   const contexto = useQuery({
@@ -106,8 +107,8 @@ export function EconomicaPanel({ expediente }: Props) {
   });
 
   const versiones = useQuery({
-    queryKey: ["oferta-economica-list", EMPRESA_DEMO_ID, expediente],
-    queryFn: () => calculadoraApi.list(EMPRESA_DEMO_ID, expediente),
+    queryKey: ["oferta-economica-list", empresaId, expediente],
+    queryFn: () => calculadoraApi.list(empresaId, expediente),
   });
 
   const [bajaPct, setBajaPct] = useState<number | null>(null);
@@ -141,15 +142,15 @@ export function EconomicaPanel({ expediente }: Props) {
 
   const guardar = useMutation({
     mutationFn: () =>
-      calculadoraApi.generar(expediente, EMPRESA_DEMO_ID, bajaPct ?? 0),
+      calculadoraApi.generar(expediente, empresaId, bajaPct ?? 0),
     onSuccess: () => {
       qc.invalidateQueries({
-        queryKey: ["oferta-economica-list", EMPRESA_DEMO_ID, expediente],
+        queryKey: ["oferta-economica-list", empresaId, expediente],
       });
       qc.invalidateQueries({
-        queryKey: ["oferta-economica-list", EMPRESA_DEMO_ID],
+        queryKey: ["oferta-economica-list", empresaId],
       });
-      qc.invalidateQueries({ queryKey: ["ofertas-list", EMPRESA_DEMO_ID] });
+      qc.invalidateQueries({ queryKey: ["ofertas-list", empresaId] });
     },
   });
 

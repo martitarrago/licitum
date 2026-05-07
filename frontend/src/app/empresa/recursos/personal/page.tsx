@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { CustomSelect } from "@/components/ui/CustomSelect";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import {
   ROL_PERSONAL_LABELS,
   ROL_PERSONAL_OPTIONS,
@@ -14,8 +14,6 @@ import {
   type PersonalPatchPayload,
   type RolPersonal,
 } from "@/lib/api/personal";
-
-const QUERY_KEY = ["personal", EMPRESA_DEMO_ID] as const;
 
 type FormState = {
   nombre_completo: string;
@@ -68,15 +66,17 @@ function buildPatch(f: FormState): PersonalPatchPayload {
   };
 }
 
-function buildCreate(f: FormState): PersonalCreatePayload {
-  return { empresa_id: EMPRESA_DEMO_ID, ...buildPatch(f) } as PersonalCreatePayload;
+function buildCreate(f: FormState, empresaId: string): PersonalCreatePayload {
+  return { empresa_id: empresaId, ...buildPatch(f) } as PersonalCreatePayload;
 }
 
 export default function PersonalPage() {
+  const empresaId = useEmpresaId();
+  const QUERY_KEY = ["personal", empresaId] as const;
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => personalApi.list(EMPRESA_DEMO_ID),
+    queryFn: () => personalApi.list(empresaId),
   });
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -100,7 +100,7 @@ export default function PersonalPage() {
       if (editing) {
         return personalApi.patch(editing.id, buildPatch(form));
       }
-      return personalApi.create(buildCreate(form));
+      return personalApi.create(buildCreate(form, empresaId));
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEY });

@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.models.clasificacion_rolece import ClasificacionRolece
 from app.schemas.clasificacion_rolece import (
@@ -48,8 +49,11 @@ async def _get_or_404(
 async def crear_clasificacion(
     data: ClasificacionRoleceCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> ClasificacionRolece:
-    obj = ClasificacionRolece(**data.model_dump())
+    payload = data.model_dump()
+    payload["empresa_id"] = empresa_id  # ignora cualquier empresa_id del body
+    obj = ClasificacionRolece(**payload)
     db.add(obj)
     try:
         await db.commit()
@@ -72,12 +76,13 @@ async def crear_clasificacion(
 )
 async def listar_clasificaciones(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID | None = None,
     activa: bool | None = None,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> Sequence[ClasificacionRolece]:
-    stmt = select(ClasificacionRolece).where(ClasificacionRolece.deleted_at.is_(None))
-    if empresa_id is not None:
-        stmt = stmt.where(ClasificacionRolece.empresa_id == empresa_id)
+    stmt = select(ClasificacionRolece).where(
+        ClasificacionRolece.deleted_at.is_(None),
+        ClasificacionRolece.empresa_id == empresa_id,
+    )
     if activa is not None:
         stmt = stmt.where(ClasificacionRolece.activa == activa)
     stmt = stmt.order_by(

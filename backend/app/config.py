@@ -21,6 +21,14 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str | None = None
 
+    # Supabase Auth — SUPABASE_JWT_SECRET viene de Settings → API → "JWT Secret"
+    # en supabase.com. Si está vacío, la dependencia auth cae a verificación
+    # remota vía /auth/v1/user (más lento, menos seguro).
+    supabase_url: str | None = None
+    supabase_anon_key: str | None = None
+    supabase_service_key: str | None = None
+    supabase_jwt_secret: str | None = None
+
     allowed_origins: str = "http://localhost:3000"
     # Regex para dominios de preview (ej: "https://licitum-.*\\.vercel\\.app")
     cors_origin_regex: str | None = None

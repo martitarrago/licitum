@@ -19,6 +19,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.models.documento_empresa import DocumentoEmpresa
 from app.schemas.documento_empresa import (
@@ -62,8 +63,8 @@ async def crear_con_pdf(
     db: Annotated[AsyncSession, Depends(get_db)],
     storage: Annotated[R2Storage, Depends(get_storage)],
     pdf: Annotated[UploadFile, File(description="Documento PDF")],
-    empresa_id: Annotated[UUID, Form()],
     tipo: Annotated[str, Form(max_length=32)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
     titulo: Annotated[str | None, Form(max_length=255)] = None,
     fecha_emision: Annotated[date | None, Form()] = None,
     fecha_caducidad: Annotated[date | None, Form()] = None,
@@ -116,8 +117,11 @@ async def crear_con_pdf(
 async def crear_manual(
     data: DocumentoEmpresaCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> DocumentoEmpresa:
-    obj = DocumentoEmpresa(**data.model_dump(), pdf_url=None)
+    payload = data.model_dump()
+    payload["empresa_id"] = empresa_id
+    obj = DocumentoEmpresa(**payload, pdf_url=None)
     db.add(obj)
     await db.commit()
     await db.refresh(obj)
@@ -132,8 +136,8 @@ async def crear_manual(
 )
 async def listar(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID,
     tipo: str | None = None,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> list[DocumentoEmpresa]:
     stmt = (
         select(DocumentoEmpresa)
@@ -158,7 +162,7 @@ async def listar(
 )
 async def resumen_salud(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> ResumenSaludDocumental:
     docs_orm = list(
         (

@@ -17,6 +17,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.core.enums import EstadoAnalisisPliego
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
@@ -50,8 +51,8 @@ _VALID_VEREDICTOS = {"ir", "ir_con_riesgo", "no_ir", "incompleto"}
 )
 async def listar_pliegos(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID | None = None,
     solo_favoritos: bool = False,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> list[PliegoListItem]:
     """Listing filtrado por empresa.
 
@@ -85,12 +86,11 @@ async def listar_pliegos(
         )
         .order_by(LicitacionAnalisisIA.created_at.desc())
     )
-    if empresa_id is not None:
-        stmt = stmt.join(
-            LicitacionAnalisisSolicitud,
-            (LicitacionAnalisisSolicitud.licitacion_id == LicitacionAnalisisIA.licitacion_id)
-            & (LicitacionAnalisisSolicitud.empresa_id == empresa_id),
-        )
+    stmt = stmt.join(
+        LicitacionAnalisisSolicitud,
+        (LicitacionAnalisisSolicitud.licitacion_id == LicitacionAnalisisIA.licitacion_id)
+        & (LicitacionAnalisisSolicitud.empresa_id == empresa_id),
+    )
     if solo_favoritos:
         stmt = stmt.where(LicitacionFavoritaEmpresa.id.is_not(None))
     rows = (await db.execute(stmt)).all()
@@ -264,8 +264,8 @@ async def subir_pcap(
 )
 async def obtener_recomendacion(
     expediente: str,
-    empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> RecomendacionRead:
     lic = await _get_licitacion_or_404(db, expediente)
     analisis = await _get_analisis_or_404(db, lic.id)
@@ -311,7 +311,7 @@ async def proxy_pdf(
 async def analizar_desde_pscp(
     expediente: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID | None = None,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> LicitacionAnalisisIA:
     """Auto-descarga el pliego desde contractaciopublica.cat y lanza la extracción.
 
@@ -324,16 +324,15 @@ async def analizar_desde_pscp(
     """
     lic = await _get_licitacion_or_404(db, expediente)
 
-    if empresa_id is not None:
-        await db.execute(text(
-            """
-            INSERT INTO licitacion_analisis_solicitud
-                (empresa_id, licitacion_id, origen, solicitado_at)
-            VALUES (:emp, :lic, 'usuario', NOW())
-            ON CONFLICT (empresa_id, licitacion_id) DO NOTHING
-            """
-        ), {"emp": empresa_id, "lic": lic.id})
-        await db.commit()
+    await db.execute(text(
+        """
+        INSERT INTO licitacion_analisis_solicitud
+            (empresa_id, licitacion_id, origen, solicitado_at)
+        VALUES (:emp, :lic, 'usuario', NOW())
+        ON CONFLICT (empresa_id, licitacion_id) DO NOTHING
+        """
+    ), {"emp": empresa_id, "lic": lic.id})
+    await db.commit()
 
     analisis = (
         await db.execute(

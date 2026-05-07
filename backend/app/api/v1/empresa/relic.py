@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.models.empresa_relic import EmpresaRelic
 from app.schemas.empresa_relic import EmpresaRelicRead, EmpresaRelicSincronizar
@@ -42,8 +43,8 @@ async def _cargar_relic_or_404(
     summary="Devuelve los datos RELIC de una empresa (404 si no está sincronizada)",
 )
 async def obtener_relic(
-    empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> EmpresaRelic:
     return await _cargar_relic_or_404(db, empresa_id)
 
@@ -57,9 +58,10 @@ async def obtener_relic(
 async def sincronizar(
     data: EmpresaRelicSincronizar,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> EmpresaRelic:
     try:
-        await sincronizar_empresa_relic(db, data.empresa_id, data.n_registral)
+        await sincronizar_empresa_relic(db, empresa_id, data.n_registral)
     except RelicNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
     except httpx.HTTPError as exc:
@@ -71,10 +73,10 @@ async def sincronizar(
     # Tras el sync, las clasificaciones nuevas pueden cambiar el semáforo del
     # Radar. Idempotente: si no cambió nada, no escribe filas.
     disparar_recalculo_semaforo()
-    disparar_recalculo_scores(data.empresa_id)
+    disparar_recalculo_scores(empresa_id)
 
     # Recarga con clasificaciones eager para la respuesta
-    return await _cargar_relic_or_404(db, data.empresa_id)
+    return await _cargar_relic_or_404(db, empresa_id)
 
 
 @router.delete(
@@ -83,8 +85,8 @@ async def sincronizar(
     summary="Desconecta la empresa de RELIC (borra el registro local)",
 )
 async def desconectar(
-    empresa_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> None:
     obj = await _cargar_relic_or_404(db, empresa_id)
     await db.delete(obj)

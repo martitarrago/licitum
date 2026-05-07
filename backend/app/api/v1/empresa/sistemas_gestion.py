@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.models.sistema_gestion_empresa import SistemaGestionEmpresa
 from app.schemas.sistema_gestion_empresa import (
@@ -41,8 +42,11 @@ async def _get_or_404(db: AsyncSession, sg_id: UUID) -> SistemaGestionEmpresa:
 async def crear(
     data: SistemaGestionEmpresaCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> SistemaGestionEmpresa:
-    obj = SistemaGestionEmpresa(**data.model_dump())
+    payload = data.model_dump()
+    payload["empresa_id"] = empresa_id
+    obj = SistemaGestionEmpresa(**payload)
     db.add(obj)
     await db.commit()
     await db.refresh(obj)
@@ -56,8 +60,8 @@ async def crear(
 )
 async def listar(
     db: Annotated[AsyncSession, Depends(get_db)],
-    empresa_id: UUID,
     tipo: str | None = None,
+    empresa_id: UUID = Depends(get_current_empresa_id),
 ) -> list[SistemaGestionEmpresa]:
     stmt = (
         select(SistemaGestionEmpresa)

@@ -17,7 +17,7 @@ import {
   type ClasificacionUpdate,
 } from "@/lib/api/clasificaciones";
 import type { ClasificacionRelic } from "@/lib/api/relic";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import {
   CATALOGO_JCCPE,
   CATEGORIAS_ROLECE,
@@ -291,8 +291,6 @@ function EditRow({
 
 // ─── Tabla principal ──────────────────────────────────────────────────────────
 
-const QUERY_KEY = ["clasificaciones", EMPRESA_DEMO_ID] as const;
-
 export interface ClasificacionesTablaHandle {
   startNew: () => void;
 }
@@ -307,6 +305,8 @@ export const ClasificacionesTabla = forwardRef<
   { clasificaciones, relicClasificaciones = [] },
   ref,
 ) {
+  const empresaId = useEmpresaId();
+  const QUERY_KEY = ["clasificaciones", empresaId] as const;
   const qc = useQueryClient();
 
   const relicKeys = useMemo(() => {
@@ -371,7 +371,7 @@ export const ClasificacionesTabla = forwardRef<
 
     if (editingId === "new") {
       createMutation.mutate({
-        empresa_id: EMPRESA_DEMO_ID,
+        empresa_id: empresaId,
         grupo: form.grupo,
         subgrupo: form.subgrupo,
         categoria: form.categoria,

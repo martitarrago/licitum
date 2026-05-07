@@ -5,14 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import { HelpCircle, Plus, RefreshCcw } from "lucide-react";
 import { clasificacionesApi } from "@/lib/api/clasificaciones";
 import { relicApi, type ClasificacionRelic } from "@/lib/api/relic";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import {
   ClasificacionesTabla,
   type ClasificacionesTablaHandle,
 } from "@/components/empresa/ClasificacionesTabla";
-
-const QUERY_KEY_MANUAL = ["clasificaciones", EMPRESA_DEMO_ID] as const;
-const QUERY_KEY_RELIC = ["relic", EMPRESA_DEMO_ID] as const;
 
 function SkeletonRow() {
   return (
@@ -27,14 +24,17 @@ function SkeletonRow() {
 }
 
 export default function ClasificacionesPage() {
+  const empresaId = useEmpresaId();
+  const QUERY_KEY_MANUAL = ["clasificaciones", empresaId] as const;
+  const QUERY_KEY_RELIC = ["relic", empresaId] as const;
   const { data: clasificaciones, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: QUERY_KEY_MANUAL,
-    queryFn: () => clasificacionesApi.list({ empresa_id: EMPRESA_DEMO_ID }),
+    queryFn: () => clasificacionesApi.list({ empresa_id: empresaId }),
   });
 
   const { data: relic } = useQuery({
     queryKey: QUERY_KEY_RELIC,
-    queryFn: () => relicApi.get(EMPRESA_DEMO_ID),
+    queryFn: () => relicApi.get(empresaId),
     staleTime: 5 * 60 * 1000,
   });
 

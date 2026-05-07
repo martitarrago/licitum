@@ -8,7 +8,7 @@ import {
   TIPO_DOCUMENTO_OPTIONS,
   type TipoDocumento,
 } from "@/lib/api/documentos";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import { CustomSelect } from "@/components/ui/CustomSelect";
 import { DatePicker } from "@/components/ui/DatePicker";
 
@@ -16,12 +16,12 @@ interface Props {
   onClose: () => void;
 }
 
-const QUERY_KEYS = {
-  list: ["documentos", EMPRESA_DEMO_ID] as const,
-  resumen: ["documentos-resumen", EMPRESA_DEMO_ID] as const,
-};
-
 export function DocumentosUploadModal({ onClose }: Props) {
+  const empresaId = useEmpresaId();
+  const QUERY_KEYS = {
+    list: ["documentos", empresaId] as const,
+    resumen: ["documentos-resumen", empresaId] as const,
+  };
   const qc = useQueryClient();
   const [tipo, setTipo] = useState<TipoDocumento | "">("");
   const [titulo, setTitulo] = useState("");
@@ -43,10 +43,10 @@ export function DocumentosUploadModal({ onClose }: Props) {
         notas: notas.trim() || undefined,
       };
       if (pdf) {
-        return documentosApi.uploadConPdf(EMPRESA_DEMO_ID, payload, pdf);
+        return documentosApi.uploadConPdf(empresaId, payload, pdf);
       }
       return documentosApi.createManual({
-        empresa_id: EMPRESA_DEMO_ID,
+        empresa_id: empresaId,
         ...payload,
       });
     },

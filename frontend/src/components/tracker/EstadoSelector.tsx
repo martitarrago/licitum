@@ -11,7 +11,7 @@ import {
   type EstadoTracker,
   trackerApi,
 } from "@/lib/api/tracker";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 interface Props {
   expediente: string;
@@ -26,17 +26,18 @@ const TONO_CLASS: Record<EstadoTono, string> = {
 };
 
 export function EstadoSelector({ expediente }: Props) {
+  const empresaId = useEmpresaId();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
 
   const { data: estado, isLoading } = useQuery({
-    queryKey: ["tracker-estado", expediente, EMPRESA_DEMO_ID],
-    queryFn: () => trackerApi.getEstado(expediente, EMPRESA_DEMO_ID),
+    queryKey: ["tracker-estado", expediente, empresaId],
+    queryFn: () => trackerApi.getEstado(expediente, empresaId),
   });
 
   const invalidate = () => {
     qc.invalidateQueries({
-      queryKey: ["tracker-estado", expediente, EMPRESA_DEMO_ID],
+      queryKey: ["tracker-estado", expediente, empresaId],
     });
     qc.invalidateQueries({ queryKey: ["tracker-feed"] });
     qc.invalidateQueries({ queryKey: ["tracker-resumen"] });
@@ -45,7 +46,7 @@ export function EstadoSelector({ expediente }: Props) {
   const upsert = useMutation({
     mutationFn: (e: EstadoTracker) =>
       trackerApi.upsertEstado(expediente, {
-        empresa_id: EMPRESA_DEMO_ID,
+        empresa_id: empresaId,
         estado: e,
       }),
     onSuccess: () => {
@@ -55,7 +56,7 @@ export function EstadoSelector({ expediente }: Props) {
   });
 
   const remove = useMutation({
-    mutationFn: () => trackerApi.borrarEstado(expediente, EMPRESA_DEMO_ID),
+    mutationFn: () => trackerApi.borrarEstado(expediente, empresaId),
     onSuccess: () => {
       invalidate();
       setOpen(false);

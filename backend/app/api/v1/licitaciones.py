@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_empresa_id
 from app.db.session import get_db
 from app.models.licitacion import Licitacion
 from app.models.licitacion_analisis_ia import LicitacionAnalisisIA
@@ -46,7 +47,6 @@ ORDER_BY_VALIDOS = {
 }
 CPV_PREFIX_RE = re.compile(r"^[0-9-]{1,16}$")
 ZONA_HORARIA_ES = ZoneInfo("Europe/Madrid")
-EMPRESA_DEMO_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
 
 @router.get("", response_model=LicitacionListResponse)
@@ -86,10 +86,6 @@ async def list_licitaciones(
         "score_asc, fecha_limite_asc, fecha_limite_desc, "
         "importe_desc, importe_asc, publicacion_desc",
     ),
-    empresa_id: uuid.UUID | None = Query(
-        None,
-        description="Empresa para resolver el score. Si no se pasa, usa la demo.",
-    ),
     incluye_descartadas: bool = Query(
         False,
         description="Si false (default), las licitaciones descartadas por el "
@@ -119,6 +115,7 @@ async def list_licitaciones(
     ),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    empresa_id: uuid.UUID = Depends(get_current_empresa_id),
     db: AsyncSession = Depends(get_db),
 ) -> LicitacionListResponse:
     # ── Validación cruzada ───────────────────────────────────────────────
@@ -168,7 +165,6 @@ async def list_licitaciones(
     # los filtros (min_score, incluye_descartadas) actúan sobre la misma
     # tabla. Sin esto la primera pintada llega sin score y la card se ve
     # vacía hasta el siguiente render.
-    empresa_filtro = empresa_id or EMPRESA_DEMO_ID
     stmt = select(
         Licitacion,
         LicitacionScoreEmpresa.score.label("lse_score"),
@@ -180,14 +176,14 @@ async def list_licitaciones(
     ).outerjoin(
         LicitacionScoreEmpresa,
         (LicitacionScoreEmpresa.licitacion_id == Licitacion.id)
-        & (LicitacionScoreEmpresa.empresa_id == empresa_filtro),
+        & (LicitacionScoreEmpresa.empresa_id == empresa_id),
     ).outerjoin(
         LicitacionAnalisisIA,
         LicitacionAnalisisIA.licitacion_id == Licitacion.id,
     ).outerjoin(
         LicitacionFavoritaEmpresa,
         (LicitacionFavoritaEmpresa.licitacion_id == Licitacion.id)
-        & (LicitacionFavoritaEmpresa.empresa_id == empresa_filtro),
+        & (LicitacionFavoritaEmpresa.empresa_id == empresa_id),
     )
 
     # Solo licitaciones abiertas. Las cerradas pierden su fila en
@@ -369,13 +365,9 @@ async def list_licitaciones(
 @router.get("/{expediente:path}", response_model=LicitacionDetail)
 async def get_licitacion(
     expediente: str,
-    empresa_id: uuid.UUID | None = Query(
-        None,
-        description="Empresa para resolver el score. Si no se pasa, usa la demo.",
-    ),
+    empresa_id: uuid.UUID = Depends(get_current_empresa_id),
     db: AsyncSession = Depends(get_db),
 ) -> LicitacionDetail:
-    empresa_filtro = empresa_id or EMPRESA_DEMO_ID
     stmt = (
         select(
             Licitacion,
@@ -386,12 +378,12 @@ async def get_licitacion(
         .outerjoin(
             LicitacionScoreEmpresa,
             (LicitacionScoreEmpresa.licitacion_id == Licitacion.id)
-            & (LicitacionScoreEmpresa.empresa_id == empresa_filtro),
+            & (LicitacionScoreEmpresa.empresa_id == empresa_id),
         )
         .outerjoin(
             LicitacionFavoritaEmpresa,
             (LicitacionFavoritaEmpresa.licitacion_id == Licitacion.id)
-            & (LicitacionFavoritaEmpresa.empresa_id == empresa_filtro),
+            & (LicitacionFavoritaEmpresa.empresa_id == empresa_id),
         )
         .where(Licitacion.expediente == expediente)
     )

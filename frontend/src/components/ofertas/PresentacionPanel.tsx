@@ -11,7 +11,7 @@ import {
   Upload,
 } from "lucide-react";
 import { sobreAApi, type SobreAPresentacion } from "@/lib/api/sobre_a";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 interface Props {
   expediente: string;
@@ -26,46 +26,47 @@ interface Props {
  * La oferta pasa a estado `presentada`.
  */
 export function PresentacionPanel({ expediente }: Props) {
+  const empresaId = useEmpresaId();
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const presentado = useQuery({
-    queryKey: ["sobre-a-presentado", EMPRESA_DEMO_ID, expediente],
-    queryFn: () => sobreAApi.presentadoGet(expediente, EMPRESA_DEMO_ID),
+    queryKey: ["sobre-a-presentado", empresaId, expediente],
+    queryFn: () => sobreAApi.presentadoGet(expediente, empresaId),
   });
 
   const subir = useMutation({
     mutationFn: (file: File) =>
-      sobreAApi.presentadoSubir(expediente, EMPRESA_DEMO_ID, file),
+      sobreAApi.presentadoSubir(expediente, empresaId, file),
     onSuccess: () => {
       setError(null);
       qc.invalidateQueries({
-        queryKey: ["sobre-a-presentado", EMPRESA_DEMO_ID, expediente],
+        queryKey: ["sobre-a-presentado", empresaId, expediente],
       });
       qc.invalidateQueries({
-        queryKey: ["tracker-estado", expediente, EMPRESA_DEMO_ID],
+        queryKey: ["tracker-estado", expediente, empresaId],
       });
       qc.invalidateQueries({ queryKey: ["tracker-feed"] });
       qc.invalidateQueries({ queryKey: ["tracker-resumen"] });
-      qc.invalidateQueries({ queryKey: ["ofertas-list", EMPRESA_DEMO_ID] });
+      qc.invalidateQueries({ queryKey: ["ofertas-list", empresaId] });
     },
     onError: (e: Error) => setError(e.message),
   });
 
   const borrar = useMutation({
-    mutationFn: () => sobreAApi.presentadoBorrar(expediente, EMPRESA_DEMO_ID),
+    mutationFn: () => sobreAApi.presentadoBorrar(expediente, empresaId),
     onSuccess: () => {
       qc.invalidateQueries({
-        queryKey: ["sobre-a-presentado", EMPRESA_DEMO_ID, expediente],
+        queryKey: ["sobre-a-presentado", empresaId, expediente],
       });
       qc.invalidateQueries({
-        queryKey: ["tracker-estado", expediente, EMPRESA_DEMO_ID],
+        queryKey: ["tracker-estado", expediente, empresaId],
       });
       qc.invalidateQueries({ queryKey: ["tracker-feed"] });
       qc.invalidateQueries({ queryKey: ["tracker-resumen"] });
-      qc.invalidateQueries({ queryKey: ["ofertas-list", EMPRESA_DEMO_ID] });
+      qc.invalidateQueries({ queryKey: ["ofertas-list", empresaId] });
     },
   });
 
@@ -128,7 +129,7 @@ export function PresentacionPanel({ expediente }: Props) {
           </div>
           <div className="flex flex-wrap gap-2">
             <a
-              href={sobreAApi.presentadoPdfUrl(expediente, EMPRESA_DEMO_ID)}
+              href={sobreAApi.presentadoPdfUrl(expediente, empresaId)}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-secondary"

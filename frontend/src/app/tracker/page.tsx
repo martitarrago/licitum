@@ -9,7 +9,7 @@ import {
   type EstadoTracker,
   type TrackerFeedItem,
 } from "@/lib/api/tracker";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 // ─── Estructura: fases + relojes + cerradas ────────────────────────────────
 
@@ -109,9 +109,10 @@ function colorForEstado(estado: EstadoTracker): ColorKey {
 // ─── Página ────────────────────────────────────────────────────────────────
 
 export default function TrackerPage() {
+  const empresaId = useEmpresaId();
   const feed = useQuery({
-    queryKey: ["tracker-feed", EMPRESA_DEMO_ID],
-    queryFn: () => trackerApi.feed(EMPRESA_DEMO_ID),
+    queryKey: ["tracker-feed", empresaId],
+    queryFn: () => trackerApi.feed(empresaId),
   });
 
   const grouped = groupFeed(feed.data ?? []);

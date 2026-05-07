@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Heart, Loader2, Search, X } from "lucide-react";
 import { pliegosApi, type EstadoAnalisis, type PliegoListItem } from "@/lib/api/pliegos";
 import { FavoritoToggle } from "@/components/radar/FavoritoToggle";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 type SortKey = "fecha" | "compat";
 
@@ -72,13 +72,14 @@ function ordenarPliegos(items: PliegoListItem[], sort: SortKey): PliegoListItem[
 }
 
 export default function PliegosListPage() {
+  const empresaId = useEmpresaId();
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("fecha");
   const [soloFavoritos, setSoloFavoritos] = useState(false);
 
   const list = useQuery({
-    queryKey: ["pliegos-list", EMPRESA_DEMO_ID, soloFavoritos],
-    queryFn: () => pliegosApi.list(EMPRESA_DEMO_ID, soloFavoritos),
+    queryKey: ["pliegos-list", empresaId, soloFavoritos],
+    queryFn: () => pliegosApi.list(empresaId, soloFavoritos),
   });
 
   const filteredSorted = useMemo(() => {

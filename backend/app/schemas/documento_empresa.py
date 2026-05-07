@@ -31,9 +31,13 @@ DIAS_PRE_CADUCIDAD = 30
 
 
 class DocumentoEmpresaCreate(BaseModel):
-    """Body para crear un documento sin PDF (entrada manual)."""
+    """Body para crear un documento sin PDF (entrada manual).
 
-    empresa_id: uuid.UUID
+    `empresa_id` ya no es obligatorio — el backend lo deriva del JWT.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
     tipo: TipoDocumento
     titulo: str | None = Field(default=None, max_length=255)
     fecha_emision: date | None = None

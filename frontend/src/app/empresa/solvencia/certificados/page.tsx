@@ -7,7 +7,7 @@ import {
   certificadosApi,
   type CertificadoObraListItem,
 } from "@/lib/api/certificados";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import { CertificadoCard } from "@/components/empresa/CertificadoCard";
 import { UploadModal } from "@/components/empresa/UploadModal";
 
@@ -129,6 +129,7 @@ function RowSkeleton() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CertificadosPage() {
+  const empresaId = useEmpresaId();
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [orden, setOrden] = useState<Orden>("estado");
   const [ordenDir, setOrdenDir] = useState<"asc" | "desc">("desc");
@@ -171,7 +172,7 @@ export default function CertificadosPage() {
   const { data: certificados, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["certificados"],
     queryFn: () =>
-      certificadosApi.list({ empresa_id: EMPRESA_DEMO_ID }),
+      certificadosApi.list({ empresa_id: empresaId }),
     refetchInterval: (query) => {
       const data = query.state.data as CertificadoObraListItem[] | undefined;
       if (!data) return false;

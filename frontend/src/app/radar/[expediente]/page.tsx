@@ -24,7 +24,7 @@ import {
 } from "@/lib/api/licitaciones";
 import { AnalisisGanabilidad } from "@/components/radar/AnalisisGanabilidad";
 import { FavoritoToggle } from "@/components/radar/FavoritoToggle";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import { scoreTierOrNull } from "@/lib/scoreTier";
 
 const TIPO_CONTRATO_LABEL: Record<string, string> = {
@@ -110,10 +110,11 @@ export default function LicitacionDetailPage({
   params: { expediente: string };
 }) {
   const expediente = decodeURIComponent(params.expediente);
+  const empresaId = useEmpresaId();
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["licitacion", expediente, EMPRESA_DEMO_ID],
-    queryFn: () => licitacionesApi.get(expediente, EMPRESA_DEMO_ID),
+    queryKey: ["licitacion", expediente, empresaId],
+    queryFn: () => licitacionesApi.get(expediente, empresaId),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -155,6 +156,7 @@ export default function LicitacionDetailPage({
 }
 
 function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
+  const empresaId = useEmpresaId();
   const semaforo = (l.semaforo === "gris" ? "gris" : l.semaforo) as SemaforoType;
   const stripeClass = scoreTierOrNull(l.score)?.bg ?? stripeColor[semaforo];
   const dias = diasHasta(l.fecha_limite);
@@ -240,7 +242,7 @@ function Detail({ licitacion: l }: { licitacion: LicitacionDetail }) {
 
       {/* Análisis de ganabilidad — bloque hero del detalle */}
       <div className="mt-6">
-        <AnalisisGanabilidad licitacionId={l.id} empresaId={EMPRESA_DEMO_ID} />
+        <AnalisisGanabilidad licitacionId={l.id} empresaId={empresaId} />
       </div>
 
       {/* Datos clave en grid */}

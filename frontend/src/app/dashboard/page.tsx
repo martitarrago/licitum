@@ -22,7 +22,7 @@ import {
 import { empresaApi, type Empresa } from "@/lib/api/empresa";
 import { systemApi } from "@/lib/api/system";
 import { LicitacionRow } from "@/components/ui/LicitacionRow";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 // ─── Paleta "centros de mando" ──────────────────────────────────────────────
 // 5 acentos de color para los widgets del panel. Negro mantiene títulos,
@@ -89,28 +89,29 @@ const ACTIVE_STATES: EstadoTracker[] = [
 // ─── Página ─────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const empresaId = useEmpresaId();
   const now = new Date();
 
   const tracker = useQuery({
-    queryKey: ["dashboard-tracker-resumen"],
-    queryFn: () => trackerApi.resumen(EMPRESA_DEMO_ID, 7),
+    queryKey: ["dashboard-tracker-resumen", empresaId],
+    queryFn: () => trackerApi.resumen(empresaId, 7),
     staleTime: 60_000,
   });
 
   const saludDocs = useQuery({
-    queryKey: ["dashboard-salud-documental"],
-    queryFn: () => documentosApi.resumenSalud(EMPRESA_DEMO_ID),
+    queryKey: ["dashboard-salud-documental", empresaId],
+    queryFn: () => documentosApi.resumenSalud(empresaId),
     staleTime: 60_000,
   });
 
   const empresa = useQuery({
-    queryKey: ["dashboard-empresa"],
-    queryFn: () => empresaApi.get(EMPRESA_DEMO_ID),
+    queryKey: ["dashboard-empresa", empresaId],
+    queryFn: () => empresaApi.get(empresaId),
     staleTime: 60_000,
   });
 
   const matches = useQuery({
-    queryKey: ["dashboard-matches-azules"],
+    queryKey: ["dashboard-matches-azules", empresaId],
     queryFn: () =>
       licitacionesApi.list({
         min_score: 80,
@@ -121,9 +122,9 @@ export default function DashboardPage() {
   });
 
   const pipelineActivo = useQuery({
-    queryKey: ["dashboard-pipeline-activo"],
+    queryKey: ["dashboard-pipeline-activo", empresaId],
     queryFn: () =>
-      trackerApi.feed(EMPRESA_DEMO_ID, [
+      trackerApi.feed(empresaId, [
         "en_preparacion",
         "presentada",
         "en_subsanacion",
@@ -133,8 +134,8 @@ export default function DashboardPage() {
   });
 
   const syncStatus = useQuery({
-    queryKey: ["dashboard-sync-status", EMPRESA_DEMO_ID],
-    queryFn: () => systemApi.syncStatus(EMPRESA_DEMO_ID),
+    queryKey: ["dashboard-sync-status", empresaId],
+    queryFn: () => systemApi.syncStatus(empresaId),
     staleTime: 60_000,
     refetchInterval: 60_000,
   });

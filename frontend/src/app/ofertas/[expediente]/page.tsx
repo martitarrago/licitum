@@ -20,7 +20,7 @@ import { TecnicaPanel } from "@/components/ofertas/TecnicaPanel";
 import { licitacionesApi } from "@/lib/api/licitaciones";
 import { decidirTabs, ofertasApi, type OfertaTab } from "@/lib/api/ofertas";
 import { ESTADO_LABELS, type EstadoTracker, trackerApi } from "@/lib/api/tracker";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 type Tab = OfertaTab;
 
@@ -58,25 +58,26 @@ export default function OfertaWorkspacePage({
 }
 
 function Inner({ expediente }: { expediente: string }) {
+  const empresaId = useEmpresaId();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tabActiva = (searchParams.get("tab") as Tab | null) || null;
 
   const licitacion = useQuery({
-    queryKey: ["licitacion", expediente, EMPRESA_DEMO_ID],
-    queryFn: () => licitacionesApi.get(expediente, EMPRESA_DEMO_ID),
+    queryKey: ["licitacion", expediente, empresaId],
+    queryFn: () => licitacionesApi.get(expediente, empresaId),
     staleTime: 5 * 60 * 1000,
   });
 
   const estado = useQuery({
-    queryKey: ["tracker-estado", expediente, EMPRESA_DEMO_ID],
-    queryFn: () => trackerApi.getEstado(expediente, EMPRESA_DEMO_ID),
+    queryKey: ["tracker-estado", expediente, empresaId],
+    queryFn: () => trackerApi.getEstado(expediente, empresaId),
   });
 
   const todas = useQuery({
-    queryKey: ["ofertas-list", EMPRESA_DEMO_ID, false],
-    queryFn: () => ofertasApi.list(EMPRESA_DEMO_ID, false),
+    queryKey: ["ofertas-list", empresaId, false],
+    queryFn: () => ofertasApi.list(empresaId, false),
     staleTime: 30 * 1000,
   });
   const oferta = useMemo(

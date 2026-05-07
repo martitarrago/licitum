@@ -10,12 +10,10 @@ import {
   type EmpresaPatch,
   type TamanoPyme,
 } from "@/lib/api/empresa";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 import { CustomSelect } from "@/components/ui/CustomSelect";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { PROVINCIAS } from "@/lib/api/preferencias";
-
-const QUERY_KEY = ["empresa", EMPRESA_DEMO_ID] as const;
 
 const TAMANO_OPTIONS = (
   Object.entries(TAMANO_PYME_LABELS) as [TamanoPyme, string][]
@@ -210,10 +208,12 @@ function toPatch(form: FormState, original: Empresa): EmpresaPatch {
 }
 
 export default function PerfilPage() {
+  const empresaId = useEmpresaId();
+  const QUERY_KEY = ["empresa", empresaId] as const;
   const qc = useQueryClient();
   const { data: empresa, isLoading } = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => empresaApi.get(EMPRESA_DEMO_ID),
+    queryFn: () => empresaApi.get(empresaId),
   });
 
   const [form, setForm] = useState<FormState>(empty);
@@ -225,7 +225,7 @@ export default function PerfilPage() {
 
   const save = useMutation({
     mutationFn: (patch: EmpresaPatch) =>
-      empresaApi.patch(EMPRESA_DEMO_ID, patch),
+      empresaApi.patch(empresaId, patch),
     onSuccess: (updated) => {
       qc.setQueryData(QUERY_KEY, updated);
       setSavedTick((t) => t + 1);

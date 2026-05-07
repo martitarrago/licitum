@@ -28,7 +28,7 @@ import {
 } from "@/lib/api/pliegos";
 import { licitacionesApi } from "@/lib/api/licitaciones";
 import { PrepararSobreABoton } from "@/components/sobre-a/PrepararSobreABoton";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 const POLL_MS = 3000;
 
@@ -38,6 +38,7 @@ export default function PliegoPage({
   params: { expediente: string };
 }) {
   const expediente = decodeURIComponent(params.expediente);
+  const empresaId = useEmpresaId();
   const qc = useQueryClient();
 
   const licitacion = useQuery({
@@ -59,13 +60,13 @@ export default function PliegoPage({
   });
 
   const recomendacion = useQuery({
-    queryKey: ["pliego-recomendacion", expediente, EMPRESA_DEMO_ID],
-    queryFn: () => pliegosApi.recomendacion(expediente, EMPRESA_DEMO_ID),
+    queryKey: ["pliego-recomendacion", expediente, empresaId],
+    queryFn: () => pliegosApi.recomendacion(expediente, empresaId),
     enabled: analisis.data?.estado === "completado",
   });
 
   const autoAnalizar = useMutation({
-    mutationFn: () => pliegosApi.analizar(expediente, EMPRESA_DEMO_ID),
+    mutationFn: () => pliegosApi.analizar(expediente, empresaId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pliego", expediente] }),
   });
 
@@ -74,7 +75,7 @@ export default function PliegoPage({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pliego", expediente] });
       qc.invalidateQueries({
-        queryKey: ["pliego-recomendacion", expediente, EMPRESA_DEMO_ID],
+        queryKey: ["pliego-recomendacion", expediente, empresaId],
       });
     },
   });
@@ -84,7 +85,7 @@ export default function PliegoPage({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pliego", expediente] });
       qc.invalidateQueries({
-        queryKey: ["pliego-recomendacion", expediente, EMPRESA_DEMO_ID],
+        queryKey: ["pliego-recomendacion", expediente, empresaId],
       });
     },
   });

@@ -30,9 +30,13 @@ DEADLINE_AUTO_DIAS: dict[str, int] = {
 
 
 class EstadoUpdate(BaseModel):
-    """Body de PUT /tracker/{exp}/estado — upsert."""
+    """Body de PUT /tracker/{exp}/estado — upsert.
 
-    empresa_id: uuid.UUID
+    `empresa_id` ya no es obligatorio — el backend lo deriva del JWT.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
     estado: EstadoTracker
     deadline_actual: date | None = None
     nota: str | None = Field(default=None, max_length=2000)

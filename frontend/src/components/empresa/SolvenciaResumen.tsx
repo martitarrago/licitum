@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Info } from "lucide-react";
 import { certificadosApi } from "@/lib/api/certificados";
-import { EMPRESA_DEMO_ID } from "@/lib/constants";
+import { useEmpresaId } from "@/lib/auth";
 
 const eur = new Intl.NumberFormat("es-ES", {
   style: "currency",
@@ -34,9 +34,10 @@ function TileSkeleton() {
 }
 
 export function SolvenciaResumen() {
+  const empresaId = useEmpresaId();
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["resumen-solvencia"],
-    queryFn: () => certificadosApi.resumenSolvencia(EMPRESA_DEMO_ID),
+    queryKey: ["resumen-solvencia", empresaId],
+    queryFn: () => certificadosApi.resumenSolvencia(empresaId),
     staleTime: 0,
   });
 

@@ -104,13 +104,16 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function uploadXhr(
+async function uploadXhr(
   formData: FormData,
   onProgress: (pct: number) => void,
 ): Promise<CertificadoObraRead> {
+  const { getAccessToken } = await import("@/lib/auth");
+  const token = await getAccessToken();
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_BASE}/api/v1/empresa/certificados`);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
